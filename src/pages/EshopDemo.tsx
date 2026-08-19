@@ -171,7 +171,7 @@ export function EshopDemo() {
               </p>
             </div>
             <Link to="/katalog" className="btn-line">
-              Zobrazit všech {items.length} produktů →
+              Zobrazit celý katalog →
             </Link>
           </div>
         </Reveal>
