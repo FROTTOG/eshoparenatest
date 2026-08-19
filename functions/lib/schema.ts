@@ -587,10 +587,21 @@ async function runChunked(db: D1Database, stmts: D1PreparedStatement[], size = 2
 
 export async function ensureReady(env: Bindings) {
   const has = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").first();
-  if (!has) await env.DB.exec(SCHEMA_SQL);
+  if (!has) {
+    const stmts = SCHEMA_SQL.split(";")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    for (const stmt of stmts) {
+      try {
+        await env.DB.prepare(stmt).run();
+      } catch (err) {
+        console.error("Prepare stmt error:", err, "Stmt:", stmt);
+      }
+    }
+  }
   const seeded = await env.DB.prepare("SELECT value FROM settings WHERE key = 'seeded'").first<{ value: string }>();
   try {
-    await env.DB.exec("ALTER TABLE pickup_points ADD COLUMN external_id TEXT");
+    await env.DB.prepare("ALTER TABLE pickup_points ADD COLUMN external_id TEXT").run();
   } catch {
     /* už existuje */
   }
@@ -612,7 +623,7 @@ export async function ensureReady(env: Bindings) {
   ];
   for (const col of orderCols) {
     try {
-      await env.DB.exec(col);
+      await env.DB.prepare(col).run();
     } catch {
       /* sloupec už existuje */
     }

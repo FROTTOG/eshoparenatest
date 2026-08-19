@@ -12,11 +12,16 @@ export function DemoTopbar() {
       <div className="demo-topbar-in">
         <span className="demo-dot" aria-hidden />
         <span>
-          <b>ŽIVÁ UKÁZKA</b> — Prohlížíte si demo e-shopu <b>KAVKA</b>. Toto je ukázkový obchod s fiktivním zbožím. Stejný systém vám nasadíme s vaším logem a produkty.
+          <b>KAVKA — KOMPLETNÍ E-SHOPOVÉ ŘEŠENÍ</b> · Bleskový e-shop na Cloudflare bez provizí.
         </span>
-        <a href="#nabidka" className="demo-cta">
-          Chci vlastní e-shop →
-        </a>
+        <div style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+          <Link to="/ukazka" className="demo-cta">
+            🛍️ Ukázkový e-shop →
+          </Link>
+          <Link to="/admin" className="demo-cta" style={{ background: "rgba(255,255,255,0.15)" }}>
+            ⚙️ Demo Admin
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -63,22 +68,33 @@ export function Layout() {
         <div className="header-in">
           <Logo />
           <nav className={`nav ${open ? "open" : ""}`} onClick={() => setOpen(false)}>
-            <NavLink to="/katalog">Ukázkový katalog</NavLink>
+            <NavLink to="/" end>
+              Prezentace KAVKA
+            </NavLink>
+            <NavLink to="/ukazka" className="nav-demo-link">
+              Ukázkový E-shop <span className="nav-badge">DEMO</span>
+            </NavLink>
+            <NavLink to="/katalog">Katalog</NavLink>
             <NavLink to="/doprava-a-platba">Funkce</NavLink>
             <NavLink to="/o-nas">O platformě</NavLink>
             <NavLink to="/sledovani">Sledování</NavLink>
             <div className="saas-nav-cta desktop-only">
-              <a href="#nabidka" className="btn btn-sm" onClick={() => setOpen(false)}>
+              <a href="/#nabidka" className="btn btn-sm" onClick={() => setOpen(false)}>
                 Pronajmout KAVKA
               </a>
             </div>
             <div className="mobile-only" onClick={(e) => e.stopPropagation()}>
               <SearchBox variant="mobile" onDone={() => setOpen(false)} />
-              <a href="#nabidka" className="btn" style={{ width: "100%", marginTop: 14 }} onClick={() => setOpen(false)}>
-                Chci e-shop KAVKA →
-              </a>
+              <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
+                <Link to="/ukazka" className="btn" style={{ textAlign: "center" }} onClick={() => setOpen(false)}>
+                  🛍️ Ukázkový E-shop
+                </Link>
+                <Link to="/admin" className="btn-line" style={{ textAlign: "center" }} onClick={() => setOpen(false)}>
+                  ⚙️ Demo Administrace
+                </Link>
+              </div>
               <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8, textAlign: "center" }}>
-                Demo je zdarma k vyzkoušení. Objednávky jsou testovací.
+                Demo je 100% zdarma k vyzkoušení. Objednávky jsou testovací.
               </p>
             </div>
           </nav>
@@ -113,9 +129,9 @@ export function Layout() {
                 </span>
               )}
             </Link>
-            <Link to="#nabidka" className="btn btn-sm desktop-only" style={{ marginLeft: 4 }}>
-              Nezávazná poptávka
-            </Link>
+            <a href="/#nabidka" className="btn btn-sm desktop-only" style={{ marginLeft: 4 }}>
+              Ceník & Poptávka
+            </a>
             <button className={`icon-btn hamburger${open ? " is-open" : ""}`} onClick={() => setOpen((v) => !v)} aria-label="Menu" aria-expanded={open}>
               {open ? <IconClose /> : <IconMenu />}
             </button>
