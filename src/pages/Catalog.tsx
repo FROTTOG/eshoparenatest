@@ -36,11 +36,11 @@ export function Catalog() {
       </div>
       <div className="toolbar">
         <div>
-          <h1 className="serif" style={{ margin: 0, fontSize: 40 }}>
+          <h1 className="serif catalog-title">
             {cat ? cat.name : q ? `Hledání: ${q}` : "Celý obchod"}
           </h1>
           <p style={{ color: "var(--muted)", margin: "6px 0 0" }}>
-            {cat?.description || `${total} položek`}
+            {cat?.description || (total === 1 ? "1 věc" : `${total} věcí, které mají váhu v ruce`)}
           </p>
         </div>
         <select

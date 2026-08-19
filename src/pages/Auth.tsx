@@ -25,8 +25,8 @@ export function Login() {
 
   return (
     <div className="auth-wrap">
-      <h1>Přihlášení</h1>
-      <p style={{ color: "var(--muted)" }}>Zákazník i správce používají stejný formulář.</p>
+      <h1>Vítejte zpátky</h1>
+      <p style={{ color: "var(--muted)" }}>Stejný formulář pro zákazníka i správce ateliéru.</p>
       <form className="form" onSubmit={onSubmit}>
         <label>
           E-mail
@@ -73,7 +73,8 @@ export function Register() {
 
   return (
     <div className="auth-wrap">
-      <h1>Registrace</h1>
+      <h1>Založit účet</h1>
+      <p style={{ color: "var(--muted)" }}>Ať se vám nákup, adresy i hodnocení vracejí samy.</p>
       <form className="form" onSubmit={onSubmit}>
         <label>
           Jméno a příjmení

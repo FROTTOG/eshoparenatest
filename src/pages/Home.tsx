@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type Category, type Product } from "../api";
+import { IconArrow, IconGift, IconLeaf, IconLocker, IconParcel, IconPin, IconShield, IconSpark, IconWrap } from "../components/Icons";
 import { ProductCard } from "../components/ProductCard";
 import { Reveal } from "../components/Reveal";
 import { useStore } from "../store";
@@ -18,8 +19,10 @@ export function Home() {
   return (
     <>
       <section className="hero">
+        <div className="orb orb-a" />
+        <div className="orb orb-b" />
         <div className="wrap hero-copy">
-          <div className="kicker">{settings.store_name || "KAVKA"} · Česko</div>
+          <div className="kicker">{settings.store_name || "KAVKA"} · ateliér Praha</div>
           <h1>{settings.hero_title || "Domov, který dýchá pomalu"}</h1>
           <p className="lead">
             {settings.hero_text ||
@@ -27,16 +30,30 @@ export function Home() {
           </p>
           <div className="hero-actions">
             <Link className="btn" to="/katalog">
-              Do katalogu
+              Do katalogu <IconArrow size={16} />
             </Link>
             <Link className="btn-line" to="/doprava-a-platba">
-              Doprava a mapa
+              Doprava a mapy
             </Link>
+          </div>
+          <div className="hero-pills">
+            <span>
+              <IconLocker size={16} /> Z-BOX od 59 Kč
+            </span>
+            <span>
+              <IconPin size={16} /> živá mapa Packety
+            </span>
+            <span>
+              <IconParcel size={16} /> Balíkovna
+            </span>
           </div>
         </div>
         <div className="hero-visual">
-          <img src="/hero.jpg" alt="Zátiší KAVKA" />
-          <div className="hero-chip">Doprava Z-BOX od 59 Kč · nad 1 500 Kč zdarma</div>
+          <img src="/hero.jpg" alt="Zátiší KAVKA — keramika, len a dřevo" />
+          <div className="hero-chip glass-card">
+            <IconSpark size={16} />
+            <span>Nad 1 500 Kč posíláme výdejní místa zdarma</span>
+          </div>
         </div>
       </section>
 
@@ -44,8 +61,13 @@ export function Home() {
         <div className="wrap">
           <Reveal>
             <div className="section-head">
-              <h2>Místnosti domu</h2>
-              <Link to="/katalog">Celý obchod →</Link>
+              <div>
+                <div className="kicker">Pokoj po pokoji</div>
+                <h2>Místnosti domu</h2>
+              </div>
+              <Link className="text-link" to="/katalog">
+                Celý obchod <IconArrow size={16} />
+              </Link>
             </div>
           </Reveal>
           <div className="cats">
@@ -65,7 +87,10 @@ export function Home() {
         <div className="wrap">
           <Reveal>
             <div className="section-head">
-              <h2>Teď v ateliéru</h2>
+              <div>
+                <div className="kicker">Právě teď</div>
+                <h2>Teď v ateliéru</h2>
+              </div>
             </div>
           </Reveal>
           <div className="grid-products">
@@ -79,16 +104,32 @@ export function Home() {
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="wrap trust">
           {[
-            ["01", "Z-BOX i Balíkovna", "Na pokladně otevřete mapu Česka a kliknete na konkrétní box nebo pobočku."],
-            ["02", "Sklad do kusu", "Co vidíte, to máme. Objednávka rezervuje kusy, storno je vrací."],
-            ["03", "Kupóny", "Zkuste KAVKA10 nebo VITEJ150. Počítáme je až na serveru, ne v prohlížeči."],
-            ["04", "Jen Cloudflare", "Žádný cizí hosting. Pages, D1 databáze, R2 fotky. Váš účet, vaše data."],
-          ].map(([num, title, text], i) => (
-            <Reveal key={num} delay={i * 80} className="reveal-cell">
-              <article>
-                <div className="kicker" style={{ color: "var(--accent)" }}>{num}</div>
-                <h3>{title}</h3>
-                <p>{text}</p>
+            {
+              icon: <IconPin />,
+              title: "Živé mapy dopravců",
+              text: "Zásilkovnu otevírá oficiální widget Packety, Balíkovnu mapa České pošty. Vidíte aktuální místa, ne jen náš seznam.",
+            },
+            {
+              icon: <IconLeaf />,
+              title: "Skladem do kusu",
+              text: "Co vidíte, to máme na polici. Objednávka kus rezervuje, storno ho vrací. Žádné „do 21 dnů“.",
+            },
+            {
+              icon: <IconGift />,
+              title: "Kupóny z dílny",
+              text: "Zkuste KAVKA10 nebo VITEJ150. Slevu počítáme na serveru — v košíku se na ni můžete spolehnout.",
+            },
+            {
+              icon: <IconShield />,
+              title: "Váš účet, vaše data",
+              text: "Běžíme na Cloudflare. Žádný cizí marketplace, žádný pixel. Jen obchod, který vám neuteče z ruky.",
+            },
+          ].map((item, i) => (
+            <Reveal key={item.title} delay={i * 80} className="reveal-cell">
+              <article className="glass-card">
+                <IconWrap className="accent">{item.icon}</IconWrap>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
               </article>
             </Reveal>
           ))}

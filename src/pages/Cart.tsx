@@ -30,8 +30,8 @@ export function CartPage() {
   if (!cart.items.length) {
     return (
       <div className="wrap empty">
-        <h1 className="serif">Košík je prázdný</h1>
-        <p>Dejte si do něj něco s kresbou dřeva nebo glazurou.</p>
+        <h1 className="serif">Košík si odpočívá</h1>
+        <p>Dejte do něj něco s kresbou dřeva, lnem nebo glazurou.</p>
         <Link className="btn" to="/katalog">
           Do katalogu
         </Link>
@@ -114,6 +114,7 @@ export function CartPage() {
         <Link className="btn" to="/pokladna" style={{ display: "block", textAlign: "center" }}>
           K pokladně
         </Link>
+        <p className="muted-note">Zásilkovna i Balíkovna mají na pokladně živou mapu.</p>
       </aside>
     </div>
   );

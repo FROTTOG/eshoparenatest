@@ -134,6 +134,8 @@ export type PickupPoint = {
   lng: number;
   opening_hours: string;
   distance?: number;
+  external_id?: string;
+  source?: "local" | "packeta" | "balikovna";
 };
 
 export type Order = {

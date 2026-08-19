@@ -9,7 +9,7 @@ Hotový český e-shop. Běží **jen na Cloudflare**:
 | Fotky z administrace | **R2** (soubory) | nahrané obrázky produktů |
 | Přihlášení | cookie + D1 | žádný Auth0, žádný Firebase |
 
-Žádný Vercel, žádný Stripe, žádný cizí hosting, žádná živá API Zásilkovny. Mapu výdejních míst kreslíme sami a místa máte ve své databázi.
+Žádný Vercel, žádný Stripe, žádný cizí hosting. Výdejní místo na pokladně vybíráte v **oficiální mapě Packety (Zásilkovna / Z-BOX)** a **mapě České pošty (Balíkovna)**. Když se widget nenačte, zbývá záložní mapa z D1.
 
 ---
 
@@ -21,7 +21,7 @@ Hotový český e-shop. Běží **jen na Cloudflare**:
 - registrace / přihlášení, profil, uložené adresy
 - košík, kupóny (`KAVKA10`, `VITEJ150`, `LEN20`)
 - pokladna i jako host
-- doprava: **Z-BOX**, **Zásilkovna pobočka**, **Balíkovna** (výběr na mapě ČR + „najít nejbližší“), **na adresu**, **osobní odběr**
+- doprava: **Z-BOX** a **Zásilkovna** (živý widget Packety), **Balíkovna** (iframe mapa České pošty), **na adresu**, **osobní odběr**
 - platba: převod s **QR (SPD)**, dobírka, karta při převzetí, hotově v ateliéru
 - historie objednávek, sledování podle čísla + e-mailu
 - hodnocení koupeného zboží
@@ -293,7 +293,7 @@ V D1 Console (Cloudflare → D1 → databáze → Console) můžete psát SQL, n
 
 ## Licence a značky
 
-Názvy Zásilkovna, Z-BOX a Balíkovna označují způsob doručení, který zákazník zná. Loga dopravců nepoužíváme. Místa v seedu jsou ilustrační — před ostrým prodejem je upravte podle skutečných výdejních míst.
+Názvy Zásilkovna, Z-BOX, Packeta a Balíkovna označují služby dopravců. Widgety patří jim; pro ostrý provoz potřebujete vlastní smlouvu a API klíč Packety. Místa v seedu jsou záložní.
 
 ---
 

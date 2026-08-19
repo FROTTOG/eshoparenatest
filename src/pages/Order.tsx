@@ -141,8 +141,8 @@ export function Track() {
 
   return (
     <div className="auth-wrap">
-      <h1>Sledování objednávky</h1>
-      <p>Zadejte číslo z potvrzení a e-mail, který jste vyplnili u pokladny.</p>
+      <h1>Kde je balíček</h1>
+      <p>Číslo z potvrzení a e-mail, který jste vyplnili u pokladny. Nic jiného nepotřebujeme.</p>
       <form className="form" onSubmit={go}>
         <label>
           Číslo (KAV-…)

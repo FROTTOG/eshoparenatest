@@ -33,6 +33,7 @@ export function registerPublic(app: App) {
       "bank_account",
       "hero_title",
       "hero_text",
+      "packeta_api_key",
     ];
     const pub: Record<string, string> = {};
     for (const k of publicKeys) if (all[k] != null) pub[k] = all[k];
@@ -312,6 +313,19 @@ export function registerPublic(app: App) {
       city?: string;
       zip?: string;
       pickup_point_id?: number;
+      pickup?: {
+        external_id?: string;
+        name?: string;
+        address?: string;
+        city?: string;
+        zip?: string;
+        lat?: number;
+        lng?: number;
+        opening_hours?: string;
+        type?: string;
+        carrier?: string;
+        source?: string;
+      };
       note?: string;
     }>();
 
@@ -361,16 +375,7 @@ export function registerPublic(app: App) {
 
     if (shipping.kind.startsWith("pickup_")) {
       const wantType = shipping.kind === "pickup_zbox" ? "zbox" : shipping.kind === "pickup_balikovna" ? "balikovna" : "branch";
-      const point = await c.env.DB.prepare("SELECT * FROM pickup_points WHERE id = ? AND active = 1").bind(Number(body.pickup_point_id || 0)).first<{
-        id: number;
-        type: string;
-        name: string;
-        address: string;
-        city: string;
-        zip: string;
-        carrier: string;
-        opening_hours: string;
-      }>();
+      const point = await resolveCheckoutPickup(c.env.DB, wantType, body.pickup_point_id, body.pickup);
       if (!point) return c.json({ error: "Vyberte výdejní místo na mapě." }, 400);
       if (point.type !== wantType) return c.json({ error: "Toto místo neodpovídá vybrané dopravě." }, 400);
       pickupId = point.id;
@@ -630,6 +635,112 @@ export async function loadOrder(db: D1Database, id: number) {
     }
   }
   return { ...order, items, pickup };
+}
+
+type PickupRow = {
+  id: number;
+  type: string;
+  name: string;
+  address: string;
+  city: string;
+  zip: string;
+  carrier: string;
+  opening_hours: string;
+  lat?: number;
+  lng?: number;
+  external_id?: string;
+  source?: string;
+};
+
+async function resolveCheckoutPickup(
+  db: D1Database,
+  wantType: string,
+  pickupPointId?: number,
+  incoming?: {
+    external_id?: string;
+    name?: string;
+    address?: string;
+    city?: string;
+    zip?: string;
+    lat?: number;
+    lng?: number;
+    opening_hours?: string;
+    type?: string;
+    carrier?: string;
+    source?: string;
+  }
+): Promise<PickupRow | null> {
+  const localId = Number(pickupPointId || 0);
+  if (localId > 0) {
+    const row = await db.prepare("SELECT * FROM pickup_points WHERE id = ? AND active = 1").bind(localId).first<PickupRow>();
+    if (row) return row;
+  }
+
+  const name = (incoming?.name || "").trim();
+  const address = (incoming?.address || "").trim();
+  const city = (incoming?.city || "").trim();
+  const zip = (incoming?.zip || "").trim();
+  if (!name || (!address && !city && !zip)) return null;
+
+  const carrier = incoming?.carrier || (wantType === "balikovna" ? "balikovna" : "zasilkovna");
+  const type = incoming?.type || wantType;
+  const hours = incoming?.opening_hours || "";
+  const lat = Number(incoming?.lat || 0);
+  const lng = Number(incoming?.lng || 0);
+  const external = (incoming?.external_id || "").trim();
+
+  if (external) {
+    try {
+      const byExt = await db
+        .prepare("SELECT * FROM pickup_points WHERE external_id = ? AND type = ? LIMIT 1")
+        .bind(external, wantType)
+        .first<PickupRow>();
+      if (byExt) return { ...byExt, source: incoming?.source };
+    } catch {
+      /* sloupec external_id nemusí existovat na starší D1 */
+    }
+  }
+
+  const byName = await db
+    .prepare("SELECT * FROM pickup_points WHERE type = ? AND name = ? AND zip = ? LIMIT 1")
+    .bind(wantType, name, zip)
+    .first<PickupRow>();
+  if (byName) return { ...byName, source: incoming?.source };
+
+  const snapshot: PickupRow = {
+    id: 0,
+    type,
+    name,
+    address: address || city,
+    city,
+    zip,
+    carrier,
+    opening_hours: hours,
+    lat,
+    lng,
+    external_id: external,
+    source: incoming?.source,
+  };
+
+  try {
+    const res = await db
+      .prepare(
+        "INSERT INTO pickup_points (carrier, type, name, address, city, zip, lat, lng, opening_hours, active, external_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)"
+      )
+      .bind(carrier, type, name, snapshot.address, city, zip, lat, lng, hours, external)
+      .run();
+    snapshot.id = Number(res.meta.last_row_id);
+    return snapshot;
+  } catch {
+    const res = await db
+      .prepare(
+        "INSERT INTO pickup_points (carrier, type, name, address, city, zip, lat, lng, opening_hours, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
+      )
+      .bind(carrier, type, name, snapshot.address, city, zip, lat, lng, hours)
+      .run();
+    snapshot.id = Number(res.meta.last_row_id);
+    return snapshot;
+  }
 }
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {

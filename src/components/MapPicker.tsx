@@ -58,11 +58,13 @@ export function MapPicker({
   selected,
   onSelect,
   onClose,
+  banner,
 }: {
   type?: string;
   selected?: PickupPoint | null;
   onSelect: (p: PickupPoint) => void;
   onClose: () => void;
+  banner?: string;
 }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState(type || "");
@@ -109,11 +111,12 @@ export function MapPicker({
   const locked = Boolean(type);
 
   return (
-    <div className="map-modal" onClick={onClose} role="dialog" aria-label="Výběr výdejního místa">
+    <div className="map-modal glass-scrim" onClick={onClose} role="dialog" aria-label="Výběr výdejního místa">
       <div className="map-box" onClick={(e) => e.stopPropagation()}>
         <div className="map-side">
           <header>
             <h3>Výdejní místo</h3>
+            {banner && <p className="map-banner">{banner}</p>}
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
