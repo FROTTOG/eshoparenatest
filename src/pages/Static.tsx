@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
+import { IconLocker, IconParcel, IconPin, IconShop, IconTruck, IconWrap } from "../components/Icons";
 import { useStore } from "../store";
 
 function Box({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="wrap" style={{ maxWidth: 760, padding: "28px 20px 80px" }}>
+    <div className="wrap prose-page">
       <div className="crumbs">
         <Link to="/">Domů</Link> / {title}
       </div>
@@ -19,7 +20,7 @@ export function About() {
     <Box title="O nás">
       <p>
         {settings.store_name || "KAVKA"} je malý obchod s věcmi, které mají váhu v ruce. Keramika, len, dřevo, vůně lesa.
-        Nesnažíme se být marketplace. Sklad vedeme po kusech, fotky nahráváme do vlastního R2, data sedí v D1.
+        Nesnažíme se být marketplace. Sklad vedeme po kusech, fotky nahráváme do vlastního úložiště, data sedí u vás.
       </p>
       <p>
         Ateliér: {settings.store_address}
@@ -28,6 +29,7 @@ export function About() {
         <br />
         {settings.store_email} · {settings.store_phone}
       </p>
+      <p>Zastavte se na Vinohrady, nebo si nechte balíček poslat. Kavka doletí.</p>
     </Box>
   );
 }
@@ -35,30 +37,56 @@ export function About() {
 export function ShippingInfo() {
   return (
     <Box title="Doprava a platba">
+      <p>Na pokladně si vyberete způsob a u výdejen otevřete živou mapu dopravce — ne kreslenou náhradu.</p>
       <h3>Doprava</h3>
-      <ul>
+      <ul className="info-list">
         <li>
-          <b>Zásilkovna Z-BOX</b> — na pokladně otevřete mapu a vyberete konkrétní box. Nonstop výdej.
+          <IconWrap>
+            <IconLocker />
+          </IconWrap>
+          <span>
+            <b>Zásilkovna Z-BOX</b> — oficiální mapa Packety. Nonstop výdej, od 59 Kč, nad 1 500 Kč zdarma.
+          </span>
         </li>
         <li>
-          <b>Zásilkovna výdejní místo</b> — pobočka, opět výběr na mapě.
+          <IconWrap>
+            <IconPin />
+          </IconWrap>
+          <span>
+            <b>Zásilkovna výdejní místo</b> — pobočka z widgetu Packety. Aktuální otevírací doba přímo od dopravce.
+          </span>
         </li>
         <li>
-          <b>Balíkovna</b> — pošta, trafika, box. Místa spravujeme v administraci (nevoláme živé API dopravce — vše běží u vás na Cloudflare).
+          <IconWrap>
+            <IconParcel />
+          </IconWrap>
+          <span>
+            <b>Balíkovna</b> — živá mapa České pošty (pošta, trafika, box). Kliknete „Vyzvednout zde“ a místo se uloží k objednávce.
+          </span>
         </li>
         <li>
-          <b>Na adresu</b> — kurýr ke dveřím.
+          <IconWrap>
+            <IconTruck />
+          </IconWrap>
+          <span>
+            <b>Na adresu</b> — kurýr ke dveřím. Vyplníte ulici, město a PSČ.
+          </span>
         </li>
         <li>
-          <b>Osobní odběr</b> — Vinohrady, ateliér.
+          <IconWrap>
+            <IconShop />
+          </IconWrap>
+          <span>
+            <b>Osobní odběr</b> — ateliér na Vinohradech, zítra od desíti.
+          </span>
         </li>
       </ul>
       <h3>Platba</h3>
       <ul>
-        <li>Bankovní převod s QR (SPD) — bez Stripe, bez PayPalu, jen váš účet.</li>
+        <li>Bankovní převod s QR (SPD) — po odeslání objednávky, bez cizí brány.</li>
         <li>Dobírka (ne u Z-BOXu).</li>
         <li>Kartou při převzetí.</li>
-        <li>Hotově při osobním odběru.</li>
+        <li>Hotově v ateliéru.</li>
       </ul>
     </Box>
   );
@@ -72,7 +100,7 @@ export function Terms() {
         vzniká kupní smlouva. Zboží zůstává v našem vlastnictví do zaplacení. Spotřebitel má právo odstoupit do 14 dnů od
         převzetí, pokud nejde o zboží vyrobené na zakázku.
       </p>
-      <p>Reklamace řešíme podle občanského zákoníku. Napište na e-mail uvedený v patičce a přiložte číslo objednávky.</p>
+      <p>Reklamace řešíme podle občanského zákoníku. Napište na e-mail v patičce a přiložte číslo objednávky.</p>
     </Box>
   );
 }
@@ -82,8 +110,11 @@ export function Privacy() {
     <Box title="Ochrana údajů">
       <p>
         Zpracováváme jméno, e-mail, telefon, adresu a historii objednávek proto, abychom objednávku splnili. Data leží v
-        Cloudflare D1 ve vašem účtu. Hesla ukládáme jen jako PBKDF2 otisk. Relace je v HTTP-only cookie. Fotky produktů
-        mohou být v R2.
+        Cloudflare D1 ve vašem účtu. Hesla ukládáme jen jako PBKDF2 otisk. Relace je v HTTP-only cookie.
+      </p>
+      <p>
+        Při výběru výdejního místa se načte oficiální mapa Packety nebo České pošty. Tyto služby běží na jejich serverech
+        a mohou zpracovat polohu, pokud ji v mapě povolíte.
       </p>
       <p>Žádné Google Analytics, žádný Facebook pixel, žádný cizí platební skript.</p>
     </Box>

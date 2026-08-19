@@ -83,7 +83,7 @@ export function ProductPage() {
               disabled={p.stock <= 0}
               onClick={() => void addToCart(p.id, qty).catch((e) => toast(e.message, "err"))}
             >
-              Do košíku
+              Vložit do košíku
             </button>
           </div>
           <p style={{ color: "var(--muted)", fontSize: 13 }}>Hmotnost {p.weight} g · skladem {p.stock} ks</p>

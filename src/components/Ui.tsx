@@ -3,13 +3,16 @@ import { czk } from "../format";
 
 export function Logo() {
   return (
-    <Link to="/" className="logo" aria-label="KAVKA">
+    <Link to="/" className="logo" aria-label="KAVKA — domů">
       <svg viewBox="0 0 64 64" aria-hidden="true">
-        <rect width="64" height="64" rx="10" fill="#1c1915" />
+        <rect width="64" height="64" rx="14" fill="#1c1915" />
         <path d="M14 42c8-2 12-11 14-20 1 7 4 14 12 18 3-8 8-14 16-16-6 8-8 16-7 24H18c-1-8-2-14-4-6z" fill="#f4efe6" />
         <circle cx="40" cy="22" r="2.2" fill="#b54a2c" />
       </svg>
-      KAVKA
+      <span>
+        KAVKA
+        <small>ateliér</small>
+      </span>
     </Link>
   );
 }

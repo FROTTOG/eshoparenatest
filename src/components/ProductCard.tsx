@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import type { Product } from "../api";
 import { useStore } from "../store";
+import { IconCart } from "./Icons";
 import { Reveal } from "./Reveal";
 import { Price, Stars, Stock } from "./Ui";
 
 export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
-  const { addToCart } = useStore();
+  const { addToCart, toast } = useStore();
   return (
     <Reveal delay={(index % 4) * 70} className="reveal-cell">
       <article className="pcard">
@@ -25,9 +26,9 @@ export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
             className="btn-line"
             style={{ marginTop: "auto" }}
             disabled={p.stock <= 0}
-            onClick={() => void addToCart(p.id).catch((e) => alert(e.message))}
+            onClick={() => void addToCart(p.id).catch((e) => toast(e.message, "err"))}
           >
-            Do košíku
+            <IconCart size={16} /> Do košíku
           </button>
         </div>
       </article>

@@ -526,7 +526,10 @@ function Points() {
   return (
     <>
       <h1>Výdejní místa</h1>
-      <p>Mapa na pokladně čte právě tento seznam. Žádné živé API Zásilkovny — vše je vaše D1.</p>
+      <p>
+        Záložní mapa a ručně přidaná místa. Na pokladně se nejdřív otevře živá mapa Packety / Balíkovny; vybrané místo se
+        sem uloží samo.
+      </p>
       <form className="admin-form" onSubmit={(e) => { e.preventDefault(); void api("/admin/pickup-points", { method: "POST", body: JSON.stringify(form) }).then(() => { setForm(empty); load(); }); }}>
         <label>Název<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label>
         <label>Typ

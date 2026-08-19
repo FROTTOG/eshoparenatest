@@ -212,6 +212,7 @@ const SETTINGS: Record<string, string> = {
   hero_title: "Domov, který dýchá pomalu",
   hero_text:
     "Keramika z ateliéru, len z dílny, dřevo s kresbou. Posíláme po celé ČR — Z-BOX, Zásilkovna, Balíkovna i na adresu.",
+  packeta_api_key: "197fd6840f332ccf",
 };
 
 type ProductSeed = {
@@ -414,9 +415,9 @@ async function seed(env: Bindings) {
   }
 
   const shipping = [
-    ["zasilkovna_zbox", "Zásilkovna Z-BOX", "Výdej z boxu kdykoli. Na mapě vyberete konkrétní Z-BOX.", 59, 1500, "pickup_zbox", 1, "1–2 pracovní dny"],
-    ["zasilkovna", "Zásilkovna — výdejní místo", "Pobočka Zásilkovny. Výběr na mapě.", 79, 1500, "pickup_zasilkovna", 2, "1–2 pracovní dny"],
-    ["balikovna", "Balíkovna", "Výdej na poště, v trafice nebo boxu Balíkovny.", 65, 1500, "pickup_balikovna", 3, "2–3 pracovní dny"],
+    ["zasilkovna_zbox", "Zásilkovna Z-BOX", "Výdej z boxu kdykoli. Otevře se živá mapa Packety.", 59, 1500, "pickup_zbox", 1, "1–2 pracovní dny"],
+    ["zasilkovna", "Zásilkovna — výdejní místo", "Pobočka Zásilkovny. Výběr v oficiální mapě Packety.", 79, 1500, "pickup_zasilkovna", 2, "1–2 pracovní dny"],
+    ["balikovna", "Balíkovna", "Pošta, trafika nebo box. Živá mapa České pošty.", 65, 1500, "pickup_balikovna", 3, "2–3 pracovní dny"],
     ["address", "Na adresu", "Kurýr až ke dveřím. Vyplníte ulici, město a PSČ.", 99, 2000, "address", 4, "1–3 pracovní dny"],
     ["store", "Osobní odběr Praha", "Vyzvednutí v našem ateliéru na Vinohradech.", 0, null, "store", 5, "zítra od 10:00"],
   ] as const;
@@ -569,6 +570,12 @@ export async function ensureReady(env: Bindings) {
   const has = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").first();
   if (!has) await env.DB.exec(SCHEMA_SQL);
   const seeded = await env.DB.prepare("SELECT value FROM settings WHERE key = 'seeded'").first<{ value: string }>();
+  try {
+    await env.DB.exec("ALTER TABLE pickup_points ADD COLUMN external_id TEXT");
+  } catch {
+    /* už existuje */
+  }
+  await env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('packeta_api_key', '197fd6840f332ccf')").run();
   if (seeded?.value === "1") return;
   const n = await env.DB.prepare("SELECT COUNT(*) AS c FROM products").first<{ c: number }>();
   if ((n?.c || 0) > 0) {
