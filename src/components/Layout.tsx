@@ -1,5 +1,5 @@
-import { FormEvent, useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useStore } from "../store";
 import { Logo } from "./Ui";
 
@@ -7,7 +7,21 @@ export function Layout() {
   const { user, cart, settings, toasts } = useStore();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [scrolled, setScrolled] = useState(false);
   const nav = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Po přechodu na jinou stránku vždy začni nahoře.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+  }, [location.pathname]);
 
   function search(e: FormEvent) {
     e.preventDefault();
@@ -17,7 +31,7 @@ export function Layout() {
 
   return (
     <div className="page">
-      <header className="header">
+      <header className={`header${scrolled ? " scrolled" : ""}`}>
         <div className="header-in">
           <Logo />
           <nav className={`nav ${open ? "open" : ""}`} onClick={() => setOpen(false)}>
@@ -49,7 +63,11 @@ export function Layout() {
                 <circle cx="9" cy="16.5" r="1" fill="currentColor" />
                 <circle cx="15" cy="16.5" r="1" fill="currentColor" />
               </svg>
-              {(cart?.count || 0) > 0 && <span className="badge">{cart?.count}</span>}
+              {(cart?.count || 0) > 0 && (
+                <span className="badge" key={cart?.count}>
+                  {cart?.count}
+                </span>
+              )}
             </Link>
             <button className="icon-btn hamburger" onClick={() => setOpen((v) => !v)} aria-label="Menu">
               ☰
@@ -57,7 +75,7 @@ export function Layout() {
           </div>
         </div>
       </header>
-      <main>
+      <main key={location.pathname} className="page-fade">
         <Outlet />
       </main>
       <footer className="footer">
