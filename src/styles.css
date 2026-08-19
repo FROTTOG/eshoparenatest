@@ -18,19 +18,34 @@
   --serif: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif;
   --sans: "Outfit", "Segoe UI", system-ui, -apple-system, sans-serif;
   --header: 76px;
+  --header-h: 76px;
   --glass: color-mix(in srgb, var(--card) 72%, transparent);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Kotvy (#nabidka…) nesmí skončit pod sticky hlavičkou */
+  scroll-padding-top: calc(var(--header) + 16px);
+  /* Na mobilu žádné posouvání stranou — obsah se vždy vejde */
+  overflow-x: hidden;
+  overflow-x: clip;
+}
 body {
   font-family: var(--sans);
   background: var(--bg);
   color: var(--ink);
   min-height: 100vh;
   line-height: 1.55;
+  overflow-x: hidden;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
+/* Dlouhé řetězce (IBAN, e-maily, kódy) nesmí roztahovat stránku */
+p, li, h1, h2, h3, h4, small, span, b, td, th { overflow-wrap: break-word; }
+code, pre { overflow-wrap: anywhere; word-break: break-word; }
 body::before {
   content: "";
   pointer-events: none;
@@ -43,9 +58,12 @@ body::before {
 #root { min-height: 100vh; }
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
+svg { max-width: 100%; }
 button, input, select, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; touch-action: manipulation; }
 h1, h2, h3, .serif { font-family: var(--serif); font-weight: 500; letter-spacing: -0.02em; }
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
 
 .page { min-height: 100vh; display: flex; flex-direction: column; }
 .page main { flex: 1; }
@@ -573,30 +591,63 @@ th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: 
 }
 
 @media (max-width: 980px) {
-  .hero, .product, .two, .map-box, .account-grid, .admin, .footer-grid, .cats, .grid-products, .trust, .stats, .admin-form {
+  :root { --header: 64px; }
+  .hero, .product, .two, .map-box, .account-grid, .admin, .footer-grid, .cats, .grid-products, .trust, .admin-form {
     grid-template-columns: 1fr;
   }
+  .stats { grid-template-columns: repeat(2, 1fr); }
   .wrap { width: min(1180px, calc(100% - 28px)); }
+
+  /* ---- Mobilní navigace (hamburger) ---- */
   .nav { display: none; }
+  .hamburger { display: grid; width: 44px; height: 44px; }
   .nav.open {
     display: flex; flex-direction: column;
-    position: fixed; top: var(--header); left: 0; right: 0; bottom: 0;
-    background: color-mix(in srgb, var(--bg) 82%, transparent);
-    backdrop-filter: blur(22px) saturate(1.2);
-    -webkit-backdrop-filter: blur(22px) saturate(1.2);
-    padding: 22px 22px 32px;
-    border-bottom: 1px solid var(--line);
+    position: fixed;
+    top: var(--header-h, var(--header));
+    left: 0; right: 0; bottom: 0;
+    background: color-mix(in srgb, var(--bg) 94%, transparent);
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    padding: 18px 22px calc(28px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
     z-index: 39;
+    gap: 2px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    animation: navIn 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .nav.open a {
+    font-size: 19px;
+    letter-spacing: 0.04em;
+    padding: 12px 4px;
+    font-family: var(--serif);
+    text-transform: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+    min-height: 48px;
+    display: flex;
+    align-items: center;
     gap: 8px;
   }
-  .nav.open a { font-size: 22px; letter-spacing: 0.08em; padding: 10px 0; font-family: var(--serif); text-transform: none; }
-  .hamburger { display: grid; }
+  .nav.open a::after { display: none; }
+  .nav-badge { font-size: 9px; padding: 3px 6px; }
+  .nav.open .mobile-only {
+    order: -1;
+    flex-direction: column;
+    width: 100%;
+    margin: 0 0 16px;
+    display: flex !important;
+    gap: 12px;
+  }
+  .nav.open .search-form { width: 100%; padding: 12px 14px; background: var(--card); }
+  .nav.open .search-form input { width: 100%; font-size: 16px; }
+  .nav-note { font-size: 12px; color: var(--muted); margin: 10px 0 0; text-align: center; line-height: 1.5; }
+
   .hero-copy { padding: 36px 0 28px; }
+  .header { height: var(--header); min-height: 0; padding: 0; }
   .header-in { grid-template-columns: auto 1fr auto; gap: 10px; }
   .desktop-only { display: none !important; }
   .mobile-only { display: flex !important; }
-  .nav.open .mobile-only { margin-top: 18px; width: 100%; }
-  .nav.open .search-form input { width: 100%; }
   .grid-products { grid-template-columns: repeat(2, 1fr); }
   .cats { grid-template-columns: repeat(2, 1fr); }
   .map-box { height: min(94vh, 900px); grid-template-rows: auto 1fr; }
@@ -609,6 +660,30 @@ th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: 
   .summary { position: static; }
   .checkout-bar { display: flex; }
   .checkout-submit { display: none; }
+  .two { gap: 20px; }
+
+  /* Delší tap cíle na mobilu */
+  .icon-btn { width: 42px; height: 42px; }
+  .btn, .btn-dark, .btn-line, .ghost { min-height: 44px; }
+  .btn-sm { min-height: 38px; }
+
+  /* Lupička pro vyhledávání viditelná na všech mobilních/tabletových šířkách */
+  .mobile-search { display: grid; }
+}
+
+/* Velmi úzké displeje (iPhone SE a menší) — vše se musí vejít */
+@media (max-width: 400px) {
+  .logo { font-size: 19px; gap: 8px; }
+  .logo svg { width: 24px; height: 24px; }
+  .logo small { font-size: 8px; letter-spacing: 0.2em; }
+  .header-actions { gap: 2px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .map-legend { flex-wrap: wrap; max-width: calc(100% - 24px); }
+}
+
+@keyframes navIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ============================================================
@@ -1480,56 +1555,16 @@ select:focus-visible, textarea:focus-visible {
 }
 
 /* ============================================================
-   KAVKA SaaS — demo topbar, hero showcase, pricing
+   KAVKA SaaS — hero showcase, pricing
    ============================================================ */
 
-.demo-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 45;
-  background: var(--ink);
-  color: #fff;
-  font-size: 13px;
-  border-bottom: 1px solid #2a2724;
-}
-.demo-topbar-in {
-  width: min(1180px, calc(100% - 40px));
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  flex-wrap: wrap;
-}
-.demo-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 0 6px rgba(34,197,94,0.18);
-  flex-shrink: 0;
-  animation: pulseDot 2s ease-in-out infinite;
-}
 @keyframes pulseDot {
   0%,100% { box-shadow: 0 0 0 6px rgba(34,197,94,0.18); }
   50% { box-shadow: 0 0 0 9px rgba(34,197,94,0.08); }
 }
-.demo-topbar b { letter-spacing: 0.06em; }
-.demo-cta {
-  margin-left: auto;
-  background: var(--accent);
-  color: #fff !important;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.demo-cta:hover { background: var(--accent-dark); }
 
 .hero-saas {
-  min-height: calc(100vh - var(--header) - 36px);
+  min-height: calc(100vh - var(--header));
 }
 .hero-saas .hero-copy {
   padding-top: 42px;
@@ -1712,6 +1747,90 @@ select:focus-visible, textarea:focus-visible {
 .saas-stats b { font-family: var(--serif); font-size: 24px; color: var(--gold); }
 .saas-stats span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #9aa396; }
 
+/* ---- Hero vizuál — karta s náhledem e-shopu („okno prohlížeče") ---- */
+.hero-saas .hero-visual {
+  display: flex;
+  align-items: center;
+  padding: 48px 0;
+}
+.hero-card-preview {
+  position: relative;
+  width: 100%;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+.hero-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-deep) 45%, var(--card));
+}
+.window-dots { display: flex; gap: 6px; flex-shrink: 0; }
+.window-dots .dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot.red { background: #e0654f; }
+.dot.yellow { background: #e2b64e; }
+.dot.green { background: #7db87a; }
+.window-title {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-card-img {
+  width: 100%;
+  height: 100%;
+  min-height: 340px;
+  flex: 1;
+  object-fit: cover;
+  display: block;
+}
+.hero-card-overlay {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 56px 18px 18px;
+  background: linear-gradient(180deg, rgba(28,25,21,0) 0%, rgba(28,25,21,0.62) 78%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.preview-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+}
+.preview-chip b { display: block; font-size: 14px; line-height: 1.3; }
+.preview-chip span { font-size: 12px; color: var(--muted); line-height: 1.35; display: block; }
+
+/* ---- Feature karty (Proč KAVKA) ---- */
+.feature-box { min-width: 0; }
+.feature-icon {
+  width: 46px; height: 46px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  color: var(--accent);
+}
+.feature-box h3 { margin: 6px 0 0; font-size: 19px; }
+.feature-box p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+/* Grid potomci nesmí roztahovat stránku (taby, split karty…) */
+.tab-content, .tab-pane, .tab-pane-text, .tab-pane-img,
+.demo-split-text, .demo-guide-header, .mock-map-header, .mock-map-body { min-width: 0; }
+.demo-guide-header h2 { margin: 6px 0 0; }
+.mock-map-header { font-weight: 700; font-size: 14px; margin: 0 0 6px; }
+.mock-map-body { display: grid; gap: 8px; }
+
 /* Tech block */
 .saas-tech {
   display: grid;
@@ -1867,6 +1986,7 @@ select:focus-visible, textarea:focus-visible {
   .saas-stats { grid-template-columns: repeat(2, 1fr); }
   .hero-saas { grid-template-columns: 1fr; min-height: auto; }
   .hero-saas .hero-copy { padding-right: 0; padding-bottom: 24px; }
+  .hero-saas .hero-visual { padding: 0 0 48px; }
   .hero-demo-label { top: auto; bottom: 72px; right: 12px; }
   .demo-notice { flex-wrap: wrap; }
   .demo-notice .btn-line { width: 100%; justify-content: center; }
@@ -1874,14 +1994,20 @@ select:focus-visible, textarea:focus-visible {
   .proof-logos { justify-content: center; gap: 12px; }
   .price-card.featured { transform: none; }
   .saas-nav-cta { display: none !important; }
-  .demo-topbar-in { font-size: 12px; }
-  .demo-topbar b { letter-spacing: 0.04em; }
 }
 @media (max-width: 640px) {
-  .demo-topbar-in { width: min(1180px, calc(100% - 20px)); }
   .saas-badge { font-size: 9px; }
   .cta-final h2 { font-size: 26px; }
   .demo-try { flex-direction: column; align-items: flex-start; }
+  .hero-card-img { min-height: 240px; }
+  .demo-hero-inner { padding: 18px; border-radius: 22px; }
+  .demo-hero-img { height: 210px; }
+  .demo-hero-badge { padding: 10px 12px; gap: 10px; left: 12px; right: 12px; bottom: 12px; }
+  .demo-notice-card { padding: 14px 16px; }
+  .demo-split-box { padding: 18px; }
+  .toasts { left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .toast { min-width: 0; }
+  .cta-final { padding: 20px; }
 }
 
 /* ENLARGED LOGO & LANDING SHOWCASE */
@@ -2423,12 +2549,21 @@ select:focus-visible, textarea:focus-visible {
 
 @media (max-width: 640px) {
   .enlarged-logo-wrap {
-    flex-direction: flex-start;
-    align-items: flex-start;
-    gap: 10px;
+    padding: 10px 16px;
+    gap: 12px;
+    border-radius: 20px;
+    max-width: 100%;
+  }
+  .enlarged-logo-icon {
+    width: 44px;
+    height: 44px;
+  }
+  .brand-subtitle {
+    font-size: 9px;
+    letter-spacing: 0.22em;
   }
   .brand-title {
-    font-size: 26px;
+    font-size: 24px;
   }
   .hero-actions {
     flex-direction: column;
@@ -2461,11 +2596,15 @@ select:focus-visible, textarea:focus-visible {
    Oprava hlavičky — texty nesmí "vykukovat" z tlačítek
    ============================================================ */
 
-/* Hlavička smí povyrůst, když se obsah nevejde na jeden řádek. */
+/* Hlavička smí povyrůst, když se obsah nevejde na jeden řádek (desktop). */
 .header {
   height: auto;
   min-height: var(--header);
   padding: 6px 0;
+}
+@media (max-width: 980px) {
+  /* Na mobilu má hlavička přesnou výšku — menu k ní navazovalo a hamburger zůstává dosažitelný */
+  .header { height: var(--header); min-height: 0; padding: 0; }
 }
 .header-in { min-width: 0; }
 .logo { min-width: 0; flex-shrink: 0; }
@@ -2474,7 +2613,7 @@ select:focus-visible, textarea:focus-visible {
 .header-actions { flex-shrink: 0; min-width: 0; }
 
 /* Text uvnitř tlačítka se nesmí přetéct přes jeho okraj. */
-.btn, .btn-dark, .btn-line, .ghost, .chip, .demo-cta, .tab-btn {
+.btn, .btn-dark, .btn-line, .ghost, .chip, .tab-btn {
   line-height: 1.2;
   text-align: center;
   overflow-wrap: anywhere;
@@ -2483,8 +2622,7 @@ select:focus-visible, textarea:focus-visible {
 .header .btn,
 .header .btn-line,
 .header .btn-dark,
-.saas-nav-cta .btn,
-.demo-cta {
+.saas-nav-cta .btn {
   white-space: nowrap;
   min-height: 36px;
   padding-top: 9px;
@@ -2505,12 +2643,7 @@ select:focus-visible, textarea:focus-visible {
   .header-actions > .btn.btn-sm { display: none; }
 }
 
-/* Demo lišta nad hlavičkou — ať se text nikdy nepřekrývá s tlačítky. */
-.demo-topbar-in { row-gap: 6px; }
-@media (max-width: 720px) {
-  .demo-topbar-in { flex-direction: column; align-items: flex-start; }
-  .demo-cta { margin-left: 0; }
-}
+/* Demo lišta nad hlavičkou byla odebrána — hlavička je vždy plně dosažitelná. */
 
 /* ============================================================
    Exporty do účetnictví (administrace)

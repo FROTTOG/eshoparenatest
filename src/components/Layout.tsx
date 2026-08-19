@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useStore } from "../store";
 import { IconAdmin, IconCart, IconClose, IconCookie, IconHeart, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
@@ -7,33 +7,38 @@ import { SearchBox } from "./SearchBox";
 import { Logo } from "./Ui";
 import { vendorContact } from "../vendor";
 
-export function DemoTopbar() {
-  return (
-    <div className="demo-topbar">
-      <div className="demo-topbar-in">
-        <span className="demo-dot" aria-hidden />
-        <span>
-          <b>KAVKA — KOMPLETNÍ E-SHOPOVÉ ŘEŠENÍ</b> · Bleskový e-shop na Cloudflare bez provizí.
-        </span>
-        <div style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
-          <Link to="/ukazka" className="demo-cta">
-            🛍️ Ukázkový e-shop →
-          </Link>
-          <Link to="/admin" className="demo-cta" style={{ background: "rgba(255,255,255,0.15)" }}>
-            ⚙️ Demo Admin
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function Layout() {
   const { user, cart, settings, toasts, wishlist } = useStore();
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const headerRef = useRef<HTMLElement>(null);
+
+  // Skutečná výška hlavičky — mobilní menu k ní přesně navazovalo.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const apply = () => {
+      document.documentElement.style.setProperty("--header-h", `${el.offsetHeight}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Zavření menu / vyhledávání klávesou Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setSearchOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -65,8 +70,7 @@ export function Layout() {
       <a className="skip-link" href="#obsah">
         Přeskočit na obsah
       </a>
-      <DemoTopbar />
-      <header className={`header${scrolled ? " scrolled" : ""}`}>
+      <header ref={headerRef} className={`header${scrolled ? " scrolled" : ""}`}>
         <div className="header-in">
           <Logo />
           <nav className={`nav ${open ? "open" : ""}`} onClick={() => setOpen(false)}>
@@ -87,7 +91,7 @@ export function Layout() {
             </div>
             <div className="mobile-only" onClick={(e) => e.stopPropagation()}>
               <SearchBox variant="mobile" onDone={() => setOpen(false)} />
-              <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
+              <div style={{ display: "grid", gap: 8, marginTop: 16 }}>
                 <Link to="/ukazka" className="btn" style={{ textAlign: "center" }} onClick={() => setOpen(false)}>
                   🛍️ Ukázkový E-shop
                 </Link>
@@ -95,9 +99,7 @@ export function Layout() {
                   ⚙️ Demo Administrace
                 </Link>
               </div>
-              <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8, textAlign: "center" }}>
-                Demo je 100% zdarma k vyzkoušení. Objednávky jsou testovací.
-              </p>
+              <p className="nav-note">Demo je 100&nbsp;% zdarma k vyzkoušení. Objednávky jsou testovací.</p>
             </div>
           </nav>
           <div className="header-actions">

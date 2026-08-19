@@ -56,9 +56,9 @@ export function About() {
 
   return (
     <Box title="O platformě KAVKA">
-      <div style={{ background: "var(--ink)", color: "#fff", padding: 18, borderRadius: 16, marginBottom: 24, display: "flex", gap: 14, alignItems: "center" }}>
+      <div style={{ background: "var(--ink)", color: "#fff", padding: 18, borderRadius: 16, marginBottom: 24, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 0 6px rgba(34,197,94,0.18)", flexShrink: 0 }} />
-        <span style={{ fontSize: 13 }}>
+        <span style={{ fontSize: 13, flex: 1, minWidth: 200 }}>
           <b>ŽIVÁ UKÁZKA</b> — Prohlížíte si reálný běžící e-shop. Stejný kód vám nasadíme s vaším logem, barvami a produkty do 24 hodin.
         </span>
         <a href="/#nabidka" className="btn btn-sm" style={{ marginLeft: "auto", background: "#c4a574", color: "#1c1915", whiteSpace: "nowrap" }}>

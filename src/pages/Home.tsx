@@ -99,7 +99,7 @@ export function Home() {
           </h1>
 
           <p className="lead">
-            KAVKA je **kompletní české e-shopové řešení** postavené na infrastruktuře Cloudflare. Získáte nádherný, bleskově rychlý obchod s živými mapami výdejních míst, QR platbami, skladem a administrací na míru — bez vysokých měsíčních Poplatků a provizí.
+            KAVKA je <b>kompletní české e-shopové řešení</b> postavené na infrastruktuře Cloudflare. Získáte nádherný, bleskově rychlý obchod s živými mapami výdejních míst, QR platbami, skladem a administrací na míru — bez vysokých měsíčních poplatků a provizí.
           </p>
 
           <div className="hero-actions">
@@ -181,13 +181,13 @@ export function Home() {
           <div className="demo-split-card glass-card">
             <div className="demo-split-text">
               <div className="saas-badge" style={{ background: "rgba(181, 74, 44, 0.12)", color: "var(--accent)" }}>
-                <IconSpark size={14} /> DVE ČÁSTI PROJEKTU KAVKA
+                <IconSpark size={14} /> DVĚ ČÁSTI PROJEKTU KAVKA
               </div>
-              <h2 className="serif" style={{ fontSize: 32, margin: "12px 0 8px" }}>
-                Prezentace řešení & Samostatná ukázka obchodu
+              <h2 className="serif" style={{ fontSize: "clamp(24px, 4vw, 32px)", margin: "12px 0 8px" }}>
+                Prezentace řešení &amp; samostatná ukázka obchodu
               </h2>
               <p style={{ color: "var(--ink-soft)", lineHeight: 1.6 }}>
-                Pro maximální přehlednost jsme oddělili informace o **produktovém řešení KAVKA** od samotného **ukázkového obchodu (Ateliér KAVKA)**. Níže si můžete vybrat, kam pokračovat:
+                Pro maximální přehlednost jsme oddělili informace o <b>produktovém řešení KAVKA</b> od samotného <b>ukázkového obchodu (Ateliér KAVKA)</b>. Níže si můžete vybrat, kam pokračovat:
               </p>
             </div>
             <div className="demo-split-grid">
@@ -259,7 +259,7 @@ export function Home() {
               {
                 icon: <IconLeaf />,
                 title: "Přesné skladové hospodářství",
-                text: "Každá objednávka přesně rezervuje skladové kusy. Storno nebo úprava je ihned vrátí. Datalog hlídá nízký stav skladu s upozorněním.",
+                text: "Každá objednávka přesně rezervuje skladové kusy. Storno nebo úprava je ihned vrátí. Historie pohybů hlídá nízký stav a včas vás upozorní.",
               },
               {
                 icon: <IconBuilding />,
@@ -354,7 +354,7 @@ export function Home() {
                 <div className="tab-pane-text">
                   <h3>Automatické platby bankovním převodem s QR</h3>
                   <p>
-                    Po odeslání objednávky KAVKA automaticky vygeneruje QR kód podle českého standardu SPD (Short Payment Descriptor). Zákazník kód naskenuje mobilní bankou a zaplatí bez přepiso-vání čísla účtu a variabilního symbolu.
+                    Po odeslání objednávky KAVKA automaticky vygeneruje QR kód podle českého standardu SPD (Short Payment Descriptor). Zákazník kód naskenuje mobilní bankou a zaplatí bez přepisování čísla účtu a variabilního symbolu.
                   </p>
                   <ul className="check-list">
                     <li><IconCheck size={16} /> Okamžité vygenerování na děkovné stránce</li>
@@ -377,7 +377,7 @@ export function Home() {
             {activeTab === "sklad" && (
               <div className="tab-pane">
                 <div className="tab-pane-text">
-                  <h3>Reálný sklad s logem pohybů a upozorněním</h3>
+                  <h3>Reálný sklad s evidencí pohybů a upozorněním</h3>
                   <p>
                     Zapomeňte na situace, kdy prodáte zboží, které nemáte. KAVKA hlídá skladové zásoby do kusu. V administraci vidíte přesnou historii naskladnění, rezervací objednávkami i úprav stavu.
                   </p>
@@ -606,7 +606,7 @@ export function Home() {
                 },
                 {
                   q: "Jak funguje výběr Z-BOXu a Balíkovny v košíku?",
-                  a: "KAVKA má v pokladně přímo zabudované živé mapa widgety Packety a České pošty. Zákazník klikne na tlačítko a na mapě vybere své výdejní místo.",
+                  a: "KAVKA má v pokladně přímo zabudované živé mapové widgety Packety a České pošty. Zákazník klikne na tlačítko a na mapě vybere své výdejní místo.",
                 },
                 {
                   q: "Mohu si vyzkoušet administraci ještě před koupí?",
