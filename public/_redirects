@@ -1,0 +1,2 @@
+# SPA cesty řeší functions/_middleware.ts (index.html při 404).
+# Sem nic nedávejte — wrangler pages dev považuje /* → /index.html za smyčku.

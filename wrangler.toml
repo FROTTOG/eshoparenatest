@@ -1,0 +1,21 @@
+# KAVKA e-shop — Cloudflare Pages
+# database_id a další vazby doplníte podle návodu v README.md
+
+name = "kavka-shop"
+compatibility_date = "2025-10-14"
+pages_build_output_dir = "dist"
+
+[vars]
+STORE_NAME = "KAVKA"
+
+# AUTH_SECRET NIKDY nedávejte sem (soubor jde do Gitu).
+# Nastavte ho jako Secret v Cloudflare Dashboard, viz README.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kavka-shop"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "kavka-media"

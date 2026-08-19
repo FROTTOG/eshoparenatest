@@ -1,0 +1,4 @@
+# Zkopírujte tento soubor jako .dev.vars (ten se do Gitu neukládá)
+# a vyplňte dlouhé náhodné heslo.
+
+AUTH_SECRET=zmente-me-na-dlouhy-nahodny-retezec
