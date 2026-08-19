@@ -33,11 +33,20 @@ export function CartPage() {
   if (!cart.items.length) {
     return (
       <div className="wrap empty">
+        <div style={{ background: "var(--ink)", color: "#fff", padding: "10px 14px", borderRadius: 999, display: "inline-flex", gap: 8, alignItems: "center", fontSize: 12, marginBottom: 16 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
+          DEMO KOŠÍK — zkuste ho naplnit
+        </div>
         <h1 className="serif">Košík si odpočívá</h1>
-        <p>Dejte do něj něco s kresbou dřeva, lnem nebo glazurou.</p>
-        <Link className="btn" to="/katalog">
-          Do katalogu
-        </Link>
+        <p>Dejte do něj něco z ukázkového katalogu — pak vyzkoušejte pokladnu s živou mapou Zásilkovny/Balíkovny. V ostrém obchodě tu bude vaše zboží.</p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 12 }}>
+          <Link className="btn" to="/katalog">
+            Do ukázkového katalogu
+          </Link>
+          <a href="/#nabidka" className="btn-line">
+            Chci vlastní e-shop
+          </a>
+        </div>
       </div>
     );
   }

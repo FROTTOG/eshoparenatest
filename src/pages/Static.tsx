@@ -53,15 +53,128 @@ export function About() {
   const bankName = settings.bank_name || "Česká spořitelna, a.s.";
 
   return (
-    <Box title="O nás a kontakty">
-      <p className="lead" style={{ fontSize: 18, color: "var(--ink)" }}>
-        {settings.store_name || "KAVKA"} je malý autorský obchod a ateliér s věcmi, které mají váhu v ruce.
-        Keramika točená na kruhu, přírodní len, masivní dubové dřevo a lesní vůně.
+    <Box title="O platformě KAVKA">
+      <div style={{ background: "var(--ink)", color: "#fff", padding: 18, borderRadius: 16, marginBottom: 24, display: "flex", gap: 14, alignItems: "center" }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 0 6px rgba(34,197,94,0.18)", flexShrink: 0 }} />
+        <span style={{ fontSize: 13 }}>
+          <b>ŽIVÁ UKÁZKA</b> — Prohlížíte si reálný běžící e-shop. Stejný kód vám nasadíme s vaším logem, barvami a produkty do 24 hodin.
+        </span>
+        <a href="/#nabidka" className="btn btn-sm" style={{ marginLeft: "auto", background: "#c4a574", color: "#1c1915", whiteSpace: "nowrap" }}>
+          Chci KAVKA →
+        </a>
+      </div>
+
+      <p className="lead" style={{ fontSize: 19, color: "var(--ink)", lineHeight: 1.4 }}>
+        <b>KAVKA je česká e-shop platforma jako SaaS i jako prodej na klíč.</b>
+        <br />
+        Vidíte hotový obchod s keramikou, lnem a dřevem? To je jen <em>ukázkový obsah</em>. Pod ním běží systém, který zítra může prodávat vaše produkty — na vaší doméně, s vaším IČO a vaší cenou.
       </p>
 
-      <div className="legal-box glass-card" style={{ padding: 20, margin: "24px 0", borderRadius: 16, border: "1px solid var(--line)" }}>
+      <div className="trust" style={{ margin: "24px 0" }}>
+        <article>
+          <IconWrap className="accent">
+            <IconTruck />
+          </IconWrap>
+          <h3>SaaS pronájem</h3>
+          <p>
+            490 Kč / měsíc bez DPH. Běží na vašem Cloudflare, my aktualizujeme. Můžete kdykoli odkoupit.
+          </p>
+        </article>
+        <article>
+          <IconWrap className="accent">
+            <IconBuilding />
+          </IconWrap>
+          <h3>Prodej na klíč</h3>
+          <p>
+            29 900 Kč jednorázově. Předáme repozitář, nasadíme na vaši doménu, zaškolíme, naimportujeme zboží.
+          </p>
+        </article>
+        <article>
+          <IconWrap className="accent">
+            <IconShield />
+          </IconWrap>
+          <h3>Bez provizí</h3>
+          <p>
+            Platíte jen Cloudflare (často 0–5 $) a případně nájem. Žádná procenta z tržeb jako u marketplace.
+          </p>
+        </article>
+      </div>
+
+      <h3>Co je pod kapotou (a proč je to výhoda)</h3>
+      <ul className="info-list">
+        <li>
+          <IconWrap>
+            <IconTruck />
+          </IconWrap>
+          <div>
+            <b>Cloudflare Pages + D1 + R2</b>
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
+              Web + admin na Pages, data v SQL databázi D1, fotky v R2. Vše v EU, rychlé jako statika, HTTPS zdarma. Napojení na doménu na jedno kliknutí.
+            </p>
+          </div>
+        </li>
+        <li>
+          <IconWrap>
+            <IconPin />
+          </IconWrap>
+          <div>
+            <b>Zásilkovna · Z-BOX · Balíkovna s živou mapou</b>
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
+              Oficiální widget Packety a iframe České pošty. Zákazník vybírá skutečné výdejní místo, vy ho vidíte v objednávce + záložní DB s body.
+            </p>
+          </div>
+        </li>
+        <li>
+          <IconWrap>
+            <IconQr />
+          </IconWrap>
+          <div>
+            <b>Platby QR (SPD), dobírka, karta</b>
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
+              IBAN si nastavíte v Nastavení, QR se generuje z částky a variabilního symbolu. Poplatek u dobírky volitelný.
+            </p>
+          </div>
+        </li>
+        <li>
+          <IconWrap>
+            <IconShield />
+          </IconWrap>
+          <div>
+            <b>Česká legislativa v základu</b>
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
+              Obchodní podmínky, GDPR, reklamace 14 dní / 24 měsíců, mimosoudní řešení sporů — vzory jsou v systému a tahají vaše IČO/DIČ/sídlo z nastavení.
+            </p>
+          </div>
+        </li>
+      </ul>
+
+      <div style={{ marginTop: 28, padding: 20, background: "color-mix(in srgb, var(--gold) 10%, var(--card))", border: "1px dashed var(--gold)", borderRadius: 16 }}>
+        <h3 style={{ margin: "0 0 8px" }}>Co dostanete při předání?</h3>
+        <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 14, color: "var(--ink-soft)" }}>
+          <li>Kompletní kód (React + Hono) + návod na nasazení na váš Cloudflare účet</li>
+          <li>Admin v češtině: produkty, kategorie, sklad, objednávky, zákazníci, kupóny, doprava, platby, R2 fotky</li>
+          <li>Nastavení obchodu (IBAN, logo, barvy, adresa, otevíračka) + ARES napojení na IČO</li>
+          <li>Ukázková data, která smažete nebo nahradíte svými — seed se spustí sám</li>
+          <li>Doporučení na e-mailový provider (Resend / Mailgun) — Cloudflare sám e-maily neposílá</li>
+        </ul>
+        <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+          <a href="/katalog" className="btn-line btn-sm">
+            Projít ukázkový katalog
+          </a>
+          <a href="/admin" className="btn btn-sm">
+            Otevřít demo admin
+          </a>
+          <a href="mailto:ahoj@kavka.shop?subject=Poptávka%20KAVKA" className="btn-dark btn-sm">
+            Nezávazná poptávka
+          </a>
+        </div>
+      </div>
+
+      <hr style={{ border: 0, borderTop: "1px solid var(--line)", margin: "32px 0" }} />
+
+      <div className="legal-box glass-card" style={{ padding: 20, borderRadius: 16, border: "1px solid var(--line)" }}>
         <h3 style={{ margin: "0 0 14px", display: "flex", alignItems: "center", gap: 8 }}>
-          <IconBuilding size={20} /> Identifikační údaje provozovatele
+          <IconBuilding size={20} /> Identifikační údaje provozovatele ukázky
         </h3>
         <table style={{ width: "100%", fontSize: 14 }}>
           <tbody>
@@ -70,7 +183,7 @@ export function About() {
               <td style={{ fontWeight: 600, padding: "6px 0" }}>{company}</td>
             </tr>
             <tr>
-              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Sídlo a ateliér:</td>
+              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Sídlo a ateliér (demo):</td>
               <td style={{ padding: "6px 0" }}>{address}</td>
             </tr>
             <tr>
@@ -86,7 +199,7 @@ export function About() {
               <td style={{ padding: "6px 0" }}>{registry}</td>
             </tr>
             <tr>
-              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Bankovní spojení:</td>
+              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Bankovní spojení (demo):</td>
               <td style={{ padding: "6px 0" }}>
                 {bankAcc} ({bankName})
                 <br />
@@ -94,31 +207,43 @@ export function About() {
               </td>
             </tr>
             <tr>
-              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Otevírací doba:</td>
+              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Otevírací doba (demo):</td>
               <td style={{ padding: "6px 0" }}>{settings.store_hours || "Po–Pá 10:00–18:00"}</td>
             </tr>
           </tbody>
         </table>
+        <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>
+          Ve vašem ostrém nasazení se tyto údaje nahradí vašimi — administrace je plně editovatelná v Nastavení.
+        </p>
       </div>
 
-      <h3>Kontakty pro zákazníky</h3>
+      <h3>Kontakt na tvůrce KAVKA</h3>
       <p style={{ display: "grid", gap: 8 }}>
         <span>
           <IconMail size={16} style={{ verticalAlign: "middle", marginRight: 8, color: "var(--accent)" }} />
-          E-mail pro dotazy a objednávky: <a href={`mailto:${email}`} className="linkish"><b>{email}</b></a>
+          E-mail pro poptávky a demo přístup: <a href={`mailto:${email}`} className="linkish">
+            <b>{email}</b>
+          </a>
         </span>
         <span>
           <IconPhone size={16} style={{ verticalAlign: "middle", marginRight: 8, color: "var(--accent)" }} />
-          Zákaznická linka: <a href={`tel:${phone.replace(/\s+/g, "")}`} className="linkish"><b>{phone}</b></a>
+          Zákaznická linka: <a href={`tel:${phone.replace(/\s+/g, "")}`} className="linkish">
+            <b>{phone}</b>
+          </a>
         </span>
       </p>
 
       <h3>Orgány dozoru a mimosoudní řešení sporů</h3>
       <p style={{ fontSize: 14, color: "var(--ink-soft)" }}>
-        Dozor nad dodržováním povinností podle zákona o ochraně spotřebitele vykonává <b>Česká obchodní inspekce (ČOI)</b>,
-        Štěpánská 567/15, 120 00 Praha 2, internetová adresa: <a href="https://www.coi.cz" target="_blank" rel="noreferrer" className="linkish">www.coi.cz</a>.
-        Dozor nad ochranou osobních údajů vykonává <b>Úřad pro ochranu osobních údajů (ÚOOÚ)</b>, Pplk. Sochora 27, 170 00 Praha 7, <a href="https://www.uoou.gov.cz" target="_blank" rel="noreferrer" className="linkish">www.uoou.gov.cz</a>.
-        Živnostenskou kontrolu provádí příslušný Živnostenský úřad.
+        Dozor nad dodržováním povinností podle zákona o ochraně spotřebitele vykonává <b>Česká obchodní inspekce (ČOI)</b>, Štěpánská 567/15, 120 00 Praha 2, internetová adresa:{" "}
+        <a href="https://www.coi.cz" target="_blank" rel="noreferrer" className="linkish">
+          www.coi.cz
+        </a>
+        . Dozor nad ochranou osobních údajů vykonává <b>Úřad pro ochranu osobních údajů (ÚOOÚ)</b>, Pplk. Sochora 27, 170 00 Praha 7,{" "}
+        <a href="https://www.uoou.gov.cz" target="_blank" rel="noreferrer" className="linkish">
+          www.uoou.gov.cz
+        </a>
+        . Živnostenskou kontrolu provádí příslušný Živnostenský úřad.
       </p>
     </Box>
   );
@@ -135,10 +260,17 @@ function shipIcon(kind: string) {
 export function ShippingInfo() {
   const { shipping } = useStore();
   return (
-    <Box title="Doprava a platba">
+    <Box title="Doprava a platba — co umí KAVKA (ukázka)">
+      <div style={{ background: "var(--ink)", color: "#fff", padding: 14, borderRadius: 12, marginBottom: 16, display: "flex", gap: 10, alignItems: "center", fontSize: 13 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
+        <span>Prohlížíte si konfiguraci demo obchodu. Všechny způsoby dopravy/platby si nastavíte v adminu a projeví se na pokladně.</span>
+        <a href="/admin" className="btn btn-sm" style={{ marginLeft: "auto", background: "#c4a574", color: "#1c1915", whiteSpace: "nowrap" }}>
+          Otevřít admin
+        </a>
+      </div>
       <p>
-        Objednávky balíme do recyklovatelných materiálů a expedujeme každý pracovní den do 24 hodin.
-        U výdejních míst máte k dispozici oficiální živou mapu dopravce. Ceny bereme z aktuálního ceníku v administraci.
+        Toto je <b>ukázkový ceník dopravy</b> z administrace KAVKA. Objednávky balíme do recyklovatelných materiálů a expedujeme každý pracovní den do 24 hodin.
+        U výdejních míst máte k dispozici <b>oficiální živou mapu dopravce</b>. Ceny berete z aktuálního ceníku v administraci — zákazník je vidí na pokladně před objednáním.
       </p>
 
       <h3>Způsoby a ceník dopravy</h3>

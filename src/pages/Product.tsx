@@ -163,8 +163,12 @@ export function ProductPage() {
   return (
     <div className="wrap">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <div style={{ background: "var(--ink)", color: "#fff", padding: "8px 12px", borderRadius: 10, fontSize: 12, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 14 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
+        Demo produkt — v ostrém obchodě tu bude vaše zboží (fotky, popis, cena, sklad). <a href="/#nabidka" style={{ color: "#c4a574", fontWeight: 700, marginLeft: "auto" }}>Chci stejný e-shop →</a>
+      </div>
       <div className="crumbs">
-        <Link to="/">Domů</Link> / <Link to="/katalog">Katalog</Link>
+        <Link to="/">Domů</Link> / <Link to="/katalog">Ukázkový katalog</Link>
         {p.category_slug && (
           <>
             {" / "}
