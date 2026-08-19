@@ -14,7 +14,7 @@ STORE_NAME = "KAVKA"
 [[d1_databases]]
 binding = "DB"
 database_name = "kavka-shop"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "9a9facef-3957-42a1-a6c6-7a3241c2792e"
 
 [[r2_buckets]]
 binding = "MEDIA"
