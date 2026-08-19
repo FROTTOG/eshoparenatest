@@ -70,8 +70,8 @@ export function Catalog() {
       </div>
       {items.length ? (
         <div className="grid-products">
-          {items.map((p) => (
-            <ProductCard key={p.id} p={p} />
+          {items.map((p, i) => (
+            <ProductCard key={p.id} p={p} index={i} />
           ))}
         </div>
       ) : (

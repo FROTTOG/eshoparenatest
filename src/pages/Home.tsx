@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type Category, type Product } from "../api";
 import { ProductCard } from "../components/ProductCard";
+import { Reveal } from "../components/Reveal";
 import { useStore } from "../store";
 
 export function Home() {
@@ -41,16 +42,20 @@ export function Home() {
 
       <section className="section">
         <div className="wrap">
-          <div className="section-head">
-            <h2>Místnosti domu</h2>
-            <Link to="/katalog">Celý obchod →</Link>
-          </div>
+          <Reveal>
+            <div className="section-head">
+              <h2>Místnosti domu</h2>
+              <Link to="/katalog">Celý obchod →</Link>
+            </div>
+          </Reveal>
           <div className="cats">
-            {cats.map((c) => (
-              <Link key={c.id} to={`/katalog/${c.slug}`} className="cat-card">
-                <img src={c.image || "/products/vaza.jpg"} alt="" />
-                <span>{c.name}</span>
-              </Link>
+            {cats.map((c, i) => (
+              <Reveal key={c.id} delay={(i % 5) * 60} className="reveal-cell">
+                <Link to={`/katalog/${c.slug}`} className="cat-card">
+                  <img src={c.image || "/products/vaza.jpg"} alt="" loading="lazy" />
+                  <span>{c.name}</span>
+                </Link>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -58,12 +63,14 @@ export function Home() {
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="wrap">
-          <div className="section-head">
-            <h2>Teď v ateliéru</h2>
-          </div>
+          <Reveal>
+            <div className="section-head">
+              <h2>Teď v ateliéru</h2>
+            </div>
+          </Reveal>
           <div className="grid-products">
-            {items.map((p) => (
-              <ProductCard key={p.id} p={p} />
+            {items.map((p, i) => (
+              <ProductCard key={p.id} p={p} index={i} />
             ))}
           </div>
         </div>
@@ -71,26 +78,20 @@ export function Home() {
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="wrap trust">
-          <article>
-            <div className="kicker" style={{ color: "var(--accent)" }}>01</div>
-            <h3>Z-BOX i Balíkovna</h3>
-            <p>Na pokladně otevřete mapu Česka a kliknete na konkrétní box nebo pobočku.</p>
-          </article>
-          <article>
-            <div className="kicker" style={{ color: "var(--accent)" }}>02</div>
-            <h3>Sklad do kusu</h3>
-            <p>Co vidíte, to máme. Objednávka rezervuje kusy, storno je vrací.</p>
-          </article>
-          <article>
-            <div className="kicker" style={{ color: "var(--accent)" }}>03</div>
-            <h3>Kupóny</h3>
-            <p>Zkuste KAVKA10 nebo VITEJ150. Počítáme je až na serveru, ne v prohlížeči.</p>
-          </article>
-          <article>
-            <div className="kicker" style={{ color: "var(--accent)" }}>04</div>
-            <h3>Jen Cloudflare</h3>
-            <p>Žádný cizí hosting. Pages, D1 databáze, R2 fotky. Váš účet, vaše data.</p>
-          </article>
+          {[
+            ["01", "Z-BOX i Balíkovna", "Na pokladně otevřete mapu Česka a kliknete na konkrétní box nebo pobočku."],
+            ["02", "Sklad do kusu", "Co vidíte, to máme. Objednávka rezervuje kusy, storno je vrací."],
+            ["03", "Kupóny", "Zkuste KAVKA10 nebo VITEJ150. Počítáme je až na serveru, ne v prohlížeči."],
+            ["04", "Jen Cloudflare", "Žádný cizí hosting. Pages, D1 databáze, R2 fotky. Váš účet, vaše data."],
+          ].map(([num, title, text], i) => (
+            <Reveal key={num} delay={i * 80} className="reveal-cell">
+              <article>
+                <div className="kicker" style={{ color: "var(--accent)" }}>{num}</div>
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </article>
+            </Reveal>
+          ))}
         </div>
       </section>
     </>
