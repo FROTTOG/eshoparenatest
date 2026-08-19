@@ -6,6 +6,7 @@ import { Login, Register } from "./pages/Auth";
 import { CartPage } from "./pages/Cart";
 import { Catalog } from "./pages/Catalog";
 import { Checkout } from "./pages/Checkout";
+import { EshopDemo } from "./pages/EshopDemo";
 import { Home } from "./pages/Home";
 import { OrderPage, Track } from "./pages/Order";
 import { ProductPage } from "./pages/Product";
@@ -30,6 +31,9 @@ export function App() {
       <Route path="/admin/*" element={<Admin />} />
       <Route element={<Layout />}>
         <Route index element={<Home />} />
+        <Route path="ukazka" element={<EshopDemo />} />
+        <Route path="demo" element={<EshopDemo />} />
+        <Route path="eshop-ukazka" element={<EshopDemo />} />
         <Route path="katalog" element={<Catalog />} />
         <Route path="katalog/:slug" element={<Catalog />} />
         <Route path="produkt/:slug" element={<ProductPage />} />
