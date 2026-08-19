@@ -483,6 +483,60 @@ p { text-wrap: pretty; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); background: #faf6ee; }
+
+/* ---- Tabulky na mobilu: místo rolování do boku přehledné karty ---- */
+@media (max-width: 760px) {
+  .admin .table-wrap,
+  .account-grid .table-wrap {
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+  .admin .table-wrap table,
+  .account-grid .table-wrap table {
+    display: block;
+  }
+  .admin .table-wrap thead,
+  .account-grid .table-wrap thead {
+    display: none;
+  }
+  .admin .table-wrap tbody,
+  .account-grid .table-wrap tbody {
+    display: grid;
+    gap: 10px;
+  }
+  .admin .table-wrap tr,
+  .account-grid .table-wrap tr {
+    display: grid;
+    gap: 8px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .admin .table-wrap tr:last-child,
+  .account-grid .table-wrap tr:last-child { border-bottom: 1px solid var(--line); }
+  .admin .table-wrap td,
+  .account-grid .table-wrap td {
+    display: block;
+    border: 0;
+    padding: 0;
+    font-size: 14px;
+  }
+  .admin .table-wrap td[data-label]::before,
+  .account-grid .table-wrap td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .admin .table-wrap .row-actions,
+  .account-grid .table-wrap .row-actions { margin-top: 2px; }
+}
 .tag {
   display: inline-block;
   padding: 2px 8px;
@@ -658,8 +712,26 @@ th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: 
   .product-info h1 { font-size: 34px; }
   .section-head { align-items: start; flex-direction: column; }
   .summary { position: static; }
-  .checkout-bar { display: flex; }
-  .checkout-submit { display: none; }
+  /* ---- Mobilní lišta s odesláním objednávky — pevně dole, vždy k dosahu ---- */
+  .checkout-bar {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    margin: 0;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -10px 32px rgba(28, 25, 21, 0.1);
+    justify-content: space-between;
+    align-items: center;
+    z-index: 30;
+    gap: 12px;
+  }
+  .checkout-bar b { font-size: 15px; white-space: nowrap; }
+  .checkout-bar .btn { flex-shrink: 0; }
+  .two.checkout { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   .two { gap: 20px; }
 
   /* Delší tap cíle na mobilu */
@@ -1006,15 +1078,6 @@ select:focus-visible, textarea:focus-visible {
 
 .checkout-bar {
   display: none;
-  position: sticky; bottom: 0;
-  margin: 18px -14px -8px;
-  padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  backdrop-filter: blur(16px);
-  border-top: 1px solid var(--line);
-  justify-content: space-between; align-items: center;
-  z-index: 20;
-  gap: 12px;
 }
 
 .map-banner {
@@ -1080,7 +1143,7 @@ select:focus-visible, textarea:focus-visible {
   .line-item img { width: 68px; height: 68px; }
   .qr-box { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .auth-wrap h1 { font-size: 34px; }
-  .product { gap: 22px; padding-bottom: 40px; }
+  .product { gap: 22px; }
   .qty-row { flex-wrap: wrap; }
   .qty-row .btn { flex: 1; }
   .carrier-frame { min-height: 62vh; }
@@ -1090,6 +1153,36 @@ select:focus-visible, textarea:focus-visible {
   .choice { grid-template-columns: auto 1fr; }
   .choice > b:last-child { grid-column: 2; justify-self: start; }
   .header-in { width: min(1180px, calc(100% - 20px)); }
+
+  /* ---- Zarovnání na střed na mobilu ---- */
+  .hero-copy,
+  .hero-saas .hero-copy { text-align: center; }
+  .hero-pills,
+  .hero-trust-row { justify-content: center; }
+  .landing-brand-showcase { display: flex; justify-content: center; }
+  .section-head {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .section-head > div { display: flex; flex-direction: column; align-items: center; }
+  .demo-hero-content { text-align: center; }
+  .demo-hero-btns { justify-content: center; }
+  .cta-final { text-align: center; }
+  .cta-final > div:first-child { display: flex; flex-direction: column; align-items: center; }
+  .demo-notice-card { text-align: center; }
+  .demo-notice-actions { justify-content: center; }
+  .demo-split-box { text-align: left; }
+  .toolbar { justify-content: center; text-align: center; flex-direction: column; align-items: center; }
+  .toolbar select { width: 100%; text-align: center; }
+  .toolbar-tools { justify-content: center; width: 100%; }
+  .crumbs { text-align: center; }
+  .catalog-title { text-align: center; }
+  .empty { text-align: center; }
+  .prose-page { text-align: left; }
+  .account-grid { text-align: left; }
+  .demo-guide-step, .arch-box, .faq-item { text-align: left; }
+  .saas-mini-cards { grid-template-columns: 1fr 1fr; }
 }
 
 .form-grid-2 {
@@ -1452,20 +1545,23 @@ select:focus-visible, textarea:focus-visible {
 @media (max-width: 980px) {
   .product-sticky {
     display: flex;
-    position: sticky;
-    bottom: 0;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
     z-index: 25;
-    margin: 8px -14px 0;
-    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
-    background: color-mix(in srgb, var(--bg) 86%, transparent);
-    backdrop-filter: blur(16px);
+    margin: 0;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
     border-top: 1px solid var(--line);
+    box-shadow: 0 -10px 32px rgba(28, 25, 21, 0.1);
     justify-content: space-between;
     align-items: center;
     gap: 12px;
   }
   .product-sticky .price { font-size: 14px; }
   .product-sticky b { display: block; font-size: 13px; }
+  .product { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
   .nav.open .search-wrap { width: 100%; }
   .nav.open .search-form { width: 100%; }
   .nav.open .search-form input { width: 100%; }
@@ -2682,3 +2778,42 @@ select:focus-visible, textarea:focus-visible {
   font-size: 12px;
 }
 .export-card .btn { margin-top: auto; align-self: flex-start; }
+
+/* ============================================================
+   Doladěná typografie a design — pohodlnější čtení
+   ============================================================ */
+
+/* Odstavce — jemnější rytmus, konzistentní mezera pod odstavcem */
+p { margin: 0 0 0.9em; }
+.desc { font-size: 16px; line-height: 1.7; }
+.hero p.lead { line-height: 1.65; }
+.hero-saas .lead { line-height: 1.65; }
+.faq-answer { line-height: 1.7; }
+.saas-card p, .feature-box p, .arch-box p { line-height: 1.6; }
+.demo-split-box p, .demo-guide-step p, .demo-cat-info p { line-height: 1.55; }
+.prose-page p { line-height: 1.75; margin: 0 0 14px; }
+.prose-page h3 { margin-top: 30px; }
+.prose-page ul, .prose-page ol { line-height: 1.7; }
+
+/* Nadpisy — vzdušnější řádkování a mezery */
+h1, h2, h3 { line-height: 1.15; }
+.section-head { margin-bottom: 24px; }
+.kicker { letter-spacing: 0.2em; }
+
+/* Karty — jemnější stín v klidu, výraznější při dotyku */
+.glass-card { box-shadow: 0 1px 2px rgba(28, 25, 21, 0.03); }
+.pcard { box-shadow: 0 1px 3px rgba(28, 25, 21, 0.04); }
+.saas-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+.saas-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+
+/* Výběr textu v barvě značky */
+::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* Jemnější posuvníky */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink) 24%, transparent);
+  border-radius: 99px;
+  border: 3px solid var(--bg);
+}
+::-webkit-scrollbar-track { background: transparent; }
