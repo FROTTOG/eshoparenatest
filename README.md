@@ -33,8 +33,51 @@ Hotový český e-shop. Běží **jen na Cloudflare**:
 - objednávky (stav + označení platby; storno vrací sklad)
 - zákazníci, kupóny, schvalování hodnocení
 - doprava, platby, výdejní místa na mapě
+- **faktury** — vystavují se automaticky ke každé objednávce (číselná řada, VS, DPH, tisk/PDF)
+- **exporty do účetnictví** — iDoklad (CSV), Fakturoid (CSV), POHODA (XML dataPack), objednávky a faktury v CSV
 - nastavení obchodu a IBAN
 - nahrání fotek do R2
+
+### Faktury a účetnictví
+
+Faktura vzniká sama po dokončení objednávky (nebo až po zaplacení — podle nastavení). V administraci
+najdete sekce **Faktury** a **Exporty**.
+
+| Nastavení | Co dělá | Výchozí |
+|---|---|---|
+| `invoice_auto` | zapíná automatické vystavování faktur | `1` |
+| `invoice_auto_on` | `order` = při objednávce, `paid` = až po zaplacení | `order` |
+| `invoice_prefix` | předpona čísla faktury | `FV` |
+| `invoice_pad` | počet číslic pořadového čísla (`FV20260001`) | `4` |
+| `invoice_due_days` | splatnost ve dnech | `14` |
+| `invoice_vat_payer` | plátce DPH (1/0) | `1` |
+| `invoice_vat_rate` | sazba DPH v % | `21` |
+| `invoice_currency` | měna faktur | `CZK` |
+
+Ceny v e-shopu jsou včetně DPH, základ daně a DPH se dopočítávají zpět.
+Zákazník si fakturu stáhne přímo v detailu objednávky (tlačítko *Faktura ke stažení*), správce v sekci Faktury.
+
+**Kam který export patří**
+
+| Export | Formát | Kam s tím |
+|---|---|---|
+| iDoklad | CSV (`;`, UTF-8 s BOM) | iDoklad → Faktury vydané → Import |
+| Fakturoid | CSV s anglickými sloupci | Fakturoid → Faktury → Import |
+| POHODA | XML dataPack (Stormware `version_2`) | POHODA → Soubor → Datová komunikace → XML import |
+| Faktury / Objednávky | CSV | Excel, Google Sheets, účetní |
+
+---
+
+## Kdo systém KAVKA dodává
+
+| | |
+|---|---|
+| Kontaktní osoba | **Jan Minařík** |
+| Objednávky a web | **https://jmweb.cz** |
+| Telefon | **776 677 399** |
+
+Údaje jsou i v administraci (Nastavení → `vendor_person`, `vendor_web`, `vendor_phone`), takže si je při
+white-label nasazení přepíšete na sebe.
 
 **Ukázkové účty** (vzniknou samy po prvním otevření webu)
 

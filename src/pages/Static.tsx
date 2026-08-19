@@ -24,6 +24,7 @@ import {
 import { openCookieSettings } from "../components/CookieBanner";
 import { czk } from "../format";
 import { useStore } from "../store";
+import { vendorContact } from "../vendor";
 import { usePageTitle } from "../title";
 
 function Box({ title, children }: { title: string; children: React.ReactNode }) {
@@ -41,6 +42,7 @@ function Box({ title, children }: { title: string; children: React.ReactNode }) 
 
 export function About() {
   const { settings } = useStore();
+  const vendor = vendorContact(settings);
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const ico = settings.store_ico || "19200456";
   const dic = settings.store_dic || "CZ19200456";
@@ -164,8 +166,8 @@ export function About() {
           <a href="/admin" className="btn btn-sm">
             Otevřít demo admin
           </a>
-          <a href="mailto:ahoj@kavka.shop?subject=Poptávka%20KAVKA" className="btn-dark btn-sm">
-            Nezávazná poptávka
+          <a href={vendor.web} target="_blank" rel="noreferrer" className="btn-dark btn-sm">
+            Objednat na {vendor.webLabel}
           </a>
         </div>
       </div>
@@ -217,11 +219,39 @@ export function About() {
         </p>
       </div>
 
-      <h3>Kontakt na tvůrce KAVKA</h3>
+      <h3>Kontakt na tvůrce KAVKA a objednání systému</h3>
+      <div
+        className="glass-card"
+        style={{ padding: 20, borderRadius: 16, border: "1px solid var(--line)", display: "grid", gap: 10, marginBottom: 8 }}
+      >
+        <p style={{ margin: 0, fontSize: 15 }}>
+          Systém KAVKA vyvíjí a dodává <b>{vendor.person}</b>. Objednávky, cenové nabídky, nasazení na vaši doménu i technická
+          podpora běží přes:
+        </p>
+        <span>
+          <IconMail size={16} style={{ verticalAlign: "middle", marginRight: 8, color: "var(--accent)" }} />
+          Web a objednávky:{" "}
+          <a href={vendor.web} target="_blank" rel="noreferrer" className="linkish">
+            <b>{vendor.webLabel}</b>
+          </a>
+        </span>
+        <span>
+          <IconPhone size={16} style={{ verticalAlign: "middle", marginRight: 8, color: "var(--accent)" }} />
+          Telefon:{" "}
+          <a href={vendor.phoneHref} className="linkish">
+            <b>{vendor.phone}</b>
+          </a>
+        </span>
+        <a href={vendor.web} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ justifySelf: "start" }}>
+          Objednat KAVKA na {vendor.webLabel}
+        </a>
+      </div>
+
+      <h3>Kontakt na provozovatele ukázkového obchodu</h3>
       <p style={{ display: "grid", gap: 8 }}>
         <span>
           <IconMail size={16} style={{ verticalAlign: "middle", marginRight: 8, color: "var(--accent)" }} />
-          E-mail pro poptávky a demo přístup: <a href={`mailto:${email}`} className="linkish">
+          E-mail demo obchodu: <a href={`mailto:${email}`} className="linkish">
             <b>{email}</b>
           </a>
         </span>

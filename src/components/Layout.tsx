@@ -5,6 +5,7 @@ import { IconAdmin, IconCart, IconClose, IconCookie, IconHeart, IconMail, IconMe
 import { CookieBanner, openCookieSettings } from "./CookieBanner";
 import { SearchBox } from "./SearchBox";
 import { Logo } from "./Ui";
+import { vendorContact } from "../vendor";
 
 export function DemoTopbar() {
   return (
@@ -54,6 +55,7 @@ export function Layout() {
     };
   }, [open, searchOpen]);
 
+  const vendor = vendorContact(settings);
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const ico = settings.store_ico || "19200456";
   const dic = settings.store_dic || "CZ19200456";
@@ -228,26 +230,28 @@ export function Layout() {
             <p style={{ fontSize: 13, color: "#cfc4b3", marginTop: 0 }}>
               Napíšeme vám do 24 hodin, připravíme klon s vaším logem a naplníme vaše produkty.
             </p>
+            <p style={{ fontSize: 13, color: "#cfc4b3", margin: "0 0 8px" }}>
+              Objednávky systému KAVKA vyřizuje <b style={{ color: "#fff" }}>{vendor.person}</b>.
+            </p>
             <p className="footer-contact">
               <span>
                 <IconMail size={16} />{" "}
-                <a href={`mailto:${settings.store_email || "ahoj@kavka.shop"}`}>{settings.store_email || "ahoj@kavka.shop"}</a>
+                <a href={vendor.web} target="_blank" rel="noreferrer">
+                  {vendor.webLabel}
+                </a>
               </span>
               <span>
-                <IconPhone size={16} />{" "}
-                <a href={`tel:${(settings.store_phone || "+420777123456").replace(/\s+/g, "")}`}>{settings.store_phone || "+420 777 123 456"}</a>
+                <IconPhone size={16} /> <a href={vendor.phoneHref}>{vendor.phone}</a>
               </span>
             </p>
             <a
-              href="#nabidka"
+              href={vendor.web}
+              target="_blank"
+              rel="noreferrer"
               className="btn"
               style={{ width: "100%", marginTop: 14, background: "#c4a574", color: "#1c1915", border: 0 }}
-              onClick={(e) => {
-                e.preventDefault();
-                document.getElementById("nabidka")?.scrollIntoView({ behavior: "smooth" });
-              }}
             >
-              Nezávazná poptávka
+              Objednat na {vendor.webLabel}
             </a>
             <p style={{ fontSize: 11, color: "#9aa396", marginTop: 8, textAlign: "center" }}>
               SaaS pronájem · Jednorázový prodej · White-label

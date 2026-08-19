@@ -43,6 +43,12 @@ export function OrderPage() {
         <span style={{ marginLeft: 10, color: "var(--muted)" }}>{dateCs(order.created_at)}</span>
       </p>
 
+      <p>
+        <a className="btn-line btn-sm" href={`/api/orders/${order.number}/invoice`} target="_blank" rel="noreferrer">
+          Faktura ke stažení (PDF / tisk)
+        </a>
+      </p>
+
       {order.payment_code === "transfer" && order.payment_status === "pending" && (
         <div className="form" style={{ margin: "18px 0" }}>
           <h3 className="serif" style={{ margin: 0 }}>
