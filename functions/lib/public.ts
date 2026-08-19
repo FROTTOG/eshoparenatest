@@ -14,6 +14,7 @@ import {
   validEmail,
 } from "./helpers";
 import { hashPassword, orderNumber, randomId, verifyPassword } from "./crypto";
+import { ensureInvoiceForOrder, invoiceHtml, loadSettings } from "./invoices";
 
 export function registerPublic(app: App) {
   app.get("/health", (c) => c.json({ ok: true, store: c.env.STORE_NAME || "KAVKA" }));
@@ -40,6 +41,9 @@ export function registerPublic(app: App) {
       "hero_title",
       "hero_text",
       "packeta_api_key",
+      "vendor_person",
+      "vendor_web",
+      "vendor_phone",
     ];
     const pub: Record<string, string> = {};
     for (const k of publicKeys) if (all[k] != null) pub[k] = all[k];
@@ -639,6 +643,16 @@ export function registerPublic(app: App) {
       }
     }
 
+    // Automatická faktura (nastavení: invoice_auto / invoice_auto_on)
+    try {
+      const s = await loadSettings(c.env.DB);
+      if (s.invoice_auto !== "0" && (s.invoice_auto_on || "order") === "order") {
+        await ensureInvoiceForOrder(c.env.DB, orderId, s);
+      }
+    } catch (err) {
+      console.error("Auto invoice error:", err);
+    }
+
     const order = await loadOrder(c.env.DB, orderId);
     const secure = isSecure(c);
     c.header("Set-Cookie", setCookie("oid", number, 2, secure));
@@ -669,6 +683,29 @@ export function registerPublic(app: App) {
     const admin = user?.role === "admin";
     if (!owns && !guest && !admin) return c.json({ error: "Objednávka nenalezena." }, 404);
     return c.json({ order });
+  });
+
+  // Faktura k objednávce — pro zákazníka (HTML k tisku / uložení do PDF)
+  app.get("/orders/:id/invoice", async (c) => {
+    const key = c.req.param("id");
+    const user = c.get("user");
+    const oidCookie = (c.req.header("Cookie") || "").match(/(?:^|;\s*)oid=([^;]+)/)?.[1];
+    let row: { id: number; number: string; user_id: number | null } | null = null;
+    if (/^\d+$/.test(key)) {
+      row = await c.env.DB.prepare("SELECT id, number, user_id FROM orders WHERE id = ?").bind(Number(key)).first();
+    } else {
+      row = await c.env.DB.prepare("SELECT id, number, user_id FROM orders WHERE number = ?").bind(key).first();
+    }
+    if (!row) return c.json({ error: "Objednávka nenalezena." }, 404);
+    const owns = user && row.user_id === user.id;
+    const guest = oidCookie && oidCookie === row.number;
+    const admin = user?.role === "admin";
+    if (!owns && !guest && !admin) return c.json({ error: "Objednávka nenalezena." }, 404);
+
+    const s = await loadSettings(c.env.DB);
+    const inv = await ensureInvoiceForOrder(c.env.DB, row.id, s);
+    if (!inv) return c.json({ error: "Fakturu se nepodařilo připravit." }, 500);
+    return c.html(invoiceHtml(inv, s));
   });
 
   app.post("/orders/lookup", async (c) => {

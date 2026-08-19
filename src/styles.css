@@ -2456,3 +2456,96 @@ select:focus-visible, textarea:focus-visible {
     justify-content: center;
   }
 }
+
+/* ============================================================
+   Oprava hlavičky — texty nesmí "vykukovat" z tlačítek
+   ============================================================ */
+
+/* Hlavička smí povyrůst, když se obsah nevejde na jeden řádek. */
+.header {
+  height: auto;
+  min-height: var(--header);
+  padding: 6px 0;
+}
+.header-in { min-width: 0; }
+.logo { min-width: 0; flex-shrink: 0; }
+.nav { min-width: 0; flex-wrap: wrap; row-gap: 4px; }
+.nav a { white-space: nowrap; }
+.header-actions { flex-shrink: 0; min-width: 0; }
+
+/* Text uvnitř tlačítka se nesmí přetéct přes jeho okraj. */
+.btn, .btn-dark, .btn-line, .ghost, .chip, .demo-cta, .tab-btn {
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.header .btn,
+.header .btn-line,
+.header .btn-dark,
+.saas-nav-cta .btn,
+.demo-cta {
+  white-space: nowrap;
+  min-height: 36px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+/* Mezistupeň mezi mobilem a širokým desktopem: menu + dvě CTA se nevejdou. */
+@media (max-width: 1210px) and (min-width: 981px) {
+  .header-in { gap: 14px; }
+  .nav { gap: 14px; }
+  .nav a { font-size: 12px; letter-spacing: 0.07em; }
+  .search-form input { width: 120px; }
+  .saas-nav-cta.desktop-only { display: none !important; }
+}
+@media (max-width: 1080px) and (min-width: 981px) {
+  .nav { gap: 10px; }
+  .nav a { font-size: 11.5px; letter-spacing: 0.04em; }
+  .header-actions > .btn.btn-sm { display: none; }
+}
+
+/* Demo lišta nad hlavičkou — ať se text nikdy nepřekrývá s tlačítky. */
+.demo-topbar-in { row-gap: 6px; }
+@media (max-width: 720px) {
+  .demo-topbar-in { flex-direction: column; align-items: flex-start; }
+  .demo-cta { margin-left: 0; }
+}
+
+/* ============================================================
+   Exporty do účetnictví (administrace)
+   ============================================================ */
+.export-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+.export-card {
+  background: var(--card, #fff);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.export-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.export-card h3 { margin: 0; font-size: 18px; }
+.export-badge {
+  background: var(--ink, #1c1915);
+  color: #fff;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.export-card p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
+.export-card .export-how {
+  background: rgba(0, 0, 0, 0.035);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.export-card .btn { margin-top: auto; align-self: flex-start; }

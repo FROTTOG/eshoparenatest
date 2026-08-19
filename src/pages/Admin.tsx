@@ -45,6 +45,8 @@ export function Admin() {
           <NavLink to="/admin/sklad">Sklad</NavLink>
           <NavLink to="/admin/kategorie">Kategorie</NavLink>
           <NavLink to="/admin/objednavky">Objednávky</NavLink>
+          <NavLink to="/admin/faktury">Faktury</NavLink>
+          <NavLink to="/admin/exporty">Exporty</NavLink>
           <NavLink to="/admin/zakaznici">Zákazníci</NavLink>
           <NavLink to="/admin/kupony">Kupóny</NavLink>
           <NavLink to="/admin/hodnoceni">Hodnocení</NavLink>
@@ -65,6 +67,8 @@ export function Admin() {
           <Route path="kategorie" element={<Categories />} />
           <Route path="objednavky" element={<Orders />} />
           <Route path="objednavky/:id" element={<OrderEdit />} />
+          <Route path="faktury" element={<Invoices />} />
+          <Route path="exporty" element={<Exports />} />
           <Route path="zakaznici" element={<Customers />} />
           <Route path="kupony" element={<Coupons />} />
           <Route path="hodnoceni" element={<Reviews />} />
@@ -390,6 +394,23 @@ function OrderEdit() {
           <button key={s} className={`chip ${order.payment_status === s ? "on" : ""}`} onClick={() => void patch({ payment_status: s })}>Platba: {statusLabel(s)}</button>
         ))}
       </div>
+      <div className="row-actions" style={{ marginBottom: 16 }}>
+        <button
+          className="btn btn-sm"
+          onClick={async () => {
+            try {
+              const r = await api<{ invoice: { id: number; number: string } }>(`/admin/orders/${order.id}/invoice`, { method: "POST" });
+              toast(`Faktura ${r.invoice.number} je připravená.`);
+              window.open(`/api/admin/invoices/${r.invoice.id}/html`, "_blank", "noopener");
+            } catch (e) {
+              toast(e instanceof ApiError ? e.message : "Fakturu se nepodařilo vystavit.", "err");
+            }
+          }}
+        >
+          Faktura (vystavit / otevřít)
+        </button>
+        <Link className="chip" to="/admin/faktury">Všechny faktury</Link>
+      </div>
       <div className="admin-split" style={{ display: "grid", gap: 16, margin: "16px 0", background: "var(--card)", padding: 18, borderRadius: 16, border: "1px solid var(--line)" }}>
         <div>
           <b style={{ display: "block", marginBottom: 6 }}>Fakturační údaje:</b>
@@ -450,6 +471,248 @@ function OrderEdit() {
             ))}
           </tbody>
         </table>
+      </div>
+    </>
+  );
+}
+
+type Invoice = {
+  id: number;
+  number: string;
+  order_id: number;
+  order_number: string;
+  variable_symbol: string;
+  issue_date: string;
+  due_date: string;
+  customer_name: string;
+  company_name: string;
+  customer_email: string;
+  ico: string;
+  subtotal: number;
+  vat_amount: number;
+  total: number;
+  currency: string;
+  status: string;
+  paid_at: string | null;
+};
+
+function invoiceStatusLabel(s: string) {
+  return s === "paid" ? "Zaplaceno" : s === "cancelled" ? "Storno" : "Vystaveno";
+}
+
+function Invoices() {
+  const { toast } = useStore();
+  const [rows, setRows] = useState<Invoice[]>([]);
+  const [summary, setSummary] = useState({ count: 0, total: 0, unpaid: 0 });
+  const [status, setStatus] = useState("");
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (q) params.set("q", q);
+    const r = await api<{ invoices: Invoice[]; summary: typeof summary }>(`/admin/invoices${params.toString() ? `?${params}` : ""}`);
+    setRows(r.invoices);
+    setSummary(r.summary);
+  }
+  useEffect(() => { void load(); }, [status]);
+
+  async function generate(onlyPaid: boolean) {
+    setBusy(true);
+    try {
+      const r = await api<{ created: number; checked: number }>("/admin/invoices/generate", {
+        method: "POST",
+        body: JSON.stringify({ only_paid: onlyPaid }),
+      });
+      toast(r.created ? `Vystaveno ${r.created} faktur.` : "Všechny objednávky už fakturu mají.");
+      await load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Generování selhalo.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setStatusOf(inv: Invoice, next: string) {
+    await api(`/admin/invoices/${inv.id}`, { method: "PATCH", body: JSON.stringify({ status: next }) });
+    toast("Uloženo.");
+    await load();
+  }
+
+  return (
+    <>
+      <div className="toolbar">
+        <h1>Faktury</h1>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hledat číslo, zákazníka…" onKeyDown={(e) => e.key === "Enter" && void load()} />
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Všechny stavy</option>
+            <option value="issued">Vystavené</option>
+            <option value="paid">Zaplacené</option>
+            <option value="cancelled">Storno</option>
+          </select>
+          <button className="btn-dark btn-sm" disabled={busy} onClick={() => void generate(false)}>Dogenerovat chybějící</button>
+          <Link className="btn btn-sm" to="/admin/exporty">Export do účetnictví →</Link>
+        </div>
+      </div>
+
+      <p style={{ color: "var(--muted)", marginTop: -6 }}>
+        Faktury se vystavují samy podle nastavení (<Link to="/admin/nastaveni">Nastavení → invoice_auto</Link>). Tlačítkem výše doplníte faktury ke starším objednávkám.
+      </p>
+
+      <div className="stats">
+        <div className="stat"><b>{summary.count}</b><span>Faktur v seznamu</span></div>
+        <div className="stat"><b>{czk(summary.total)}</b><span>Fakturováno celkem</span></div>
+        <div className="stat"><b>{czk(summary.unpaid)}</b><span>Čeká na úhradu</span></div>
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Číslo</th><th>Objednávka</th><th>Odběratel</th><th>Vystaveno</th><th>Splatnost</th><th>Celkem</th><th>Stav</th><th></th></tr>
+          </thead>
+          <tbody>
+            {rows.map((i) => (
+              <tr key={i.id}>
+                <td><b>{i.number}</b><br /><small>VS {i.variable_symbol}</small></td>
+                <td><Link to={`/admin/objednavky/${i.order_id}`}>{i.order_number}</Link></td>
+                <td>{i.company_name || i.customer_name}<br /><small>{i.customer_email}</small></td>
+                <td>{dateCs(i.issue_date)}</td>
+                <td>{dateCs(i.due_date)}</td>
+                <td>{czk(i.total)}<br /><small>bez DPH {czk(i.subtotal)}</small></td>
+                <td><span className={`tag ${i.status === "paid" ? "paid" : i.status === "cancelled" ? "cancelled" : "new"}`}>{invoiceStatusLabel(i.status)}</span></td>
+                <td>
+                  <div className="row-actions">
+                    <a className="chip" href={`/api/admin/invoices/${i.id}/html`} target="_blank" rel="noreferrer">Tisk / PDF</a>
+                    {i.status !== "paid" ? (
+                      <button className="chip" onClick={() => void setStatusOf(i, "paid")}>Zaplaceno</button>
+                    ) : (
+                      <button className="chip" onClick={() => void setStatusOf(i, "issued")}>Zrušit úhradu</button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr><td colSpan={8} style={{ color: "var(--muted)" }}>Zatím tu nejsou žádné faktury.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function Exports() {
+  const { toast } = useStore();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [onlyPaid, setOnlyPaid] = useState(false);
+
+  function url(target: string) {
+    const p = new URLSearchParams();
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    if (onlyPaid) p.set("only_paid", "1");
+    return `/api/admin/export/${target}${p.toString() ? `?${p}` : ""}`;
+  }
+
+  async function download(target: string, label: string) {
+    try {
+      const res = await fetch(url(target), { credentials: "include" });
+      if (!res.ok) {
+        const t = await res.text();
+        let msg = "Export selhal.";
+        try {
+          msg = (JSON.parse(t) as { error?: string }).error || msg;
+        } catch {
+          /* ponecháme obecnou hlášku */
+        }
+        toast(msg, "err");
+        return;
+      }
+      const blob = await res.blob();
+      const name = res.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] || `${target}.csv`;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      toast(`${label} stažen.`);
+    } catch {
+      toast("Export selhal.", "err");
+    }
+  }
+
+  const cards: { target: string; title: string; badge: string; text: string; how: string }[] = [
+    {
+      target: "idoklad",
+      title: "iDoklad",
+      badge: "CSV",
+      text: "Vydané faktury po položkách, středníkem oddělené CSV v UTF-8 (s BOM) — otevře se rovnou v Excelu i v importu iDokladu.",
+      how: "iDoklad → Faktury vydané → Import → vyberte stažený soubor a namapujte sloupce.",
+    },
+    {
+      target: "fakturoid",
+      title: "Fakturoid",
+      badge: "CSV",
+      text: "CSV s anglickými názvy sloupců (number, issued_on, client_name, line_name…), ceny včetně DPH.",
+      how: "Fakturoid → Faktury → Import → nahrajte CSV. Sloupce v prvním řádku nemažte.",
+    },
+    {
+      target: "pohoda",
+      title: "POHODA",
+      badge: "XML",
+      text: "XML dataPack se strukturou Stormware (schema version_2), vydané faktury včetně položek, DPH a bankovního účtu.",
+      how: "POHODA → Soubor → Datová komunikace → XML import/export → vyberte stažené XML.",
+    },
+    {
+      target: "invoices-csv",
+      title: "Faktury — univerzální CSV",
+      badge: "CSV",
+      text: "Jeden řádek = jedna faktura. Hodí se pro účetní, Excel nebo jiný systém.",
+      how: "Otevřete v Excelu / Google Sheets, nebo pošlete účetní.",
+    },
+    {
+      target: "orders-csv",
+      title: "Objednávky — CSV",
+      badge: "CSV",
+      text: "Export objednávek se stavy, dopravou, platbou a částkami (nezávisle na fakturách).",
+      how: "Reporting, sklady, marketing, reklamace.",
+    },
+  ];
+
+  return (
+    <>
+      <h1>Exporty do účetnictví</h1>
+      <p style={{ color: "var(--muted)" }}>
+        Vyberte období a stáhněte si podklady pro <b>iDoklad</b>, <b>Fakturoid</b> nebo <b>POHODU</b>. Exportují se faktury,
+        které e-shop vystavil automaticky — chybějící doplníte v sekci <Link to="/admin/faktury">Faktury</Link>.
+      </p>
+
+      <form className="admin-form" onSubmit={(e) => e.preventDefault()}>
+        <label>Od data<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+        <label>Do data<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        <label className="full">
+          <input type="checkbox" checked={onlyPaid} onChange={(e) => setOnlyPaid(e.target.checked)} /> Jen zaplacené faktury
+        </label>
+      </form>
+
+      <div className="export-grid">
+        {cards.map((c) => (
+          <div className="export-card" key={c.target}>
+            <div className="export-head">
+              <h3>{c.title}</h3>
+              <span className="export-badge">{c.badge}</span>
+            </div>
+            <p>{c.text}</p>
+            <p className="export-how">{c.how}</p>
+            <button className="btn btn-sm" onClick={() => void download(c.target, c.title)}>Stáhnout export</button>
+          </div>
+        ))}
       </div>
     </>
   );
@@ -658,6 +921,17 @@ function SettingsPage() {
     ["bank_name", "Banka"],
     ["bank_account", "Číslo bankovního účtu"],
     ["reviews_auto_approve", "Automaticky schvalovat hodnocení zákazníků (1/0)"],
+    ["invoice_auto", "Automaticky vystavovat faktury (1 = zapnuto, 0 = vypnuto)"],
+    ["invoice_auto_on", "Kdy vystavit fakturu (order = při objednávce, paid = po zaplacení)"],
+    ["invoice_prefix", "Předpona čísla faktury (např. FV)"],
+    ["invoice_pad", "Počet číslic pořadového čísla faktury (např. 4)"],
+    ["invoice_due_days", "Splatnost faktury ve dnech"],
+    ["invoice_vat_payer", "Plátce DPH (1/0)"],
+    ["invoice_vat_rate", "Sazba DPH v % (např. 21)"],
+    ["invoice_currency", "Měna faktur (např. CZK)"],
+    ["vendor_person", "Kontaktní osoba dodavatele systému KAVKA"],
+    ["vendor_web", "Web pro objednání systému KAVKA"],
+    ["vendor_phone", "Telefon pro objednání systému KAVKA"],
   ];
   return (
     <>

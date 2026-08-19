@@ -24,10 +24,12 @@ import {
 } from "../components/Icons";
 import { Reveal } from "../components/Reveal";
 import { useStore } from "../store";
+import { vendorContact } from "../vendor";
 import { useSeo } from "../title";
 
 export function Home() {
   const { settings } = useStore();
+  const vendor = vendorContact(settings);
   const storeName = settings.store_name || "KAVKA";
 
   useSeo({
@@ -512,12 +514,8 @@ export function Home() {
                   <IconCheck size={14} /> Administrace, sklad, kupóny
                 </li>
               </ul>
-              <a
-                href={`mailto:${settings.store_email || "ahoj@kavka.shop"}?subject=Poptávka%20KAVKA%20SaaS%20pronájem`}
-                className="btn"
-                style={{ width: "100%" }}
-              >
-                Poptat pronájem
+              <a href={vendor.web} target="_blank" rel="noreferrer" className="btn" style={{ width: "100%" }}>
+                Objednat pronájem na {vendor.webLabel}
               </a>
               <small>Bez dlouhodobých závazků · Výpověď měsíčně</small>
             </div>
@@ -547,12 +545,8 @@ export function Home() {
                   <IconCheck size={14} /> Nulové měsíční Poplatky za software
                 </li>
               </ul>
-              <a
-                href={`mailto:${settings.store_email || "ahoj@kavka.shop"}?subject=Poptávka%20KAVKA%20prodej%20na%20klíč`}
-                className="btn"
-                style={{ width: "100%" }}
-              >
-                Poptat prodej na klíč
+              <a href={vendor.web} target="_blank" rel="noreferrer" className="btn" style={{ width: "100%" }}>
+                Objednat na {vendor.webLabel}
               </a>
               <small>Nejvýhodnější varianta pro dlouhodobý byznys</small>
             </div>
@@ -578,11 +572,7 @@ export function Home() {
                   <IconCheck size={14} /> Prioritní SLA podpora
                 </li>
               </ul>
-              <a
-                href={`mailto:${settings.store_email || "ahoj@kavka.shop"}?subject=Poptávka%20KAVKA%20white-label`}
-                className="btn-line"
-                style={{ width: "100%" }}
-              >
+              <a href={vendor.web} target="_blank" rel="noreferrer" className="btn-line" style={{ width: "100%" }}>
                 Probrat white-label
               </a>
               <small>Pro vývojová studia a freelancery</small>
@@ -647,18 +637,36 @@ export function Home() {
               Napište nám vaši představu, doménu a sortiment. Připravíme vám nezávazný náhled e-shopu KAVKA zdarma.
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
-              <a
-                href={`mailto:${settings.store_email || "ahoj@kavka.shop"}?subject=Poptávka%20e-shopu%20KAVKA`}
-                className="btn"
-              >
-                <IconMail size={16} /> Napsat poptávku
+              <a href={vendor.web} target="_blank" rel="noreferrer" className="btn">
+                <IconMail size={16} /> Objednat na {vendor.webLabel}
               </a>
-              <a href={`tel:${(settings.store_phone || "+420777123456").replace(/\s+/g, "")}`} className="btn-line">
-                <IconPhone size={16} /> Zavolat {settings.store_phone || "+420 777 123 456"}
+              <a href={vendor.phoneHref} className="btn-line">
+                <IconPhone size={16} /> Zavolat {vendor.phone}
               </a>
             </div>
+            <p style={{ marginTop: 14, fontSize: 14, color: "var(--ink-soft)" }}>
+              Kontakt a objednání systému KAVKA: <b>{vendor.person}</b> ·{" "}
+              <a href={vendor.web} target="_blank" rel="noreferrer">
+                {vendor.webLabel}
+              </a>{" "}
+              · <a href={vendor.phoneHref}>{vendor.phone}</a>
+            </p>
           </div>
           <div className="cta-contacts">
+            <div>
+              <b>Objednávka a kontakt</b>
+              <ul>
+                <li>{vendor.person}</li>
+                <li>
+                  <a href={vendor.web} target="_blank" rel="noreferrer">
+                    {vendor.webLabel}
+                  </a>
+                </li>
+                <li>
+                  <a href={vendor.phoneHref}>{vendor.phone}</a>
+                </li>
+              </ul>
+            </div>
             <div>
               <b>Proč KAVKA?</b>
               <ul>

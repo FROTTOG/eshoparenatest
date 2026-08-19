@@ -1,6 +1,7 @@
 import type { Bindings } from "./types";
 import { hashPassword } from "./crypto";
 import { PICKUP_POINTS } from "./points";
+import { INVOICES_SQL, INVOICES_INDEX_SQL } from "./invoices";
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
@@ -200,6 +201,41 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS invoices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  number TEXT NOT NULL UNIQUE,
+  order_id INTEGER NOT NULL,
+  order_number TEXT NOT NULL DEFAULT '',
+  variable_symbol TEXT NOT NULL DEFAULT '',
+  issue_date TEXT NOT NULL,
+  taxable_date TEXT NOT NULL,
+  due_date TEXT NOT NULL,
+  customer_name TEXT NOT NULL DEFAULT '',
+  customer_email TEXT NOT NULL DEFAULT '',
+  customer_phone TEXT NOT NULL DEFAULT '',
+  customer_street TEXT NOT NULL DEFAULT '',
+  customer_city TEXT NOT NULL DEFAULT '',
+  customer_zip TEXT NOT NULL DEFAULT '',
+  customer_country TEXT NOT NULL DEFAULT 'CZ',
+  company_name TEXT NOT NULL DEFAULT '',
+  ico TEXT NOT NULL DEFAULT '',
+  dic TEXT NOT NULL DEFAULT '',
+  currency TEXT NOT NULL DEFAULT 'CZK',
+  vat_rate INTEGER NOT NULL DEFAULT 21,
+  vat_payer INTEGER NOT NULL DEFAULT 1,
+  subtotal INTEGER NOT NULL DEFAULT 0,
+  vat_amount INTEGER NOT NULL DEFAULT 0,
+  total INTEGER NOT NULL DEFAULT 0,
+  payment_code TEXT NOT NULL DEFAULT '',
+  payment_name TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'issued',
+  paid_at TEXT,
+  note TEXT NOT NULL DEFAULT '',
+  items_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_order ON invoices(order_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_issue ON invoices(issue_date);
 CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_active ON products(active);
 CREATE INDEX IF NOT EXISTS idx_pickup_city ON pickup_points(city);
@@ -228,6 +264,17 @@ const SETTINGS: Record<string, string> = {
   bank_name: "Česká spořitelna, a.s.",
   bank_account: "192000145399/0800",
   reviews_auto_approve: "1",
+  invoice_auto: "1",
+  invoice_auto_on: "order",
+  invoice_prefix: "FV",
+  invoice_pad: "4",
+  invoice_due_days: "14",
+  invoice_vat_payer: "1",
+  invoice_vat_rate: "21",
+  invoice_currency: "CZK",
+  vendor_person: "Jan Minařík",
+  vendor_web: "https://jmweb.cz",
+  vendor_phone: "+420 776 677 399",
   hero_title: "Domov, který dýchá pomalu",
   hero_text:
     "Keramika z ateliéru, len z dílny, dřevo s kresbou. Posíláme po celé ČR — Z-BOX, Zásilkovna, Balíkovna i na adresu.",
@@ -626,6 +673,15 @@ export async function ensureReady(env: Bindings) {
       await env.DB.prepare(col).run();
     } catch {
       /* sloupec už existuje */
+    }
+  }
+
+  // Faktury — doplníme i do starších databází.
+  for (const stmt of [INVOICES_SQL, ...INVOICES_INDEX_SQL]) {
+    try {
+      await env.DB.prepare(stmt).run();
+    } catch (err) {
+      console.error("Invoices schema error:", err);
     }
   }
 

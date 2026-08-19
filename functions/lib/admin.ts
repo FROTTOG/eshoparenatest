@@ -1,6 +1,20 @@
 import type { App } from "./helpers";
 import { requireAdmin, slugify } from "./helpers";
 import { loadOrder } from "./public";
+import {
+  cancelInvoiceForOrder,
+  ensureInvoiceForOrder,
+  exportFakturoid,
+  exportIdoklad,
+  exportInvoicesCsv,
+  exportOrdersCsv,
+  exportPohoda,
+  invoiceHtml,
+  loadSettings,
+  markInvoicePaid,
+  withItems,
+  type InvoiceRow,
+} from "./invoices";
 
 export function registerAdmin(app: App) {
   app.use("/admin/*", async (c, next) => {
@@ -251,6 +265,23 @@ export function registerAdmin(app: App) {
       b.payment_status ?? null,
       id
     ).run();
+
+    // Automatické faktury reagují na změnu stavu objednávky.
+    try {
+      const s = await loadSettings(c.env.DB);
+      if (nextStatus === "cancelled") {
+        await cancelInvoiceForOrder(c.env.DB, id);
+      } else if (s.invoice_auto !== "0") {
+        const autoOn = s.invoice_auto_on || "order";
+        if (autoOn === "order" || b.payment_status === "paid") {
+          await ensureInvoiceForOrder(c.env.DB, id, s);
+        }
+        if (b.payment_status) await markInvoicePaid(c.env.DB, id, b.payment_status === "paid");
+      }
+    } catch (err) {
+      console.error("Invoice sync error:", err);
+    }
+
     return c.json({ order: await loadOrder(c.env.DB, id) });
   });
 
@@ -463,6 +494,188 @@ export function registerAdmin(app: App) {
        FROM products p ORDER BY p.stock ASC, p.name`
     ).all();
     return c.json(rows.results || []);
+  });
+
+  /* ============================================================
+     Faktury — automatické generování, přehled, tisk
+     ============================================================ */
+
+  app.get("/admin/invoices", async (c) => {
+    const status = (c.req.query("status") || "").trim();
+    const q = (c.req.query("q") || "").trim();
+    const from = (c.req.query("from") || "").trim();
+    const to = (c.req.query("to") || "").trim();
+    let sql = "SELECT * FROM invoices WHERE 1=1";
+    const binds: string[] = [];
+    if (status) {
+      sql += " AND status = ?";
+      binds.push(status);
+    }
+    if (from) {
+      sql += " AND issue_date >= ?";
+      binds.push(from);
+    }
+    if (to) {
+      sql += " AND issue_date <= ?";
+      binds.push(to);
+    }
+    if (q) {
+      sql += " AND (number LIKE ? OR order_number LIKE ? OR customer_name LIKE ? OR company_name LIKE ? OR customer_email LIKE ?)";
+      const like = `%${q}%`;
+      binds.push(like, like, like, like, like);
+    }
+    sql += " ORDER BY id DESC LIMIT 500";
+    const rows = await c.env.DB.prepare(sql).bind(...binds).all<InvoiceRow>();
+    const list = rows.results || [];
+    const sum = list.reduce(
+      (acc, r) => ({
+        count: acc.count + 1,
+        total: acc.total + Number(r.total || 0),
+        unpaid: acc.unpaid + (r.status === "issued" ? Number(r.total || 0) : 0),
+      }),
+      { count: 0, total: 0, unpaid: 0 }
+    );
+    return c.json({ invoices: list, summary: sum });
+  });
+
+  app.get("/admin/invoices/:id", async (c) => {
+    const inv = await c.env.DB.prepare("SELECT * FROM invoices WHERE id = ?").bind(Number(c.req.param("id"))).first<InvoiceRow>();
+    if (!inv) return c.json({ error: "Faktura nenalezena." }, 404);
+    return c.json({ invoice: inv });
+  });
+
+  app.get("/admin/invoices/:id/html", async (c) => {
+    const inv = await c.env.DB.prepare("SELECT * FROM invoices WHERE id = ?").bind(Number(c.req.param("id"))).first<InvoiceRow>();
+    if (!inv) return c.json({ error: "Faktura nenalezena." }, 404);
+    const s = await loadSettings(c.env.DB);
+    return c.html(invoiceHtml(inv, s));
+  });
+
+  app.patch("/admin/invoices/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    const b = await c.req.json<{ status?: string }>();
+    const status = b.status === "paid" ? "paid" : b.status === "cancelled" ? "cancelled" : "issued";
+    await c.env.DB.prepare("UPDATE invoices SET status = ?, paid_at = ? WHERE id = ?")
+      .bind(status, status === "paid" ? new Date().toISOString().slice(0, 10) : null, id)
+      .run();
+    const inv = await c.env.DB.prepare("SELECT * FROM invoices WHERE id = ?").bind(id).first<InvoiceRow>();
+    if (inv && status === "paid") {
+      await c.env.DB.prepare("UPDATE orders SET payment_status = 'paid', updated_at = datetime('now') WHERE id = ?").bind(inv.order_id).run();
+    }
+    return c.json({ invoice: inv });
+  });
+
+  app.delete("/admin/invoices/:id", async (c) => {
+    await c.env.DB.prepare("DELETE FROM invoices WHERE id = ?").bind(Number(c.req.param("id"))).run();
+    return c.json({ ok: true });
+  });
+
+  // Vystavit fakturu k jedné objednávce
+  app.post("/admin/orders/:id/invoice", async (c) => {
+    const inv = await ensureInvoiceForOrder(c.env.DB, Number(c.req.param("id")));
+    if (!inv) return c.json({ error: "Objednávku se nepodařilo najít." }, 404);
+    return c.json({ invoice: inv });
+  });
+
+  // Dogenerovat faktury ke všem objednávkám, které ji ještě nemají
+  app.post("/admin/invoices/generate", async (c) => {
+    type GenBody = { only_paid?: boolean; from?: string; to?: string };
+    const b = await c.req.json<GenBody>().catch((): GenBody => ({}));
+    let sql = "SELECT o.id FROM orders o LEFT JOIN invoices i ON i.order_id = o.id WHERE i.id IS NULL AND o.status != 'cancelled'";
+    const binds: string[] = [];
+    if (b.only_paid) sql += " AND o.payment_status = 'paid'";
+    if (b.from) {
+      sql += " AND date(o.created_at) >= ?";
+      binds.push(b.from);
+    }
+    if (b.to) {
+      sql += " AND date(o.created_at) <= ?";
+      binds.push(b.to);
+    }
+    sql += " ORDER BY o.id ASC LIMIT 300";
+    const rows = (await c.env.DB.prepare(sql).bind(...binds).all<{ id: number }>()).results || [];
+    const s = await loadSettings(c.env.DB);
+    let created = 0;
+    for (const r of rows) {
+      const inv = await ensureInvoiceForOrder(c.env.DB, r.id, s);
+      if (inv) created++;
+    }
+    return c.json({ created, checked: rows.length });
+  });
+
+  /* ============================================================
+     Účetní exporty — iDoklad, Fakturoid, POHODA
+     ============================================================ */
+
+  app.get("/admin/export/:target", async (c) => {
+    const target = c.req.param("target");
+    const from = (c.req.query("from") || "").trim();
+    const to = (c.req.query("to") || "").trim();
+    const status = (c.req.query("status") || "").trim();
+    const onlyPaid = c.req.query("only_paid") === "1";
+    const s = await loadSettings(c.env.DB);
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    function file(body: string, name: string, mime: string) {
+      return new Response(body, {
+        headers: {
+          "Content-Type": `${mime}; charset=utf-8`,
+          "Content-Disposition": `attachment; filename="${name}"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    if (target === "orders-csv") {
+      let sql = "SELECT * FROM orders WHERE 1=1";
+      const binds: string[] = [];
+      if (from) {
+        sql += " AND date(created_at) >= ?";
+        binds.push(from);
+      }
+      if (to) {
+        sql += " AND date(created_at) <= ?";
+        binds.push(to);
+      }
+      if (status) {
+        sql += " AND status = ?";
+        binds.push(status);
+      }
+      sql += " ORDER BY id DESC LIMIT 5000";
+      const rows = (await c.env.DB.prepare(sql).bind(...binds).all<Record<string, unknown>>()).results || [];
+      return file(exportOrdersCsv(rows), `kavka-objednavky-${stamp}.csv`, "text/csv");
+    }
+
+    let sql = "SELECT * FROM invoices WHERE status != 'cancelled'";
+    const binds: string[] = [];
+    if (from) {
+      sql += " AND issue_date >= ?";
+      binds.push(from);
+    }
+    if (to) {
+      sql += " AND issue_date <= ?";
+      binds.push(to);
+    }
+    if (onlyPaid) sql += " AND status = 'paid'";
+    sql += " ORDER BY id ASC LIMIT 5000";
+    const invoices = withItems((await c.env.DB.prepare(sql).bind(...binds).all<InvoiceRow>()).results || []);
+
+    if (!invoices.length) {
+      return c.json({ error: "Ve zvoleném období nejsou žádné faktury. Vygenerujte je v sekci Faktury." }, 404);
+    }
+
+    switch (target) {
+      case "idoklad":
+        return file(exportIdoklad(invoices), `idoklad-faktury-${stamp}.csv`, "text/csv");
+      case "fakturoid":
+        return file(exportFakturoid(invoices), `fakturoid-faktury-${stamp}.csv`, "text/csv");
+      case "pohoda":
+        return file(exportPohoda(invoices, s), `pohoda-faktury-${stamp}.xml`, "application/xml");
+      case "invoices-csv":
+        return file(exportInvoicesCsv(invoices), `kavka-faktury-${stamp}.csv`, "text/csv");
+      default:
+        return c.json({ error: "Neznámý formát exportu." }, 400);
+    }
   });
 
   app.post("/admin/upload", async (c) => {
