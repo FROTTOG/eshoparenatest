@@ -104,9 +104,9 @@ function Dash() {
           <tbody>
             {(s.low_stock as { id: number; name: string; sku: string; stock: number }[]).map((p) => (
               <tr key={p.id}>
-                <td><Link to={`/admin/produkty/${p.id}`}>{p.name}</Link></td>
-                <td>{p.sku}</td>
-                <td>{p.stock}</td>
+                <td data-label="Produkt"><Link to={`/admin/produkty/${p.id}`}>{p.name}</Link></td>
+                <td data-label="SKU">{p.sku}</td>
+                <td data-label="Sklad">{p.stock}</td>
               </tr>
             ))}
           </tbody>
@@ -119,10 +119,10 @@ function Dash() {
           <tbody>
             {(s.recent_orders as Order[]).map((o) => (
               <tr key={o.id}>
-                <td><Link to={`/admin/objednavky/${o.id}`}>{o.number}</Link></td>
-                <td>{o.name}</td>
-                <td><span className={`tag ${o.status}`}>{statusLabel(o.status)}</span></td>
-                <td>{czk(o.total)}</td>
+                <td data-label="Číslo"><Link to={`/admin/objednavky/${o.id}`}>{o.number}</Link></td>
+                <td data-label="Zákazník">{o.name}</td>
+                <td data-label="Stav"><span className={`tag ${o.status}`}>{statusLabel(o.status)}</span></td>
+                <td data-label="Částka">{czk(o.total)}</td>
               </tr>
             ))}
           </tbody>
@@ -155,11 +155,11 @@ function Products() {
             {rows.map((p) => (
               <tr key={p.id}>
                 <td>{p.image ? <img src={p.image} alt="" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} /> : null}</td>
-                <td><Link to={`/admin/produkty/${p.id}`}>{p.name}</Link></td>
-                <td>{p.sku}</td>
-                <td>{czk(p.price)}</td>
-                <td>{p.stock}</td>
-                <td>{p.active ? "ano" : "ne"}</td>
+                <td data-label="Název"><Link to={`/admin/produkty/${p.id}`}>{p.name}</Link></td>
+                <td data-label="SKU">{p.sku}</td>
+                <td data-label="Cena">{czk(p.price)}</td>
+                <td data-label="Sklad">{p.stock}</td>
+                <td data-label="Aktivní">{p.active ? "ano" : "ne"}</td>
               </tr>
             ))}
           </tbody>
@@ -354,12 +354,12 @@ function Orders() {
           <tbody>
             {rows.map((o) => (
               <tr key={o.id}>
-                <td><Link to={`/admin/objednavky/${o.id}`}>{o.number}</Link></td>
-                <td>{o.name}<br /><small>{o.email}</small></td>
-                <td><span className={`tag ${o.status}`}>{statusLabel(o.status)}</span></td>
-                <td>{statusLabel(o.payment_status)}</td>
-                <td>{czk(o.total)}</td>
-                <td>{dateCs(o.created_at)}</td>
+                <td data-label="Číslo"><Link to={`/admin/objednavky/${o.id}`}>{o.number}</Link></td>
+                <td data-label="Zákazník">{o.name}<br /><small>{o.email}</small></td>
+                <td data-label="Stav"><span className={`tag ${o.status}`}>{statusLabel(o.status)}</span></td>
+                <td data-label="Platba">{statusLabel(o.payment_status)}</td>
+                <td data-label="Celkem">{czk(o.total)}</td>
+                <td data-label="Vytvořeno">{dateCs(o.created_at)}</td>
               </tr>
             ))}
           </tbody>
@@ -575,13 +575,13 @@ function Invoices() {
           <tbody>
             {rows.map((i) => (
               <tr key={i.id}>
-                <td><b>{i.number}</b><br /><small>VS {i.variable_symbol}</small></td>
-                <td><Link to={`/admin/objednavky/${i.order_id}`}>{i.order_number}</Link></td>
-                <td>{i.company_name || i.customer_name}<br /><small>{i.customer_email}</small></td>
-                <td>{dateCs(i.issue_date)}</td>
-                <td>{dateCs(i.due_date)}</td>
-                <td>{czk(i.total)}<br /><small>bez DPH {czk(i.subtotal)}</small></td>
-                <td><span className={`tag ${i.status === "paid" ? "paid" : i.status === "cancelled" ? "cancelled" : "new"}`}>{invoiceStatusLabel(i.status)}</span></td>
+                <td data-label="Číslo"><b>{i.number}</b><br /><small>VS {i.variable_symbol}</small></td>
+                <td data-label="Objednávka"><Link to={`/admin/objednavky/${i.order_id}`}>{i.order_number}</Link></td>
+                <td data-label="Odběratel">{i.company_name || i.customer_name}<br /><small>{i.customer_email}</small></td>
+                <td data-label="Vystaveno">{dateCs(i.issue_date)}</td>
+                <td data-label="Splatnost">{dateCs(i.due_date)}</td>
+                <td data-label="Celkem">{czk(i.total)}<br /><small>bez DPH {czk(i.subtotal)}</small></td>
+                <td data-label="Stav"><span className={`tag ${i.status === "paid" ? "paid" : i.status === "cancelled" ? "cancelled" : "new"}`}>{invoiceStatusLabel(i.status)}</span></td>
                 <td>
                   <div className="row-actions">
                     <a className="chip" href={`/api/admin/invoices/${i.id}/html`} target="_blank" rel="noreferrer">Tisk / PDF</a>
@@ -730,8 +730,11 @@ function Customers() {
           <tbody>
             {rows.map((u) => (
               <tr key={u.id}>
-                <td>{u.name}</td><td>{u.email}<br /><small>{u.phone}</small></td>
-                <td>{u.role}</td><td>{u.orders}</td><td>{czk(u.spent)}</td>
+                <td data-label="Jméno">{u.name}</td>
+                <td data-label="E-mail">{u.email}<br /><small>{u.phone}</small></td>
+                <td data-label="Role">{u.role}</td>
+                <td data-label="Objednávek">{u.orders}</td>
+                <td data-label="Útrata">{czk(u.spent)}</td>
               </tr>
             ))}
           </tbody>

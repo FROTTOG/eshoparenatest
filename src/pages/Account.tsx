@@ -83,15 +83,15 @@ function Orders() {
           <tbody>
             {rows.map((o) => (
               <tr key={o.id}>
-                <td>
+                <td data-label="Číslo">
                   <Link to={`/objednavka/${o.number}`}>{o.number}</Link>
                 </td>
-                <td>{dateCs(o.created_at)}</td>
-                <td>
+                <td data-label="Datum">{dateCs(o.created_at)}</td>
+                <td data-label="Stav">
                   <span className={`tag ${o.status}`}>{statusLabel(o.status)}</span>
                 </td>
-                <td>{statusLabel(o.payment_status)}</td>
-                <td>{czk(o.total)}</td>
+                <td data-label="Platba">{statusLabel(o.payment_status)}</td>
+                <td data-label="Celkem">{czk(o.total)}</td>
               </tr>
             ))}
           </tbody>

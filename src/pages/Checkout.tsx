@@ -721,7 +721,6 @@ export function Checkout() {
         <button
           className="btn"
           disabled={busy}
-          form=""
           onClick={(e) => {
             const formEl = (e.currentTarget.closest(".checkout") as HTMLElement | null)?.querySelector("form");
             formEl?.requestSubmit();
