@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useStore } from "../store";
-import { IconAdmin, IconCart, IconClose, IconCookie, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
+import { IconAdmin, IconCart, IconClose, IconCookie, IconHeart, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
 import { CookieBanner, openCookieSettings } from "./CookieBanner";
 import { SearchBox } from "./SearchBox";
 import { Logo } from "./Ui";
 
 export function Layout() {
-  const { user, cart, settings, toasts } = useStore();
+  const { user, cart, settings, toasts, wishlist } = useStore();
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -61,6 +61,14 @@ export function Layout() {
             <button type="button" className="icon-btn mobile-search" onClick={() => setSearchOpen(true)} aria-label="Hledat">
               <IconSearch />
             </button>
+            <Link to="/oblibene" className="icon-btn" title="Oblíbené" aria-label="Oblíbené">
+              <IconHeart />
+              {wishlist.length > 0 && (
+                <span className="badge" key={wishlist.length}>
+                  {wishlist.length}
+                </span>
+              )}
+            </Link>
             <Link to={user ? "/ucet" : "/prihlaseni"} className="icon-btn" title={user ? user.name : "Přihlášení"} aria-label="Účet">
               <IconUser />
             </Link>

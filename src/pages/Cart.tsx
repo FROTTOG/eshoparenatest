@@ -1,22 +1,15 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, ApiError, type Cart as C, type ShippingMethod } from "../api";
-import { czk } from "../format";
+import { api, ApiError, type Cart as C } from "../api";
+import { czk, pickupFreeOver } from "../format";
 import { useStore } from "../store";
 import { usePageTitle } from "../title";
 
 export function CartPage() {
-  const { cart, setCart, toast } = useStore();
+  const { cart, setCart, toast, shipping } = useStore();
   const [code, setCode] = useState("");
-  const [freeOver, setFreeOver] = useState(1500);
-  usePageTitle("Košík — KAVKA");
-
-  useEffect(() => {
-    void api<ShippingMethod[]>("/shipping").then((rows) => {
-      const vals = rows.map((s) => s.free_over).filter((n): n is number => n != null && n > 0);
-      if (vals.length) setFreeOver(Math.min(...vals));
-    });
-  }, []);
+  usePageTitle("Košík — KAVKA", "Váš nákupní košík v ateliéru KAVKA.");
+  const freeOver = pickupFreeOver(shipping);
 
   async function qty(id: number, quantity: number) {
     try {
@@ -50,8 +43,8 @@ export function CartPage() {
   }
 
   const goods = cart.subtotal - cart.discount;
-  const remain = Math.max(0, freeOver - goods);
-  const shipPct = Math.min(100, Math.round((goods / freeOver) * 100));
+  const remain = freeOver != null ? Math.max(0, freeOver - goods) : 0;
+  const shipPct = freeOver ? Math.min(100, Math.round((goods / freeOver) * 100)) : 100;
 
   return (
     <div className="wrap two">

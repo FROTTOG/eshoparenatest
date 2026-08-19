@@ -1,20 +1,45 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type Order, type Product } from "../api";
+import { IconClose, IconMenu } from "../components/Icons";
 import { Logo } from "../components/Ui";
 import { czk, dateCs, statusLabel } from "../format";
 import { useStore } from "../store";
 
 export function Admin() {
   const { user } = useStore();
+  const loc = useLocation();
+  const [menu, setMenu] = useState(false);
+
+  useEffect(() => {
+    setMenu(false);
+  }, [loc.pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = menu ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menu]);
+
   if (!user) return <Navigate to="/prihlaseni" replace />;
   if (user.role !== "admin") return <Navigate to="/ucet" replace />;
 
   return (
-    <div className="admin">
+    <div className={`admin${menu ? " nav-open" : ""}`}>
+      <header className="admin-topbar">
+        <button type="button" className="icon-btn" onClick={() => setMenu((v) => !v)} aria-label="Menu administrace" aria-expanded={menu}>
+          {menu ? <IconClose /> : <IconMenu />}
+        </button>
+        <Logo />
+        <Link to="/" className="chip">
+          E-shop
+        </Link>
+      </header>
+      {menu && <button type="button" className="admin-scrim" aria-label="Zavřít menu" onClick={() => setMenu(false)} />}
       <aside>
         <Logo />
-        <nav>
+        <nav onClick={() => setMenu(false)}>
           <NavLink to="/admin" end>Přehled</NavLink>
           <NavLink to="/admin/produkty">Produkty</NavLink>
           <NavLink to="/admin/sklad">Sklad</NavLink>
@@ -365,7 +390,7 @@ function OrderEdit() {
           <button key={s} className={`chip ${order.payment_status === s ? "on" : ""}`} onClick={() => void patch({ payment_status: s })}>Platba: {statusLabel(s)}</button>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, margin: "16px 0", background: "var(--card)", padding: 18, borderRadius: 16, border: "1px solid var(--line)" }}>
+      <div className="admin-split" style={{ display: "grid", gap: 16, margin: "16px 0", background: "var(--card)", padding: 18, borderRadius: 16, border: "1px solid var(--line)" }}>
         <div>
           <b style={{ display: "block", marginBottom: 6 }}>Fakturační údaje:</b>
           {order.is_company ? (

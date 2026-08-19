@@ -10,6 +10,7 @@ import { Home } from "./pages/Home";
 import { OrderPage, Track } from "./pages/Order";
 import { ProductPage } from "./pages/Product";
 import { About, Privacy, Returns, ShippingInfo, Terms } from "./pages/Static";
+import { WishlistPage } from "./pages/Wishlist";
 
 function NotFound() {
   return (
@@ -33,6 +34,7 @@ export function App() {
         <Route path="katalog/:slug" element={<Catalog />} />
         <Route path="produkt/:slug" element={<ProductPage />} />
         <Route path="kosik" element={<CartPage />} />
+        <Route path="oblibene" element={<WishlistPage />} />
         <Route path="pokladna" element={<Checkout />} />
         <Route path="prihlaseni" element={<Login />} />
         <Route path="registrace" element={<Register />} />

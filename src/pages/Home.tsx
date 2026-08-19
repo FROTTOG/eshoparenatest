@@ -4,12 +4,23 @@ import { api, type Category, type Product } from "../api";
 import { IconArrow, IconGift, IconLeaf, IconLocker, IconParcel, IconPin, IconShield, IconSpark, IconWrap } from "../components/Icons";
 import { ProductCard } from "../components/ProductCard";
 import { Reveal } from "../components/Reveal";
+import { cheapestPickup, czk, pickupFreeOver, shippingByKind } from "../format";
 import { useStore } from "../store";
-import { usePageTitle } from "../title";
+import { useSeo } from "../title";
 
 export function Home() {
-  const { settings } = useStore();
-  usePageTitle(`${settings.store_name || "KAVKA"} — věci s charakterem`);
+  const { settings, shipping } = useStore();
+  const storeName = settings.store_name || "KAVKA";
+  useSeo({
+    title: `${storeName} — věci s charakterem`,
+    description:
+      settings.hero_text ||
+      "Keramika z ateliéru, len z dílny, dřevo s kresbou. Posíláme po celé ČR — Z-BOX, Zásilkovna, Balíkovna i na adresu.",
+    image: "/hero.jpg",
+  });
+  const freeOver = pickupFreeOver(shipping);
+  const zbox = shippingByKind(shipping, "pickup_zbox");
+  const cheap = cheapestPickup(shipping);
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<Product[]>([]);
   const [ready, setReady] = useState(false);
@@ -21,8 +32,25 @@ export function Home() {
     ]).finally(() => setReady(true));
   }, []);
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: settings.store_company || storeName,
+    url: typeof window !== "undefined" ? window.location.origin : undefined,
+    logo: "/favicon.svg",
+    email: settings.store_email || "ahoj@kavka.shop",
+    telephone: settings.store_phone || "+420777123456",
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: settings.store_address || "Korunní 42",
+      addressLocality: "Praha",
+      addressCountry: "CZ",
+    },
+  };
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <section className="hero">
         <div className="orb orb-a" />
         <div className="orb orb-b" />
@@ -42,9 +70,19 @@ export function Home() {
             </Link>
           </div>
           <div className="hero-pills">
-            <span>
-              <IconLocker size={16} /> Z-BOX od 59 Kč
-            </span>
+            {zbox ? (
+              <span>
+                <IconLocker size={16} /> {zbox.name} od {czk(zbox.price)}
+              </span>
+            ) : cheap ? (
+              <span>
+                <IconLocker size={16} /> {cheap.name} od {czk(cheap.price)}
+              </span>
+            ) : (
+              <span>
+                <IconLocker size={16} /> Výdejní místa
+              </span>
+            )}
             <span>
               <IconPin size={16} /> živá mapa Packety
             </span>
@@ -57,7 +95,11 @@ export function Home() {
           <img src="/hero.jpg" alt="Zátiší KAVKA — keramika, len a dřevo" />
           <div className="hero-chip glass-card">
             <IconSpark size={16} />
-            <span>Nad 1 500 Kč posíláme výdejní místa zdarma</span>
+            <span>
+              {freeOver
+                ? `Nad ${czk(freeOver)} posíláme výdejní místa zdarma`
+                : "Výdejní místo vyberete na živé mapě"}
+            </span>
           </div>
         </div>
       </section>

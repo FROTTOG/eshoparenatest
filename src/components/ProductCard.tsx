@@ -4,6 +4,7 @@ import { useStore } from "../store";
 import { IconCart } from "./Icons";
 import { Reveal } from "./Reveal";
 import { Price, Stars, Stock } from "./Ui";
+import { WishButton } from "./WishButton";
 
 export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
   const { addToCart, toast } = useStore();
@@ -12,6 +13,7 @@ export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
       <article className="pcard">
         <Link to={`/produkt/${p.slug}`} className="pcard-img">
           {p.compare_price && p.compare_price > p.price ? <span className="sale">Akce</span> : null}
+          <WishButton p={p} />
           <img src={p.image || "/products/hrnek.jpg"} alt={p.name} loading="lazy" />
         </Link>
         <div className="pcard-body">

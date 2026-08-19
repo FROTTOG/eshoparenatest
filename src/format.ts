@@ -28,6 +28,23 @@ export function statusLabel(s: string): string {
   return map[s] || s;
 }
 
+export function pickupFreeOver(methods: { kind: string; free_over: number | null }[]): number | null {
+  const vals = methods
+    .filter((s) => s.kind.startsWith("pickup_") && s.free_over != null && s.free_over > 0)
+    .map((s) => Number(s.free_over));
+  return vals.length ? Math.min(...vals) : null;
+}
+
+export function cheapestPickup(methods: { kind: string; name: string; price: number }[]) {
+  const pickup = methods.filter((s) => s.kind.startsWith("pickup_"));
+  if (!pickup.length) return null;
+  return pickup.reduce((a, b) => (a.price <= b.price ? a : b));
+}
+
+export function shippingByKind<T extends { kind: string }>(methods: T[], kind: string) {
+  return methods.find((s) => s.kind === kind);
+}
+
 export function pointTypeLabel(t: string): string {
   if (t === "zbox") return "Z-BOX";
   if (t === "branch") return "Zásilkovna";

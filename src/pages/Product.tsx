@@ -4,13 +4,14 @@ import { api, ApiError, type Product as P } from "../api";
 import { IconArrow, IconCheck, IconClock, IconLeaf, IconShield } from "../components/Icons";
 import { ProductCard } from "../components/ProductCard";
 import { Price, Stars, Stock } from "../components/Ui";
-import { dateCs } from "../format";
+import { WishButton } from "../components/WishButton";
+import { czk, dateCs, pickupFreeOver, shippingByKind } from "../format";
 import { useStore } from "../store";
-import { usePageTitle } from "../title";
+import { useSeo } from "../title";
 
 export function ProductPage() {
   const { slug } = useParams();
-  const { user, addToCart, toast } = useStore();
+  const { user, addToCart, toast, shipping } = useStore();
   const [p, setP] = useState<P | null>(null);
   const [related, setRelated] = useState<P[]>([]);
   const [qty, setQty] = useState(1);
@@ -22,7 +23,14 @@ export function ProductPage() {
   const [ok, setOk] = useState("");
   const [form, setForm] = useState({ rating: 5, title: "", comment: "" });
 
-  usePageTitle(p ? `${p.name} — KAVKA` : "Produkt — KAVKA");
+  useSeo({
+    title: p ? `${p.name} — KAVKA` : "Produkt — KAVKA",
+    description: p?.short_description || p?.description || "Kousek z ateliéru KAVKA.",
+    image: p?.image || p?.images?.[0],
+    type: "product",
+  });
+  const freeOver = pickupFreeOver(shipping);
+  const zbox = shippingByKind(shipping, "pickup_zbox");
 
   const pics = useMemo(() => {
     const list = (p?.images?.length ? p.images : p?.image ? [p.image] : []).filter(Boolean);
@@ -215,6 +223,7 @@ export function ProductPage() {
             <button className="btn" disabled={p.stock <= 0 || busy} onClick={() => void buy()}>
               {p.stock <= 0 ? "Vyprodáno" : busy ? "Vkládám…" : added ? "V košíku" : "Vložit do košíku"}
             </button>
+            <WishButton p={p} className="wish-inline" />
           </div>
           <p style={{ color: "var(--muted)", fontSize: 13 }}>
             Hmotnost {p.weight} g · skladem {p.stock} ks
@@ -224,7 +233,11 @@ export function ProductPage() {
               <IconLeaf size={16} /> Skladem do kusu — objednávka rezervuje polici
             </li>
             <li>
-              <IconClock size={16} /> Výdejní místa zdarma od 1 500 Kč · Z-BOX od 59 Kč
+              <IconClock size={16} />{" "}
+              {freeOver
+                ? `Výdejní místa zdarma od ${czk(freeOver)}`
+                : "Doprava na výdejní místo podle ceníku na pokladně"}
+              {zbox ? ` · ${zbox.name} od ${czk(zbox.price)}` : ""}
             </li>
             <li>
               <IconShield size={16} /> 14 dní na vrácení · záruka 24 měsíců
