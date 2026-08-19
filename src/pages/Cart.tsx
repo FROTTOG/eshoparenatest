@@ -1,12 +1,15 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError, type Cart as C } from "../api";
-import { czk } from "../format";
+import { czk, pickupFreeOver } from "../format";
 import { useStore } from "../store";
+import { usePageTitle } from "../title";
 
 export function CartPage() {
-  const { cart, setCart, toast } = useStore();
+  const { cart, setCart, toast, shipping } = useStore();
   const [code, setCode] = useState("");
+  usePageTitle("Košík — KAVKA", "Váš nákupní košík v ateliéru KAVKA.");
+  const freeOver = pickupFreeOver(shipping);
 
   async function qty(id: number, quantity: number) {
     try {
@@ -39,6 +42,10 @@ export function CartPage() {
     );
   }
 
+  const goods = cart.subtotal - cart.discount;
+  const remain = freeOver != null ? Math.max(0, freeOver - goods) : 0;
+  const shipPct = freeOver ? Math.min(100, Math.round((goods / freeOver) * 100)) : 100;
+
   return (
     <div className="wrap two">
       <div>
@@ -46,7 +53,7 @@ export function CartPage() {
         {cart.items.map((it) => (
           <div className="line-item" key={it.id}>
             <Link to={`/produkt/${it.slug}`}>
-              <img src={it.image} alt="" />
+              <img src={it.image} alt={it.name} />
             </Link>
             <div>
               <Link to={`/produkt/${it.slug}`}>
@@ -54,9 +61,13 @@ export function CartPage() {
               </Link>
               <div style={{ color: "var(--muted)", fontSize: 13 }}>{it.sku}</div>
               <div className="qty" style={{ marginTop: 8 }}>
-                <button onClick={() => void qty(it.id, it.quantity - 1)}>−</button>
+                <button type="button" onClick={() => void qty(it.id, it.quantity - 1)} aria-label="Méně">
+                  −
+                </button>
                 <span>{it.quantity}</span>
-                <button onClick={() => void qty(it.id, it.quantity + 1)}>+</button>
+                <button type="button" onClick={() => void qty(it.id, it.quantity + 1)} aria-label="Více">
+                  +
+                </button>
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
@@ -67,11 +78,28 @@ export function CartPage() {
             </div>
           </div>
         ))}
+        <p style={{ marginTop: 18 }}>
+          <Link className="text-link" to="/katalog">
+            ← Pokračovat v nákupu
+          </Link>
+        </p>
       </div>
       <aside className="summary">
         <h2 className="serif" style={{ marginTop: 0 }}>
           Součet
         </h2>
+        <div className="ship-meter">
+          {remain > 0 ? (
+            <>
+              Do dopravy zdarma na výdejní místo zbývá <b>{czk(remain)}</b>
+            </>
+          ) : (
+            <>Výdejní místo máte <b>zdarma</b></>
+          )}
+          <div className="ship-meter-bar" aria-hidden>
+            <span style={{ width: `${shipPct}%` }} />
+          </div>
+        </div>
         <dl>
           <div>
             <span>Mezisoučet</span>
@@ -85,7 +113,7 @@ export function CartPage() {
           )}
           <div>
             <strong>Zboží</strong>
-            <strong>{czk(cart.subtotal - cart.discount)}</strong>
+            <strong>{czk(goods)}</strong>
           </div>
         </dl>
         <form onSubmit={coupon} style={{ display: "flex", gap: 8, marginBottom: 14 }}>
@@ -93,6 +121,7 @@ export function CartPage() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="Kupón"
+            aria-label="Kód kupónu"
             style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 999, padding: "10px 12px" }}
           />
           <button className="btn-line" type="submit">
@@ -102,10 +131,7 @@ export function CartPage() {
         {cart.coupon && (
           <p style={{ fontSize: 13 }}>
             Použitý kupón <b>{cart.coupon.code}</b>{" "}
-            <button
-              className="linkish"
-              onClick={() => void api<C>("/cart/coupon", { method: "DELETE" }).then(setCart)}
-            >
+            <button className="linkish" onClick={() => void api<C>("/cart/coupon", { method: "DELETE" }).then(setCart)}>
               odebrat
             </button>
           </p>

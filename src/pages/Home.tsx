@@ -4,20 +4,53 @@ import { api, type Category, type Product } from "../api";
 import { IconArrow, IconGift, IconLeaf, IconLocker, IconParcel, IconPin, IconShield, IconSpark, IconWrap } from "../components/Icons";
 import { ProductCard } from "../components/ProductCard";
 import { Reveal } from "../components/Reveal";
+import { cheapestPickup, czk, pickupFreeOver, shippingByKind } from "../format";
 import { useStore } from "../store";
+import { useSeo } from "../title";
 
 export function Home() {
-  const { settings } = useStore();
+  const { settings, shipping } = useStore();
+  const storeName = settings.store_name || "KAVKA";
+  useSeo({
+    title: `${storeName} — věci s charakterem`,
+    description:
+      settings.hero_text ||
+      "Keramika z ateliéru, len z dílny, dřevo s kresbou. Posíláme po celé ČR — Z-BOX, Zásilkovna, Balíkovna i na adresu.",
+    image: "/hero.jpg",
+  });
+  const freeOver = pickupFreeOver(shipping);
+  const zbox = shippingByKind(shipping, "pickup_zbox");
+  const cheap = cheapestPickup(shipping);
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<Product[]>([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    void api<Category[]>("/categories").then(setCats);
-    void api<{ items: Product[] }>("/products?featured=1&limit=8").then((r) => setItems(r.items));
+    void Promise.all([
+      api<Category[]>("/categories").then(setCats),
+      api<{ items: Product[] }>("/products?featured=1&limit=8").then((r) => setItems(r.items)),
+    ]).finally(() => setReady(true));
   }, []);
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: settings.store_company || storeName,
+    url: typeof window !== "undefined" ? window.location.origin : undefined,
+    logo: "/favicon.svg",
+    email: settings.store_email || "ahoj@kavka.shop",
+    telephone: settings.store_phone || "+420777123456",
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: settings.store_address || "Korunní 42",
+      addressLocality: "Praha",
+      addressCountry: "CZ",
+    },
+  };
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <section className="hero">
         <div className="orb orb-a" />
         <div className="orb orb-b" />
@@ -37,9 +70,19 @@ export function Home() {
             </Link>
           </div>
           <div className="hero-pills">
-            <span>
-              <IconLocker size={16} /> Z-BOX od 59 Kč
-            </span>
+            {zbox ? (
+              <span>
+                <IconLocker size={16} /> {zbox.name} od {czk(zbox.price)}
+              </span>
+            ) : cheap ? (
+              <span>
+                <IconLocker size={16} /> {cheap.name} od {czk(cheap.price)}
+              </span>
+            ) : (
+              <span>
+                <IconLocker size={16} /> Výdejní místa
+              </span>
+            )}
             <span>
               <IconPin size={16} /> živá mapa Packety
             </span>
@@ -52,7 +95,11 @@ export function Home() {
           <img src="/hero.jpg" alt="Zátiší KAVKA — keramika, len a dřevo" />
           <div className="hero-chip glass-card">
             <IconSpark size={16} />
-            <span>Nad 1 500 Kč posíláme výdejní místa zdarma</span>
+            <span>
+              {freeOver
+                ? `Nad ${czk(freeOver)} posíláme výdejní místa zdarma`
+                : "Výdejní místo vyberete na živé mapě"}
+            </span>
           </div>
         </div>
       </section>
@@ -71,14 +118,23 @@ export function Home() {
             </div>
           </Reveal>
           <div className="cats">
-            {cats.map((c, i) => (
-              <Reveal key={c.id} delay={(i % 5) * 60} className="reveal-cell">
-                <Link to={`/katalog/${c.slug}`} className="cat-card">
-                  <img src={c.image || "/products/vaza.jpg"} alt="" loading="lazy" />
-                  <span>{c.name}</span>
-                </Link>
-              </Reveal>
-            ))}
+            {!ready
+              ? Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="cat-card">
+                    <div className="skel" style={{ height: 140 }} />
+                    <span>
+                      <span className="skel" style={{ height: 18, width: 90, display: "block" }} />
+                    </span>
+                  </div>
+                ))
+              : cats.map((c, i) => (
+                  <Reveal key={c.id} delay={(i % 5) * 60} className="reveal-cell">
+                    <Link to={`/katalog/${c.slug}`} className="cat-card">
+                      <img src={c.image || "/products/vaza.jpg"} alt={c.name} loading="lazy" />
+                      <span>{c.name}</span>
+                    </Link>
+                  </Reveal>
+                ))}
           </div>
         </div>
       </section>
@@ -91,12 +147,23 @@ export function Home() {
                 <div className="kicker">Právě teď</div>
                 <h2>Teď v ateliéru</h2>
               </div>
+              <Link className="text-link" to="/katalog">
+                Všechny kousky <IconArrow size={16} />
+              </Link>
             </div>
           </Reveal>
           <div className="grid-products">
-            {items.map((p, i) => (
-              <ProductCard key={p.id} p={p} index={i} />
-            ))}
+            {!ready
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="pcard">
+                    <div className="skel" style={{ aspectRatio: "1" }} />
+                    <div className="pcard-body">
+                      <div className="skel" style={{ height: 12, width: 72 }} />
+                      <div className="skel" style={{ height: 22, width: "65%" }} />
+                    </div>
+                  </div>
+                ))
+              : items.map((p, i) => <ProductCard key={p.id} p={p} index={i} />)}
           </div>
         </div>
       </section>

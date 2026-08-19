@@ -22,9 +22,12 @@ import {
   IconWrap,
 } from "../components/Icons";
 import { openCookieSettings } from "../components/CookieBanner";
+import { czk } from "../format";
 import { useStore } from "../store";
+import { usePageTitle } from "../title";
 
 function Box({ title, children }: { title: string; children: React.ReactNode }) {
+  usePageTitle(`${title} — KAVKA`);
   return (
     <div className="wrap prose-page">
       <div className="crumbs">
@@ -121,71 +124,40 @@ export function About() {
   );
 }
 
+function shipIcon(kind: string) {
+  if (kind === "pickup_zbox") return <IconLocker />;
+  if (kind === "pickup_zasilkovna") return <IconPin />;
+  if (kind === "pickup_balikovna") return <IconParcel />;
+  if (kind === "store") return <IconShop />;
+  return <IconTruck />;
+}
+
 export function ShippingInfo() {
+  const { shipping } = useStore();
   return (
     <Box title="Doprava a platba">
       <p>
         Objednávky balíme do recyklovatelných materiálů a expedujeme každý pracovní den do 24 hodin.
-        U výdejních míst máte k dispozici oficiální živou mapu dopravce.
+        U výdejních míst máte k dispozici oficiální živou mapu dopravce. Ceny bereme z aktuálního ceníku v administraci.
       </p>
 
       <h3>Způsoby a ceník dopravy</h3>
       <ul className="info-list" style={{ margin: "18px 0" }}>
-        <li>
-          <IconWrap>
-            <IconLocker />
-          </IconWrap>
-          <div>
-            <b>Zásilkovna Z-BOX — 59 Kč (od 1 500 Kč ZDARMA)</b>
-            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
-              Samoobslužný box s nonstop výdejem. Otevření pomocí mobilní aplikace Packeta. Dodání do 1–2 pracovních dnů.
-            </p>
-          </div>
-        </li>
-        <li>
-          <IconWrap>
-            <IconPin />
-          </IconWrap>
-          <div>
-            <b>Zásilkovna — Výdejní místo — 79 Kč (od 1 500 Kč ZDARMA)</b>
-            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
-              Kamenná pobočka Zásilkovny s osobní obsluhou. Výběr na živé mapě, dodání do 1–2 pracovních dnů.
-            </p>
-          </div>
-        </li>
-        <li>
-          <IconWrap>
-            <IconParcel />
-          </IconWrap>
-          <div>
-            <b>Balíkovna (Česká pošta) — 65 Kč (od 1 500 Kč ZDARMA)</b>
-            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
-              Pošty, Balíkovna-boxy a partnerská místa (trafiky, obchody). Rychlý výdej na kód, dodání do 2–3 pracovních dnů.
-            </p>
-          </div>
-        </li>
-        <li>
-          <IconWrap>
-            <IconTruck />
-          </IconWrap>
-          <div>
-            <b>Doručení kurýrem na adresu — 99 Kč (od 2 000 Kč ZDARMA)</b>
-            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
-              Doručení kurýrem přímo k vašim dveřím po celé ČR. Řidič vás před doručením kontaktuje SMS zprávou a telefonicky.
-            </p>
-          </div>
-        </li>
-        <li>
-          <IconWrap>
-            <IconShop />
-          </IconWrap>
-          <div>
-            <b>Osobní odběr v ateliéru — ZDARMA</b>
-            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
-              Korunní 42, Praha 2 - Vinohrady. K vyzvednutí připraveno následující pracovní den od 10:00.
-            </p>
-          </div>
-        </li>
+        {shipping.map((s) => (
+          <li key={s.code}>
+            <IconWrap>{shipIcon(s.kind)}</IconWrap>
+            <div>
+              <b>
+                {s.name} — {s.price === 0 ? "ZDARMA" : czk(s.price)}
+                {s.free_over ? ` (od ${czk(s.free_over)} ZDARMA)` : ""}
+              </b>
+              <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
+                {s.description}
+                {s.eta ? ` Dodání ${s.eta}.` : ""}
+              </p>
+            </div>
+          </li>
+        ))}
       </ul>
 
       <h3>Způsoby platby</h3>

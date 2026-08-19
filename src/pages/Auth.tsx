@@ -2,22 +2,30 @@ import { FormEvent, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ApiError } from "../api";
 import { useStore } from "../store";
+import { usePageTitle } from "../title";
+
+function safeNext(raw: string | null) {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "";
+  return raw;
+}
 
 export function Login() {
+  usePageTitle("Přihlášení — KAVKA");
   const { user, login } = useStore();
   const nav = useNavigate();
   const loc = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
-  if (user) return <Navigate to={user.role === "admin" && loc.pathname === "/prihlaseni" ? "/admin" : "/ucet"} replace />;
+  const next = safeNext(new URLSearchParams(loc.search).get("next"));
+  if (user) return <Navigate to={user.role === "admin" && !next ? "/admin" : next || "/ucet"} replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErr("");
     try {
       await login(email, password);
-      nav("/ucet");
+      nav(next || "/ucet");
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "Přihlášení selhalo.");
     }
@@ -42,7 +50,7 @@ export function Login() {
         </button>
       </form>
       <p>
-        Nemáte účet? <Link to="/registrace">Registrace</Link>
+        Nemáte účet? <Link to={next ? `/registrace?next=${encodeURIComponent(next)}` : "/registrace"}>Registrace</Link>
       </p>
       <p style={{ fontSize: 13, color: "var(--muted)" }}>
         Ukázkový správce: <code>admin@kavka.shop</code> / <code>KavkaAdmin123</code>
@@ -54,18 +62,21 @@ export function Login() {
 }
 
 export function Register() {
+  usePageTitle("Registrace — KAVKA");
   const { user, register } = useStore();
   const nav = useNavigate();
+  const loc = useLocation();
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
   const [err, setErr] = useState("");
-  if (user) return <Navigate to="/ucet" replace />;
+  const next = safeNext(new URLSearchParams(loc.search).get("next"));
+  if (user) return <Navigate to={next || "/ucet"} replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErr("");
     try {
       await register(form);
-      nav("/ucet");
+      nav(next || "/ucet");
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "Registrace selhala.");
     }
@@ -98,7 +109,7 @@ export function Register() {
         </button>
       </form>
       <p>
-        Už u nás jste? <Link to="/prihlaseni">Přihlášení</Link>
+        Už u nás jste? <Link to={next ? `/prihlaseni?next=${encodeURIComponent(next)}` : "/prihlaseni"}>Přihlášení</Link>
       </p>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Link, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { Account } from "./pages/Account";
 import { Admin } from "./pages/Admin";
@@ -10,12 +10,16 @@ import { Home } from "./pages/Home";
 import { OrderPage, Track } from "./pages/Order";
 import { ProductPage } from "./pages/Product";
 import { About, Privacy, Returns, ShippingInfo, Terms } from "./pages/Static";
+import { WishlistPage } from "./pages/Wishlist";
 
 function NotFound() {
   return (
     <div className="wrap empty">
       <h1 className="serif">404</h1>
       <p>Tuhle stránku nemáme. Možná vylétla s kavkou.</p>
+      <Link className="btn" to="/katalog">
+        Do katalogu
+      </Link>
     </div>
   );
 }
@@ -30,6 +34,7 @@ export function App() {
         <Route path="katalog/:slug" element={<Catalog />} />
         <Route path="produkt/:slug" element={<ProductPage />} />
         <Route path="kosik" element={<CartPage />} />
+        <Route path="oblibene" element={<WishlistPage />} />
         <Route path="pokladna" element={<Checkout />} />
         <Route path="prihlaseni" element={<Login />} />
         <Route path="registrace" element={<Register />} />
