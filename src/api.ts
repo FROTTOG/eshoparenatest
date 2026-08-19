@@ -138,6 +138,17 @@ export type PickupPoint = {
   source?: "local" | "packeta" | "balikovna";
 };
 
+export type AresResult = {
+  ok: boolean;
+  ico?: string;
+  company_name?: string;
+  dic?: string;
+  street?: string;
+  city?: string;
+  zip?: string;
+  error?: string;
+};
+
 export type Order = {
   id: number;
   number: string;
@@ -145,6 +156,17 @@ export type Order = {
   email: string;
   name: string;
   phone: string;
+  billing_name: string;
+  billing_street: string;
+  billing_city: string;
+  billing_zip: string;
+  billing_country: string;
+  is_company: number | boolean;
+  company_name: string;
+  ico: string;
+  dic: string;
+  different_shipping: number | boolean;
+  shipping_recipient: string;
   shipping_code: string;
   shipping_name: string;
   shipping_price: number;
@@ -156,6 +178,7 @@ export type Order = {
   street: string;
   city: string;
   zip: string;
+  country: string;
   pickup_point_id: number | null;
   pickup: PickupPoint | null;
   subtotal: number;
@@ -163,6 +186,8 @@ export type Order = {
   coupon_code: string | null;
   total: number;
   note: string;
+  agree_terms?: number;
+  agree_gdpr?: number;
   created_at: string;
   items: { id: number; product_id: number; name: string; sku: string; price: number; quantity: number }[];
 };

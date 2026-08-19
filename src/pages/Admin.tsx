@@ -365,13 +365,57 @@ function OrderEdit() {
           <button key={s} className={`chip ${order.payment_status === s ? "on" : ""}`} onClick={() => void patch({ payment_status: s })}>Platba: {statusLabel(s)}</button>
         ))}
       </div>
-      <p>
-        {order.name} · {order.email} · {order.phone}
-        <br />
-        {order.shipping_name}: {order.pickup ? `${order.pickup.name}, ${order.pickup.address}` : `${order.street}, ${order.zip} ${order.city}`}
-        <br />
-        {order.payment_name} · {czk(order.total)}
-      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, margin: "16px 0", background: "var(--card)", padding: 18, borderRadius: 16, border: "1px solid var(--line)" }}>
+        <div>
+          <b style={{ display: "block", marginBottom: 6 }}>Fakturační údaje:</b>
+          {order.is_company ? (
+            <>
+              <b>{order.company_name}</b>
+              <br />
+              IČO: {order.ico} {order.dic ? `· DIČ: ${order.dic}` : ""}
+              <br />
+              Kontakt: {order.billing_name || order.name}
+            </>
+          ) : (
+            <b>{order.billing_name || order.name}</b>
+          )}
+          <br />
+          {order.billing_street || order.street}
+          <br />
+          {order.billing_zip || order.zip} {order.billing_city || order.city}
+          <br />
+          {order.billing_country || order.country || "CZ"}
+          <br />
+          <span style={{ color: "var(--muted)" }}>{order.email} · {order.phone}</span>
+        </div>
+        <div>
+          <b style={{ display: "block", marginBottom: 6 }}>Doručení a platba:</b>
+          <b>{order.shipping_name}</b> ({czk(order.shipping_price)})
+          <br />
+          {order.pickup ? (
+            <>
+              Výdejní místo: <b>{order.pickup.name}</b>
+              <br />
+              {order.pickup.address}, {order.pickup.zip} {order.pickup.city}
+            </>
+          ) : (
+            <>
+              Příjemce: {order.shipping_recipient || order.billing_name || order.name}
+              <br />
+              {order.street}, {order.zip} {order.city}
+            </>
+          )}
+          <br />
+          Platba: <b>{order.payment_name}</b> ({czk(order.payment_fee)})
+          <br />
+          Celková částka: <b style={{ color: "var(--accent)" }}>{czk(order.total)}</b>
+          {order.note && (
+            <div style={{ marginTop: 8, padding: 8, background: "var(--bg-deep)", borderRadius: 8, fontSize: 13 }}>
+              <b>Poznámka zákazníka:</b> {order.note}
+            </div>
+          )}
+        </div>
+      </div>
       <div className="table-wrap">
         <table>
           <thead><tr><th>Položka</th><th>Ks</th><th>Cena</th></tr></thead>
@@ -571,25 +615,34 @@ function SettingsPage() {
   const [form, setForm] = useState<Record<string, string>>({});
   useEffect(() => { void api<Record<string, string>>("/admin/settings").then(setForm); }, []);
   const keys: [string, string][] = [
-    ["store_name", "Název obchodu"],
-    ["store_tagline", "Slogan"],
-    ["hero_title", "Titulek úvodu"],
-    ["hero_text", "Text úvodu"],
-    ["store_email", "E-mail"],
-    ["store_phone", "Telefon"],
-    ["store_address", "Adresa ateliéru"],
-    ["store_hours", "Otevírací doba"],
-    ["iban", "IBAN pro QR platbu"],
+    ["store_name", "Zkrácený název obchodu (např. KAVKA)"],
+    ["store_company", "Obchodní firma / Provozovatel (pro faktury a VOP)"],
+    ["store_ico", "IČO provozovatele"],
+    ["store_dic", "DIČ provozovatele"],
+    ["store_vat_note", "Informace o DPH (např. Plátce DPH / Neplátce DPH)"],
+    ["store_registry", "Zápis v obchodním / živnostenském rejstříku"],
+    ["store_tagline", "Slogan obchodu"],
+    ["hero_title", "Titulek na hlavní straně"],
+    ["hero_text", "Text úvodu na hlavní straně"],
+    ["store_email", "Oficiální kontaktní e-mail"],
+    ["store_phone", "Oficiální telefon pro zákazníky"],
+    ["store_address", "Sídlo a adresa ateliéru"],
+    ["store_return_address", "Doručovací adresa pro vrácení zboží a reklamace"],
+    ["store_hours", "Otevírací doba ateliéru"],
+    ["iban", "IBAN pro QR platbu (SPD)"],
     ["bank_name", "Banka"],
-    ["bank_account", "Číslo účtu"],
-    ["reviews_auto_approve", "Automaticky schvalovat hodnocení (1/0)"],
+    ["bank_account", "Číslo bankovního účtu"],
+    ["reviews_auto_approve", "Automaticky schvalovat hodnocení zákazníků (1/0)"],
   ];
   return (
     <>
-      <h1>Nastavení</h1>
+      <h1>Nastavení e-shopu a právní údaje</h1>
+      <p style={{ color: "var(--muted)", marginBottom: 20 }}>
+        Veškeré zde nastavené firemní a bankovní údaje se automaticky promítají do Obchodních podmínek, Zásad ochrany osobních údajů (GDPR), Reklamačního řádu, Patičky, Pokladny i QR plateb.
+      </p>
       <form className="admin-form" onSubmit={(e) => { e.preventDefault(); void api("/admin/settings", { method: "PUT", body: JSON.stringify(form) }).then(() => { toast("Uloženo."); void refresh(); }); }}>
         {keys.map(([k, label]) => (
-          <label key={k} className={k.includes("hero") || k.includes("address") ? "full" : ""}>
+          <label key={k} className={k.includes("hero") || k.includes("address") || k.includes("registry") || k.includes("return") ? "full" : ""}>
             {label}
             {k.includes("hero_text") ? (
               <textarea value={form[k] || ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
@@ -598,7 +651,9 @@ function SettingsPage() {
             )}
           </label>
         ))}
-        <button className="btn-dark">Uložit nastavení</button>
+        <div className="full">
+          <button className="btn-dark" type="submit">Uložit nastavení</button>
+        </div>
       </form>
     </>
   );

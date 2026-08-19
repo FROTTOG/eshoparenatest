@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useStore } from "../store";
-import { IconAdmin, IconCart, IconClose, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
+import { IconAdmin, IconCart, IconClose, IconCookie, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
+import { CookieBanner, openCookieSettings } from "./CookieBanner";
 import { Logo } from "./Ui";
 
 export function Layout() {
@@ -40,6 +41,10 @@ export function Layout() {
     setSearchOpen(false);
   }
 
+  const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
+  const ico = settings.store_ico || "19200456";
+  const dic = settings.store_dic || "CZ19200456";
+
   return (
     <div className="page">
       <header className={`header${scrolled ? " scrolled" : ""}`}>
@@ -48,7 +53,7 @@ export function Layout() {
           <nav className={`nav ${open ? "open" : ""}`} onClick={() => setOpen(false)}>
             <NavLink to="/katalog">Katalog</NavLink>
             <NavLink to="/doprava-a-platba">Doprava</NavLink>
-            <NavLink to="/o-nas">O nás</NavLink>
+            <NavLink to="/o-nas">O nás a kontakt</NavLink>
             <NavLink to="/sledovani">Sledování</NavLink>
             <form className="search-form mobile-only" onSubmit={search}>
               <IconSearch size={16} />
@@ -101,70 +106,91 @@ export function Layout() {
       <main key={location.pathname} className="page-fade">
         <Outlet />
       </main>
+
       <footer className="footer">
         <div className="wrap footer-grid">
           <div>
             <Logo />
-            <p style={{ marginTop: 14, maxWidth: 300 }}>
-              {settings.store_tagline || "Věci s charakterem."} Ateliér na Vinohradech a e-shop, který posílá po celé republice.
-            </p>
-            <p>
-              {settings.store_address}
+            <p style={{ marginTop: 14, maxWidth: 320, fontSize: 13, color: "#cfc4b3" }}>
+              <b>{company}</b>
               <br />
-              {settings.store_hours}
+              IČO: {ico} | DIČ: {dic}
+              <br />
+              {settings.store_vat_note || "Plátce DPH"}
+            </p>
+            <p style={{ fontSize: 13, color: "#9aa396", marginTop: 8 }}>
+              {settings.store_address || "Korunní 42, 120 00 Praha 2 - Vinohrady"}
+              <br />
+              Otevřeno: {settings.store_hours || "Po–Pá 10:00–18:00"}
             </p>
           </div>
           <div>
-            <h3>Obchod</h3>
+            <h3>Nákup a servis</h3>
             <ul>
               <li>
-                <Link to="/katalog">Katalog</Link>
+                <Link to="/katalog">Katalog produktů</Link>
               </li>
               <li>
                 <Link to="/doprava-a-platba">Doprava a platba</Link>
               </li>
               <li>
-                <Link to="/sledovani">Sledovat objednávku</Link>
+                <Link to="/sledovani">Sledovat stav objednávky</Link>
               </li>
               <li>
-                <Link to="/ucet">Můj účet</Link>
+                <Link to="/ucet">Můj zákaznický účet</Link>
               </li>
             </ul>
           </div>
           <div>
-            <h3>Informace</h3>
+            <h3>Právní informace</h3>
             <ul>
-              <li>
-                <Link to="/o-nas">O nás</Link>
-              </li>
               <li>
                 <Link to="/obchodni-podminky">Obchodní podmínky</Link>
               </li>
               <li>
-                <Link to="/ochrana-udaju">Ochrana údajů</Link>
+                <Link to="/ochrana-udaju">Ochrana osobních údajů (GDPR)</Link>
               </li>
               <li>
-                <Link to="/reklamace">Reklamace a vrácení</Link>
+                <Link to="/reklamace">Reklamace a vrácení zboží</Link>
+              </li>
+              <li>
+                <Link to="/o-nas">O nás a kontakty</Link>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={openCookieSettings}
+                  className="linkish"
+                  style={{ color: "#cfc4b3", textDecoration: "none", fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6 }}
+                >
+                  <IconCookie size={14} /> Nastavení cookies
+                </button>
               </li>
             </ul>
           </div>
           <div>
-            <h3>Napište nám</h3>
+            <h3>Kontakt</h3>
             <p className="footer-contact">
               <span>
-                <IconMail size={16} /> {settings.store_email || "ahoj@kavka.shop"}
+                <IconMail size={16} /> <a href={`mailto:${settings.store_email || "ahoj@kavka.shop"}`}>{settings.store_email || "ahoj@kavka.shop"}</a>
               </span>
               <span>
-                <IconPhone size={16} /> {settings.store_phone || "+420 777 123 456"}
+                <IconPhone size={16} /> <a href={`tel:${(settings.store_phone || "+420777123456").replace(/\s+/g, "")}`}>{settings.store_phone || "+420 777 123 456"}</a>
               </span>
+            </p>
+            <p style={{ fontSize: 12, color: "#9aa396", marginTop: 12 }}>
+              Dohledový orgán: Česká obchodní inspekce (ČOI)
             </p>
           </div>
         </div>
         <div className="wrap footer-bottom">
-          <span>© {new Date().getFullYear()} {settings.store_name || "KAVKA"}</span>
-          <span>Ateliér · Zásilkovna · Balíkovna</span>
+          <span>© {new Date().getFullYear()} {company} · Všechna práva vyhrazena</span>
+          <span>Všechny ceny jsou uvedeny včetně DPH</span>
         </div>
       </footer>
+
+      <CookieBanner />
+
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind || ""}`}>
