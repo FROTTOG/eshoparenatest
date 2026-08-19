@@ -1,0 +1,70 @@
+import { Hono } from "hono";
+import type { Bindings, Variables } from "./types";
+import { ensureReady } from "./schema";
+import {
+  CART_DAYS,
+  ensureCart,
+  isSecure,
+  newCartId,
+  readCookie,
+  setCookie,
+  userBySession,
+} from "./helpers";
+import { registerPublic } from "./public";
+import { registerAdmin } from "./admin";
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().basePath("/api");
+
+app.use("*", async (c, next) => {
+  if (!c.env.DB) {
+    return c.json(
+      {
+        error:
+          "D1 databáze (vazba DB) není připojená. Otevřete README.md a v Cloudflare Pages nastavte binding na D1.",
+      },
+      503
+    );
+  }
+  try {
+    await ensureReady(c.env);
+  } catch (e) {
+    return c.json(
+      {
+        error: "Databáze se nepodařilo připravit. Zkontrolujte oprávnění D1 v Cloudflare.",
+        detail: String(e),
+      },
+      503
+    );
+  }
+
+  const cookies = c.req.header("Cookie");
+  const sid = readCookie(cookies, "sid");
+  const user = await userBySession(c.env.DB, sid);
+  c.set("user", user);
+
+  let cartId = readCookie(cookies, "cid");
+  const headers: string[] = [];
+  if (!cartId) {
+    cartId = newCartId();
+    headers.push(setCookie("cid", cartId, CART_DAYS, isSecure(c)));
+  }
+  c.set("cartId", cartId);
+  await ensureCart(c.env.DB, cartId, user?.id ?? null);
+
+  await next();
+
+  for (const h of headers) {
+    c.header("Set-Cookie", h, { append: true });
+  }
+});
+
+registerPublic(app);
+registerAdmin(app);
+
+app.notFound((c) => c.json({ error: "Tato API cesta neexistuje." }, 404));
+app.onError((err, c) => {
+  console.error(err);
+  return c.json({ error: "Něco se pokazilo na serveru.", detail: err.message }, 500);
+});
+
+export default app;
