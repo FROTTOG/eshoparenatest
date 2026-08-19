@@ -55,7 +55,7 @@ export function EshopDemo() {
             <IconSpark size={16} /> ŽIVÁ UKÁZKA OBCHODU
           </div>
           <p className="demo-notice-desc">
-            Prohlížíte si <b>ukázkový e-shop Ateliér KAVKA</b>. Zde si můžete bezobav vyzkoušet celý nákup — vložit zboží do košíku, zvolit Z-BOX na mapě, použít slevový kupón <code>KAVKA10</code> a generovat QR platbu.
+            Prohlížíte si <b>ukázkový e-shop Ateliér KAVKA</b>. Zde si můžete bez obav vyzkoušet celý nákup — vložit zboží do košíku, zvolit Z-BOX na mapě, použít slevový kupón <code>KAVKA10</code> a vyzkoušet QR platbu.
           </p>
           <div className="demo-notice-actions">
             <Link to="/" className="btn-line btn-sm">

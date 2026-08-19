@@ -542,7 +542,7 @@ export function Home() {
                   <IconCheck size={14} /> 3 měsíce technické podpory v ceně
                 </li>
                 <li>
-                  <IconCheck size={14} /> Nulové měsíční Poplatky za software
+                  <IconCheck size={14} /> Nulové měsíční poplatky za software
                 </li>
               </ul>
               <a href={vendor.web} target="_blank" rel="noreferrer" className="btn" style={{ width: "100%" }}>
