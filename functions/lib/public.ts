@@ -23,10 +23,16 @@ export function registerPublic(app: App) {
     const all = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     const publicKeys = [
       "store_name",
+      "store_company",
+      "store_ico",
+      "store_dic",
+      "store_vat_note",
+      "store_registry",
       "store_tagline",
       "store_email",
       "store_phone",
       "store_address",
+      "store_return_address",
       "store_hours",
       "iban",
       "bank_name",
@@ -38,6 +44,66 @@ export function registerPublic(app: App) {
     const pub: Record<string, string> = {};
     for (const k of publicKeys) if (all[k] != null) pub[k] = all[k];
     return c.json(pub);
+  });
+
+  app.get("/ares", async (c) => {
+    const rawIco = (c.req.query("ico") || "").replace(/\s+/g, "");
+    if (!/^\d{8}$/.test(rawIco)) {
+      return c.json({ error: "Zadejte platné 8místné IČO." }, 400);
+    }
+    try {
+      const res = await fetch(
+        `https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/${rawIco}`,
+        {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(4500),
+        }
+      );
+      if (!res.ok) {
+        if (res.status === 404) {
+          return c.json({ error: "Subjekt s tímto IČO nebyl v registru ARES nalezen." }, 404);
+        }
+        return c.json({ error: "Registr ARES vrátil chybu." }, 502);
+      }
+      const data = (await res.json()) as {
+        obchodniJmeno?: string;
+        ico?: string;
+        dic?: string;
+        sidlo?: {
+          nazevUlice?: string;
+          cisloDomovni?: number;
+          cisloOrientacni?: number | string;
+          cisloOrientacniPismeno?: string;
+          nazevObce?: string;
+          psc?: number | string;
+          nazevCastiObce?: string;
+        };
+      };
+      const sidlo = data.sidlo || {};
+      let street = sidlo.nazevUlice || sidlo.nazevCastiObce || sidlo.nazevObce || "";
+      if (sidlo.cisloDomovni) {
+        if (sidlo.cisloOrientacni) {
+          street += ` ${sidlo.cisloDomovni}/${sidlo.cisloOrientacni}${sidlo.cisloOrientacniPismeno || ""}`;
+        } else {
+          street += ` ${sidlo.cisloDomovni}`;
+        }
+      }
+      const city = sidlo.nazevObce || "";
+      let zip = String(sidlo.psc || "").replace(/\s+/g, "");
+      if (zip.length === 5) zip = `${zip.slice(0, 3)} ${zip.slice(3)}`;
+
+      return c.json({
+        ok: true,
+        ico: data.ico || rawIco,
+        company_name: data.obchodniJmeno || "",
+        dic: data.dic || "",
+        street: street.trim(),
+        city: city.trim(),
+        zip: zip.trim(),
+      });
+    } catch {
+      return c.json({ error: "Nepodařilo se spojit s registrem ARES. Můžete údaje vyplnit ručně." }, 500);
+    }
   });
 
   app.get("/categories", async (c) => {
@@ -307,11 +373,23 @@ export function registerPublic(app: App) {
       email?: string;
       name?: string;
       phone?: string;
+      billing_name?: string;
+      billing_street?: string;
+      billing_city?: string;
+      billing_zip?: string;
+      billing_country?: string;
+      is_company?: boolean | number;
+      company_name?: string;
+      ico?: string;
+      dic?: string;
+      different_shipping?: boolean | number;
+      shipping_recipient?: string;
       shipping_code?: string;
       payment_code?: string;
       street?: string;
       city?: string;
       zip?: string;
+      country?: string;
       pickup_point_id?: number;
       pickup?: {
         external_id?: string;
@@ -327,15 +405,39 @@ export function registerPublic(app: App) {
         source?: string;
       };
       note?: string;
+      agree_terms?: boolean | number;
     }>();
 
     const user = c.get("user");
     const email = (body.email || user?.email || "").trim().toLowerCase();
-    const name = (body.name || user?.name || "").trim();
     const phone = (body.phone || user?.phone || "").trim();
     if (!validEmail(email)) return c.json({ error: "Zadejte platný e-mail." }, 400);
-    if (name.length < 2) return c.json({ error: "Zadejte jméno a příjmení." }, 400);
-    if (phone.length < 6) return c.json({ error: "Zadejte telefon." }, 400);
+    if (phone.length < 6) return c.json({ error: "Zadejte telefonní číslo pro dopravce." }, 400);
+
+    const isCompany = Boolean(body.is_company);
+    const companyName = (body.company_name || "").trim();
+    const ico = (body.ico || "").trim().replace(/\s+/g, "");
+    const dic = (body.dic || "").trim().toUpperCase().replace(/\s+/g, "");
+
+    const billingName = (body.billing_name || body.name || user?.name || "").trim();
+    const billingStreet = (body.billing_street || body.street || "").trim();
+    const billingCity = (body.billing_city || body.city || "").trim();
+    const billingZip = (body.billing_zip || body.zip || "").trim();
+    const billingCountry = (body.billing_country || "CZ").trim().toUpperCase();
+
+    if (billingName.length < 2) return c.json({ error: "Zadejte jméno a příjmení pro fakturaci." }, 400);
+    if (billingStreet.length < 3) return c.json({ error: "Zadejte fakturační ulici a číslo popisné." }, 400);
+    if (billingCity.length < 2) return c.json({ error: "Zadejte fakturační město." }, 400);
+    if (billingZip.length < 3) return c.json({ error: "Zadejte fakturační PSČ." }, 400);
+
+    if (isCompany) {
+      if (companyName.length < 2) return c.json({ error: "Při nákupu na firmu zadejte název společnosti." }, 400);
+      if (ico.length < 4) return c.json({ error: "Při nákupu na firmu zadejte platné IČO." }, 400);
+    }
+
+    if (body.agree_terms === false) {
+      return c.json({ error: "Pro odeslání objednávky musíte potvrdit souhlas s obchodními podmínkami." }, 400);
+    }
 
     const cart = await loadCart(c.env.DB, c.get("cartId"));
     if (!cart.items.length) return c.json({ error: "Košík je prázdný." }, 400);
@@ -369,9 +471,12 @@ export function registerPublic(app: App) {
 
     let pickupSnapshot = "";
     let pickupId: number | null = null;
-    let street = (body.street || "").trim();
-    let city = (body.city || "").trim();
-    let zip = (body.zip || "").trim();
+    const differentShipping = Boolean(body.different_shipping);
+    let shippingRecipient = (body.shipping_recipient || billingName).trim();
+    let street = billingStreet;
+    let city = billingCity;
+    let zip = billingZip;
+    let country = billingCountry;
 
     if (shipping.kind.startsWith("pickup_")) {
       const wantType = shipping.kind === "pickup_zbox" ? "zbox" : shipping.kind === "pickup_balikovna" ? "balikovna" : "branch";
@@ -380,18 +485,36 @@ export function registerPublic(app: App) {
       if (point.type !== wantType) return c.json({ error: "Toto místo neodpovídá vybrané dopravě." }, 400);
       pickupId = point.id;
       pickupSnapshot = JSON.stringify(point);
+      shippingRecipient = billingName;
       street = point.address;
       city = point.city;
       zip = point.zip;
+      country = "CZ";
     } else if (shipping.kind === "address") {
-      if (street.length < 3 || city.length < 2 || zip.length < 3) {
-        return c.json({ error: "Vyplňte ulici, město a PSČ." }, 400);
+      if (differentShipping) {
+        shippingRecipient = (body.shipping_recipient || "").trim();
+        street = (body.street || "").trim();
+        city = (body.city || "").trim();
+        zip = (body.zip || "").trim();
+        country = (body.country || "CZ").trim().toUpperCase();
+        if (shippingRecipient.length < 2) return c.json({ error: "Vyplňte jméno příjemce pro doručení." }, 400);
+        if (street.length < 3 || city.length < 2 || zip.length < 3) {
+          return c.json({ error: "Vyplňte doručovací ulici, město a PSČ." }, 400);
+        }
+      } else {
+        shippingRecipient = billingName;
+        street = billingStreet;
+        city = billingCity;
+        zip = billingZip;
+        country = billingCountry;
       }
     } else if (shipping.kind === "store") {
       const addr = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'store_address'").first<{ value: string }>();
+      shippingRecipient = billingName;
       street = addr?.value || "Korunní 42";
       city = "Praha";
       zip = "12000";
+      country = "CZ";
     }
 
     const afterDiscount = cart.subtotal - cart.discount;
@@ -407,17 +530,32 @@ export function registerPublic(app: App) {
       c.env.DB.prepare(
         `INSERT INTO orders (
           number, user_id, email, name, phone,
+          billing_name, billing_street, billing_city, billing_zip, billing_country,
+          is_company, company_name, ico, dic,
+          different_shipping, shipping_recipient,
           shipping_code, shipping_name, shipping_price,
           payment_code, payment_name, payment_fee, payment_status, status,
           street, city, zip, country, pickup_point_id, pickup_snapshot,
-          subtotal, discount, coupon_code, total, note
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, 'CZ', ?, ?, ?, ?, ?, ?, ?)`
+          subtotal, discount, coupon_code, total, note,
+          agree_terms, agree_gdpr
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)`
       ).bind(
         number,
         user?.id ?? null,
         email,
-        name,
+        billingName,
         phone,
+        billingName,
+        billingStreet,
+        billingCity,
+        billingZip,
+        billingCountry,
+        isCompany ? 1 : 0,
+        companyName,
+        ico,
+        dic,
+        differentShipping ? 1 : 0,
+        shippingRecipient,
         shipping.code,
         shipping.name,
         shipPrice,
@@ -428,6 +566,7 @@ export function registerPublic(app: App) {
         street,
         city,
         zip,
+        country,
         pickupId,
         pickupSnapshot,
         cart.subtotal,

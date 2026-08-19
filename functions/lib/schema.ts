@@ -132,6 +132,17 @@ CREATE TABLE IF NOT EXISTS orders (
   email TEXT NOT NULL,
   name TEXT NOT NULL,
   phone TEXT NOT NULL,
+  billing_name TEXT NOT NULL DEFAULT '',
+  billing_street TEXT NOT NULL DEFAULT '',
+  billing_city TEXT NOT NULL DEFAULT '',
+  billing_zip TEXT NOT NULL DEFAULT '',
+  billing_country TEXT NOT NULL DEFAULT 'CZ',
+  is_company INTEGER NOT NULL DEFAULT 0,
+  company_name TEXT NOT NULL DEFAULT '',
+  ico TEXT NOT NULL DEFAULT '',
+  dic TEXT NOT NULL DEFAULT '',
+  different_shipping INTEGER NOT NULL DEFAULT 0,
+  shipping_recipient TEXT NOT NULL DEFAULT '',
   shipping_code TEXT NOT NULL,
   shipping_name TEXT NOT NULL,
   shipping_price INTEGER NOT NULL,
@@ -151,6 +162,8 @@ CREATE TABLE IF NOT EXISTS orders (
   coupon_code TEXT,
   total INTEGER NOT NULL,
   note TEXT NOT NULL DEFAULT '',
+  agree_terms INTEGER NOT NULL DEFAULT 1,
+  agree_gdpr INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -200,13 +213,19 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
 const SETTINGS: Record<string, string> = {
   store_name: "KAVKA",
+  store_company: "KAVKA Ateliér s.r.o.",
+  store_ico: "19200456",
+  store_dic: "CZ19200456",
+  store_vat_note: "Plátce DPH (všechny ceny jsou konečné včetně DPH)",
+  store_registry: "Zapsáno v obchodním rejstříku vedeném Městským soudem v Praze, oddíl C, vložka 384512",
   store_tagline: "Věci s charakterem",
   store_email: "ahoj@kavka.shop",
   store_phone: "+420 777 123 456",
-  store_address: "Korunní 42, 120 00 Praha 2",
+  store_address: "Korunní 42, 120 00 Praha 2 - Vinohrady",
+  store_return_address: "KAVKA Ateliér (reklamace a vrácení), Korunní 42, 120 00 Praha 2",
   store_hours: "Po–Pá 10:00–18:00",
   iban: "CZ6508000000192000145399",
-  bank_name: "Česká spořitelna",
+  bank_name: "Česká spořitelna, a.s.",
   bank_account: "192000145399/0800",
   reviews_auto_approve: "1",
   hero_title: "Domov, který dýchá pomalu",
@@ -575,7 +594,34 @@ export async function ensureReady(env: Bindings) {
   } catch {
     /* už existuje */
   }
-  await env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('packeta_api_key', '197fd6840f332ccf')").run();
+
+  const orderCols = [
+    "ALTER TABLE orders ADD COLUMN billing_name TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN billing_street TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN billing_city TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN billing_zip TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN billing_country TEXT NOT NULL DEFAULT 'CZ'",
+    "ALTER TABLE orders ADD COLUMN is_company INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE orders ADD COLUMN company_name TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN ico TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN dic TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN different_shipping INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE orders ADD COLUMN shipping_recipient TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE orders ADD COLUMN agree_terms INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE orders ADD COLUMN agree_gdpr INTEGER NOT NULL DEFAULT 1",
+  ];
+  for (const col of orderCols) {
+    try {
+      await env.DB.exec(col);
+    } catch {
+      /* sloupec už existuje */
+    }
+  }
+
+  for (const [k, v] of Object.entries(SETTINGS)) {
+    await env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)").bind(k, v).run();
+  }
+
   if (seeded?.value === "1") return;
   const n = await env.DB.prepare("SELECT COUNT(*) AS c FROM products").first<{ c: number }>();
   if ((n?.c || 0) > 0) {

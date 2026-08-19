@@ -52,6 +52,9 @@ export function OrderPage() {
 
       <div className="two">
         <div>
+          <h2 className="serif" style={{ marginTop: 0 }}>
+            Položky v objednávce
+          </h2>
           {order.items.map((it) => (
             <div className="line-item" key={it.id}>
               <div />
@@ -64,26 +67,63 @@ export function OrderPage() {
               <div>{czk(it.price * it.quantity)}</div>
             </div>
           ))}
+
+          <div className="order-details-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 24 }}>
+            <div className="glass-card" style={{ padding: 16, borderRadius: 16, border: "1px solid var(--line)" }}>
+              <b style={{ display: "block", marginBottom: 6 }}>Fakturační údaje</b>
+              <div style={{ fontSize: 14, color: "var(--ink-soft)" }}>
+                {order.is_company ? (
+                  <>
+                    <b style={{ color: "var(--ink)" }}>{order.company_name}</b>
+                    <br />
+                    IČO: {order.ico} {order.dic ? `· DIČ: ${order.dic}` : ""}
+                    <br />
+                    Kontaktní osoba: {order.billing_name || order.name}
+                  </>
+                ) : (
+                  <b>{order.billing_name || order.name}</b>
+                )}
+                <br />
+                {order.billing_street || order.street}
+                <br />
+                {order.billing_zip || order.zip} {order.billing_city || order.city}
+                <br />
+                {order.billing_country || order.country || "CZ"}
+              </div>
+            </div>
+
+            <div className="glass-card" style={{ padding: 16, borderRadius: 16, border: "1px solid var(--line)" }}>
+              <b style={{ display: "block", marginBottom: 6 }}>Doručení a kontakt</b>
+              <div style={{ fontSize: 14, color: "var(--ink-soft)" }}>
+                <b>{order.shipping_name}</b>
+                <br />
+                {order.pickup ? (
+                  <>
+                    {order.pickup.name}
+                    <br />
+                    {order.pickup.address}, {order.pickup.zip} {order.pickup.city}
+                  </>
+                ) : (
+                  <>
+                    {order.shipping_recipient ? `${order.shipping_recipient}\n` : ""}
+                    {order.street}
+                    <br />
+                    {order.zip} {order.city}
+                  </>
+                )}
+                <br />
+                <span style={{ color: "var(--muted)" }}>
+                  {order.email} · {order.phone}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
         <aside className="summary">
           <div>
             <b>Doprava</b>
             <p>
               {order.shipping_name}
-              <br />
-              {order.pickup ? (
-                <>
-                  {order.pickup.name}
-                  <br />
-                  {order.pickup.address}, {order.pickup.zip} {order.pickup.city}
-                </>
-              ) : (
-                <>
-                  {order.street}
-                  <br />
-                  {order.zip} {order.city}
-                </>
-              )}
             </p>
           </div>
           <div>
@@ -116,6 +156,9 @@ export function OrderPage() {
               <strong>{czk(order.total)}</strong>
             </div>
           </dl>
+          <p style={{ fontSize: 11, color: "var(--muted)", margin: "10px 0 0" }}>
+            {settings.store_vat_note || "Všechny ceny jsou konečné včetně DPH."}
+          </p>
         </aside>
       </div>
     </div>
