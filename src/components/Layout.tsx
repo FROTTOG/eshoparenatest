@@ -1,17 +1,16 @@
-import { FormEvent, useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useStore } from "../store";
 import { IconAdmin, IconCart, IconClose, IconCookie, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
 import { CookieBanner, openCookieSettings } from "./CookieBanner";
+import { SearchBox } from "./SearchBox";
 import { Logo } from "./Ui";
 
 export function Layout() {
   const { user, cart, settings, toasts } = useStore();
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [q, setQ] = useState("");
   const [scrolled, setScrolled] = useState(false);
-  const nav = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
@@ -34,19 +33,15 @@ export function Layout() {
     };
   }, [open, searchOpen]);
 
-  function search(e: FormEvent) {
-    e.preventDefault();
-    nav(`/katalog?q=${encodeURIComponent(q)}`);
-    setOpen(false);
-    setSearchOpen(false);
-  }
-
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const ico = settings.store_ico || "19200456";
   const dic = settings.store_dic || "CZ19200456";
 
   return (
     <div className="page">
+      <a className="skip-link" href="#obsah">
+        Přeskočit na obsah
+      </a>
       <header className={`header${scrolled ? " scrolled" : ""}`}>
         <div className="header-in">
           <Logo />
@@ -55,16 +50,14 @@ export function Layout() {
             <NavLink to="/doprava-a-platba">Doprava</NavLink>
             <NavLink to="/o-nas">O nás a kontakt</NavLink>
             <NavLink to="/sledovani">Sledování</NavLink>
-            <form className="search-form mobile-only" onSubmit={search}>
-              <IconSearch size={16} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hledat v ateliéru…" aria-label="Hledat" />
-            </form>
+            <div className="mobile-only" onClick={(e) => e.stopPropagation()}>
+              <SearchBox variant="mobile" onDone={() => setOpen(false)} />
+            </div>
           </nav>
           <div className="header-actions">
-            <form className="search-form desktop-only" onSubmit={search}>
-              <IconSearch size={16} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hledat…" aria-label="Hledat" />
-            </form>
+            <div className="desktop-only">
+              <SearchBox />
+            </div>
             <button type="button" className="icon-btn mobile-search" onClick={() => setSearchOpen(true)} aria-label="Hledat">
               <IconSearch />
             </button>
@@ -93,17 +86,13 @@ export function Layout() {
 
       {searchOpen && (
         <div className="search-overlay" onClick={() => setSearchOpen(false)}>
-          <form className="search-overlay-form glass-card" onClick={(e) => e.stopPropagation()} onSubmit={search}>
-            <IconSearch />
-            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hrnek, deka, vůně…" aria-label="Hledat" />
-            <button className="btn" type="submit">
-              Hledat
-            </button>
-          </form>
+          <div onClick={(e) => e.stopPropagation()}>
+            <SearchBox variant="overlay" onDone={() => setSearchOpen(false)} />
+          </div>
         </div>
       )}
 
-      <main key={location.pathname} className="page-fade">
+      <main id="obsah" key={location.pathname} className="page-fade">
         <Outlet />
       </main>
 
@@ -194,7 +183,12 @@ export function Layout() {
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind || ""}`}>
-            {t.text}
+            <span>{t.text}</span>
+            {t.to && (
+              <Link to={t.to} className="toast-link">
+                {t.toLabel || "Otevřít"}
+              </Link>
+            )}
           </div>
         ))}
       </div>

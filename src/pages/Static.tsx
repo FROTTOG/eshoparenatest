@@ -23,8 +23,10 @@ import {
 } from "../components/Icons";
 import { openCookieSettings } from "../components/CookieBanner";
 import { useStore } from "../store";
+import { usePageTitle } from "../title";
 
 function Box({ title, children }: { title: string; children: React.ReactNode }) {
+  usePageTitle(`${title} — KAVKA`);
   return (
     <div className="wrap prose-page">
       <div className="crumbs">

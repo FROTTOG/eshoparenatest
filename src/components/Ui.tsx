@@ -21,7 +21,7 @@ export function Stars({ value, count }: { value?: number | null; count?: number 
   const v = value || 0;
   const full = Math.round(v);
   return (
-    <span className="stars" title={v ? `${v} / 5` : "Zatím bez hodnocení"}>
+    <span className="stars" title={v ? `${v} / 5` : "Zatím bez hodnocení"} aria-label={v ? `Hodnocení ${v} z 5` : "Bez hodnocení"}>
       {"★★★★★".slice(0, full)}
       <span style={{ opacity: 0.25 }}>{"★★★★★".slice(full)}</span>
       {count != null && <span style={{ marginLeft: 8, color: "var(--muted)", letterSpacing: 0, fontSize: 13 }}>({count})</span>}

@@ -9,7 +9,7 @@ import {
 } from "react";
 import { api, type Cart, type Settings, type User } from "./api";
 
-type Toast = { id: number; text: string; kind?: "ok" | "err" };
+type Toast = { id: number; text: string; kind?: "ok" | "err"; to?: string; toLabel?: string };
 
 type Store = {
   user: User | null;
@@ -19,7 +19,7 @@ type Store = {
   ready: boolean;
   toasts: Toast[];
   refresh: () => Promise<void>;
-  toast: (text: string, kind?: "ok" | "err") => void;
+  toast: (text: string, kind?: "ok" | "err", extra?: { to?: string; toLabel?: string }) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (p: { email: string; password: string; name: string; phone?: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -35,10 +35,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const toast = useCallback((text: string, kind: "ok" | "err" = "ok") => {
+  const toast = useCallback((text: string, kind: "ok" | "err" = "ok", extra?: { to?: string; toLabel?: string }) => {
     const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, text, kind }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3800);
+    setToasts((t) => [...t, { id, text, kind, ...extra }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
   }, []);
 
   const refresh = useCallback(async () => {

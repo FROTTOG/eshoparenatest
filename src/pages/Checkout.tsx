@@ -20,6 +20,7 @@ import {
 } from "../components/Icons";
 import { czk, pointTypeLabel } from "../format";
 import { useStore } from "../store";
+import { usePageTitle } from "../title";
 
 function shipIcon(kind: string) {
   if (kind === "pickup_zbox") return <IconLocker />;
@@ -37,6 +38,7 @@ function payIcon(code: string) {
 }
 
 export function Checkout() {
+  usePageTitle("Pokladna — KAVKA");
   const { user, cart, refresh, toast, settings } = useStore();
   const nav = useNavigate();
   const [shipping, setShipping] = useState<ShippingMethod[]>([]);
@@ -47,6 +49,7 @@ export function Checkout() {
   const [map, setMap] = useState(false);
   const [busy, setBusy] = useState(false);
   const [aresLoading, setAresLoading] = useState(false);
+  const [addresses, setAddresses] = useState<{ id: number; label: string; name: string; street: string; city: string; zip: string; phone: string }[]>([]);
 
   const [form, setForm] = useState({
     email: user?.email || "",
@@ -92,6 +95,21 @@ export function Checkout() {
         billing_name: f.billing_name || user.name,
         phone: user.phone || f.phone,
       }));
+      void api<{ addresses: typeof addresses }>("/account").then((r) => {
+        const rows = r.addresses || [];
+        setAddresses(rows);
+        const def = rows[0];
+        if (def) {
+          setForm((f) => ({
+            ...f,
+            billing_name: f.billing_name || def.name,
+            billing_street: f.billing_street || def.street,
+            billing_city: f.billing_city || def.city,
+            billing_zip: f.billing_zip || def.zip,
+            phone: f.phone || def.phone || user.phone || "",
+          }));
+        }
+      });
     }
   }, [user]);
 
@@ -276,7 +294,7 @@ export function Checkout() {
             </h3>
             {!user && (
               <span style={{ fontSize: 13, color: "var(--muted)" }}>
-                Máte účet? <Link to="/prihlaseni" className="linkish">Přihlaste se</Link>
+                Máte účet? <Link to="/prihlaseni?next=/pokladna" className="linkish">Přihlaste se</Link>
               </span>
             )}
           </div>
@@ -370,6 +388,33 @@ export function Checkout() {
                   placeholder="např. KAVKA Ateliér s.r.o."
                 />
               </label>
+            </div>
+          )}
+
+          {addresses.length > 0 && (
+            <div className="saved-addresses">
+              <span className="kicker">Uložené adresy</span>
+              <div className="saved-address-row">
+                {addresses.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className="chip"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        billing_name: a.name,
+                        billing_street: a.street,
+                        billing_city: a.city,
+                        billing_zip: a.zip,
+                        phone: a.phone || f.phone,
+                      }))
+                    }
+                  >
+                    {a.label}: {a.street}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

@@ -26,9 +26,11 @@ export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
             className="btn-line"
             style={{ marginTop: "auto" }}
             disabled={p.stock <= 0}
-            onClick={() => void addToCart(p.id).catch((e) => toast(e.message, "err"))}
+            onClick={() =>
+              void addToCart(p.id).catch((e) => toast(e instanceof Error ? e.message : "Nešlo vložit.", "err"))
+            }
           >
-            <IconCart size={16} /> Do košíku
+            <IconCart size={16} /> {p.stock <= 0 ? "Vyprodáno" : "Do košíku"}
           </button>
         </div>
       </article>

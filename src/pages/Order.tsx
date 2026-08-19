@@ -4,8 +4,10 @@ import { api, ApiError, type Order, type Settings } from "../api";
 import { PayQr } from "../components/PayQr";
 import { czk, dateCs, statusLabel } from "../format";
 import { useStore } from "../store";
+import { usePageTitle } from "../title";
 
 export function OrderPage() {
+  usePageTitle("Objednávka — KAVKA");
   const { number } = useParams();
   const { settings } = useStore();
   const [order, setOrder] = useState<Order | null>(null);
@@ -166,6 +168,7 @@ export function OrderPage() {
 }
 
 export function Track() {
+  usePageTitle("Sledování zásilky — KAVKA");
   const [number, setNumber] = useState("");
   const [email, setEmail] = useState("");
   const [order, setOrder] = useState<Order | null>(null);

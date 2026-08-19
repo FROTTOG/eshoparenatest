@@ -118,6 +118,7 @@ export function registerPublic(app: App) {
     const category = c.req.query("category") || "";
     const sort = c.req.query("sort") || "featured";
     const featured = c.req.query("featured");
+    const inStock = c.req.query("in_stock");
     const page = Math.max(1, Number(c.req.query("page") || 1));
     const limit = Math.min(48, Math.max(1, Number(c.req.query("limit") || 24)));
     const offset = (page - 1) * limit;
@@ -134,6 +135,7 @@ export function registerPublic(app: App) {
       binds.push(category);
     }
     if (featured === "1") where += " AND p.featured = 1";
+    if (inStock === "1") where += " AND p.stock > 0";
 
     let order = "p.featured DESC, p.id DESC";
     if (sort === "price_asc") order = "p.price ASC";

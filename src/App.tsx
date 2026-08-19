@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Link, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { Account } from "./pages/Account";
 import { Admin } from "./pages/Admin";
@@ -16,6 +16,9 @@ function NotFound() {
     <div className="wrap empty">
       <h1 className="serif">404</h1>
       <p>Tuhle stránku nemáme. Možná vylétla s kavkou.</p>
+      <Link className="btn" to="/katalog">
+        Do katalogu
+      </Link>
     </div>
   );
 }

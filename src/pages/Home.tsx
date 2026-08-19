@@ -5,15 +5,20 @@ import { IconArrow, IconGift, IconLeaf, IconLocker, IconParcel, IconPin, IconShi
 import { ProductCard } from "../components/ProductCard";
 import { Reveal } from "../components/Reveal";
 import { useStore } from "../store";
+import { usePageTitle } from "../title";
 
 export function Home() {
   const { settings } = useStore();
+  usePageTitle(`${settings.store_name || "KAVKA"} — věci s charakterem`);
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<Product[]>([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    void api<Category[]>("/categories").then(setCats);
-    void api<{ items: Product[] }>("/products?featured=1&limit=8").then((r) => setItems(r.items));
+    void Promise.all([
+      api<Category[]>("/categories").then(setCats),
+      api<{ items: Product[] }>("/products?featured=1&limit=8").then((r) => setItems(r.items)),
+    ]).finally(() => setReady(true));
   }, []);
 
   return (
@@ -71,14 +76,23 @@ export function Home() {
             </div>
           </Reveal>
           <div className="cats">
-            {cats.map((c, i) => (
-              <Reveal key={c.id} delay={(i % 5) * 60} className="reveal-cell">
-                <Link to={`/katalog/${c.slug}`} className="cat-card">
-                  <img src={c.image || "/products/vaza.jpg"} alt="" loading="lazy" />
-                  <span>{c.name}</span>
-                </Link>
-              </Reveal>
-            ))}
+            {!ready
+              ? Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="cat-card">
+                    <div className="skel" style={{ height: 140 }} />
+                    <span>
+                      <span className="skel" style={{ height: 18, width: 90, display: "block" }} />
+                    </span>
+                  </div>
+                ))
+              : cats.map((c, i) => (
+                  <Reveal key={c.id} delay={(i % 5) * 60} className="reveal-cell">
+                    <Link to={`/katalog/${c.slug}`} className="cat-card">
+                      <img src={c.image || "/products/vaza.jpg"} alt={c.name} loading="lazy" />
+                      <span>{c.name}</span>
+                    </Link>
+                  </Reveal>
+                ))}
           </div>
         </div>
       </section>
@@ -91,12 +105,23 @@ export function Home() {
                 <div className="kicker">Právě teď</div>
                 <h2>Teď v ateliéru</h2>
               </div>
+              <Link className="text-link" to="/katalog">
+                Všechny kousky <IconArrow size={16} />
+              </Link>
             </div>
           </Reveal>
           <div className="grid-products">
-            {items.map((p, i) => (
-              <ProductCard key={p.id} p={p} index={i} />
-            ))}
+            {!ready
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="pcard">
+                    <div className="skel" style={{ aspectRatio: "1" }} />
+                    <div className="pcard-body">
+                      <div className="skel" style={{ height: 12, width: 72 }} />
+                      <div className="skel" style={{ height: 22, width: "65%" }} />
+                    </div>
+                  </div>
+                ))
+              : items.map((p, i) => <ProductCard key={p.id} p={p} index={i} />)}
           </div>
         </div>
       </section>
