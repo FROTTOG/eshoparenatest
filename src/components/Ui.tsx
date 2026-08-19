@@ -11,7 +11,7 @@ export function Logo() {
       </svg>
       <span>
         KAVKA
-        <small>ateliér</small>
+        <small>e-shop platforma</small>
       </span>
     </Link>
   );
