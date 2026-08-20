@@ -1,16 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useStore } from "../store";
-import { IconAdmin, IconCart, IconClose, IconCookie, IconHeart, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
+import { IconAdmin, IconArrowUp, IconCart, IconClose, IconCookie, IconHeart, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
 import { CookieBanner, openCookieSettings } from "./CookieBanner";
 import { SearchBox } from "./SearchBox";
 import { Logo } from "./Ui";
+
+const NAV_LINKS = [
+  { to: "/", label: "Domů", end: true },
+  { to: "/katalog", label: "Katalog" },
+  { to: "/doprava-a-platba", label: "Doprava a platba" },
+  { to: "/o-nas", label: "O ateliéru" },
+  { to: "/sledovani", label: "Sledování" },
+];
 
 export function Layout() {
   const { user, cart, settings, toasts, wishlist } = useStore();
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [showTop, setShowTop] = useState(false);
   const location = useLocation();
   const headerRef = useRef<HTMLElement>(null);
 
@@ -38,10 +48,21 @@ export function Layout() {
   }, []);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 8);
+      setShowTop(y > 600);
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - doc.clientHeight;
+      setProgress(max > 0 ? Math.min(1, y / max) : 0);
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, []);
 
   useEffect(() => {
@@ -64,25 +85,26 @@ export function Layout() {
   const phone = settings.store_phone || "+420 777 123 456";
   const phoneHref = `tel:${phone.replace(/[^\d+]/g, "")}`;
 
+  const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+
   return (
     <div className="page">
       <a className="skip-link" href="#obsah">
         Přeskočit na obsah
       </a>
+
+      {/* Pruh postupu čtení stránky */}
+      <div className="scroll-progress" aria-hidden="true" style={{ transform: `scaleX(${progress})` }} />
+
       <header ref={headerRef} className={`header${scrolled ? " scrolled" : ""}`}>
         <div className="header-in">
           <Logo />
-          <nav className={`nav ${open ? "open" : ""}`} onClick={() => setOpen(false)}>
-            <NavLink to="/" end>
-              Domů
-            </NavLink>
-            <NavLink to="/katalog">Katalog</NavLink>
-            <NavLink to="/doprava-a-platba">Doprava a platba</NavLink>
-            <NavLink to="/o-nas">O ateliéru</NavLink>
-            <NavLink to="/sledovani">Sledování</NavLink>
-            <div className="mobile-only" onClick={(e) => e.stopPropagation()}>
-              <SearchBox variant="mobile" onDone={() => setOpen(false)} />
-            </div>
+          <nav className="nav" aria-label="Hlavní navigace">
+            {NAV_LINKS.map((l) => (
+              <NavLink key={l.to} to={l.to} end={l.end}>
+                {l.label}
+              </NavLink>
+            ))}
           </nav>
           <div className="header-actions">
             <div className="desktop-only">
@@ -118,12 +140,40 @@ export function Layout() {
             <Link to="/katalog" className="btn btn-sm desktop-only" style={{ marginLeft: 4 }}>
               Nakoupit
             </Link>
-            <button className={`icon-btn hamburger${open ? " is-open" : ""}`} onClick={() => setOpen((v) => !v)} aria-label="Menu" aria-expanded={open}>
+            <button className={`icon-btn hamburger${open ? " is-open" : ""}`} onClick={() => setOpen((v) => !v)} aria-label="Menu" aria-expanded={open} aria-controls="mobilni-menu">
               {open ? <IconClose /> : <IconMenu />}
             </button>
           </div>
         </div>
       </header>
+
+      {/* Mobilní menu — vykreslené mimo hlavičku, aby ho neomezoval backdrop-filter */}
+      <div className={`mobile-nav${open ? " open" : ""}`} id="mobilni-menu" role="dialog" aria-modal="true" aria-label="Menu" aria-hidden={!open}>
+        <div className="mobile-nav-panel">
+          <div className="mobile-nav-head">
+            <span className="serif">Menu</span>
+            <button type="button" className="icon-btn" onClick={() => setOpen(false)} aria-label="Zavřít menu">
+              <IconClose />
+            </button>
+          </div>
+          <SearchBox variant="mobile" onDone={() => setOpen(false)} />
+          <nav className="mobile-nav-links" aria-label="Mobilní navigace">
+            {NAV_LINKS.map((l, i) => (
+              <NavLink key={l.to} to={l.to} end={l.end} onClick={() => setOpen(false)} style={{ animationDelay: `${60 + i * 45}ms` }}>
+                <span>{l.label}</span>
+                <span className="mobile-nav-arrow" aria-hidden="true">
+                  →
+                </span>
+              </NavLink>
+            ))}
+          </nav>
+          <div className="mobile-nav-foot">
+            <a href={`tel:${phoneHref.replace("tel:", "")}`}>{phone}</a>
+            <a href={`mailto:${email}`}>{email}</a>
+            <span>{settings.store_address || "Korunní 42, 120 00 Praha 2"}</span>
+          </div>
+        </div>
+      </div>
 
       {searchOpen && (
         <div className="search-overlay" onClick={() => setSearchOpen(false)}>
@@ -226,6 +276,22 @@ export function Layout() {
       </footer>
 
       <CookieBanner />
+
+      {/* Tlačítko nahoru */}
+      <button
+        type="button"
+        className={`scroll-top${showTop ? " show" : ""}`}
+        onClick={scrollTop}
+        aria-label="Zpět nahoru"
+        aria-hidden={!showTop}
+        tabIndex={showTop ? 0 : -1}
+      >
+        <svg className="scroll-top-ring" viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="22" className="scroll-top-track" />
+          <circle cx="24" cy="24" r="22" className="scroll-top-bar" style={{ strokeDashoffset: 138.2 * (1 - progress) }} />
+        </svg>
+        <IconArrowUp className="scroll-top-icon" size={20} />
+      </button>
 
       <div className="toasts">
         {toasts.map((t) => (

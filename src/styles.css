@@ -2817,3 +2817,180 @@ h1, h2, h3 { line-height: 1.15; }
   border: 3px solid var(--bg);
 }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   Mobilní menu — vykreslené mimo hlavičku (fix oříznutí do boku)
+   ============================================================ */
+
+.mobile-nav {
+  position: fixed;
+  top: var(--header-h, var(--header));
+  left: 0;
+  right: 0;
+  height: calc(100dvh - var(--header-h, var(--header)));
+  z-index: 39;
+  display: flex;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.26s ease, visibility 0.26s ease;
+}
+.mobile-nav.open {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+.mobile-nav-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border-top: 1px solid var(--line);
+  padding: 16px 22px calc(28px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: navIn 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.mobile-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mobile-nav-head .serif {
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.mobile-nav .search-wrap { width: 100%; }
+.mobile-nav .search-form {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--card);
+}
+.mobile-nav .search-form input { width: 100%; font-size: 16px; }
+.mobile-nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mobile-nav-links a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 4px;
+  font-family: var(--serif);
+  font-size: 20px;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  min-height: 52px;
+  opacity: 0;
+  transform: translateY(8px);
+}
+.mobile-nav.open .mobile-nav-links a {
+  animation: navLinkIn 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.mobile-nav-links a.active { color: var(--accent); }
+.mobile-nav-links a:hover { color: var(--accent-dark); }
+.mobile-nav-arrow {
+  color: var(--muted);
+  font-family: var(--sans);
+  transition: transform 0.2s ease;
+}
+.mobile-nav-links a:hover .mobile-nav-arrow { transform: translateX(4px); }
+.mobile-nav-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.mobile-nav-foot a { color: var(--ink-soft); }
+.mobile-nav-foot a:hover { color: var(--accent); }
+
+@keyframes navLinkIn {
+  to { opacity: 1; transform: none; }
+}
+
+/* ============================================================
+   Pruh postupu čtení + tlačítko nahoru
+   ============================================================ */
+
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 110;
+  background: linear-gradient(90deg, var(--accent), var(--gold) 60%, var(--forest-2));
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  will-change: transform;
+}
+
+.scroll-top {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 48px;
+  height: 48px;
+  z-index: 45;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 12px 30px rgba(28, 25, 21, 0.16);
+  opacity: 0;
+  transform: translateY(16px) scale(0.9);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease, background 0.2s ease, color 0.2s ease;
+}
+.scroll-top.show {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.scroll-top:hover {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+.scroll-top:active { transform: scale(0.94); }
+.scroll-top-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.scroll-top-track,
+.scroll-top-bar {
+  fill: none;
+  stroke-width: 2;
+}
+.scroll-top-track { stroke: var(--line); }
+.scroll-top-bar {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-dasharray: 138.2;
+  stroke-dashoffset: 138.2;
+}
+.scroll-top-icon { position: relative; }
+
+@media (max-width: 640px) {
+  .scroll-top {
+    right: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+}

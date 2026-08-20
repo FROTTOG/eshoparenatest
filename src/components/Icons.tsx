@@ -175,6 +175,13 @@ export function IconArrow(p: P) {
     </I>
   );
 }
+export function IconArrowUp(p: P) {
+  return (
+    <I {...p}>
+      <path d="M12 19V5M6 11l6-6 6 6" />
+    </I>
+  );
+}
 export function IconCheck(p: P) {
   return (
     <I {...p}>
