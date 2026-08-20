@@ -9,7 +9,7 @@ type Env = {
 };
 
 const DEFAULT_DESC =
-  "KAVKA — věci s charakterem. Keramika, len a dřevo z ateliéru. Doprava Zásilkovna, Z-BOX i Balíkovna s živou mapou.";
+  "KAVKA Ateliér — keramika, len a dřevo. Doprava Zásilkovna, Z-BOX i Balíkovna s živou mapou.";
 
 function esc(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
@@ -35,7 +35,7 @@ function injectSeo(
     `<meta property="og:url" content="${esc(seo.url)}" />`,
     `<meta property="og:type" content="${esc(seo.type || "website")}" />`,
     `<meta property="og:locale" content="cs_CZ" />`,
-    `<meta property="og:site_name" content="KAVKA" />`,
+    `<meta property="og:site_name" content="KAVKA Ateliér" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${esc(seo.title)}" />`,
     `<meta name="twitter:description" content="${esc(seo.description)}" />`,
@@ -71,7 +71,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   const html = await htmlRes.text();
   const origin = url.origin;
-  let title = `${context.env.STORE_NAME || "KAVKA"} — věci s charakterem`;
+  let title = `${context.env.STORE_NAME || "KAVKA"} Ateliér — keramika, len a dřevo`;
   let description = DEFAULT_DESC;
   let image = `${origin}/hero.jpg`;
   let type = "website";
@@ -112,5 +112,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   });
   const headers = new Headers(htmlRes.headers);
   headers.set("content-type", "text/html; charset=utf-8");
+  headers.set("cache-control", "public, max-age=0, must-revalidate");
   return new Response(body, { status: htmlRes.status, headers });
 };

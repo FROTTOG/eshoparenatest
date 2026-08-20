@@ -3,7 +3,7 @@ import { czk } from "../format";
 
 export function Logo() {
   return (
-    <Link to="/" className="logo" aria-label="KAVKA — domů">
+    <Link to="/" className="logo" aria-label="KAVKA Ateliér — domů">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <rect width="64" height="64" rx="14" fill="#1c1915" />
         <path d="M14 42c8-2 12-11 14-20 1 7 4 14 12 18 3-8 8-14 16-16-6 8-8 16-7 24H18c-1-8-2-14-4-6z" fill="#f4efe6" />
@@ -11,7 +11,7 @@ export function Logo() {
       </svg>
       <span>
         KAVKA
-        <small>e-shop platforma</small>
+        <small>ateliér</small>
       </span>
     </Link>
   );

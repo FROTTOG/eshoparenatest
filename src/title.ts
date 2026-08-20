@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 const DEFAULT_DESC =
-  "KAVKA — věci s charakterem. Keramika, len a dřevo z ateliéru. Doprava Zásilkovna, Z-BOX i Balíkovna s živou mapou.";
+  "KAVKA Ateliér — keramika, len a dřevo. Doprava Zásilkovna, Z-BOX i Balíkovna s živou mapou.";
 const DEFAULT_IMAGE = "/hero.jpg";
 
 function upsertMeta(attr: "name" | "property", key: string, value: string) {
@@ -46,7 +46,7 @@ export function useSeo(opts: { title: string; description?: string; image?: stri
     upsertMeta("property", "og:url", url);
     upsertMeta("property", "og:type", type);
     upsertMeta("property", "og:locale", "cs_CZ");
-    upsertMeta("property", "og:site_name", "KAVKA");
+    upsertMeta("property", "og:site_name", "KAVKA Ateliér");
     upsertMeta("name", "twitter:card", "summary_large_image");
     upsertMeta("name", "twitter:title", title);
     upsertMeta("name", "twitter:description", description);

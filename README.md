@@ -1,6 +1,6 @@
-# KAVKA — e-shop na Cloudflare Pages
+# KAVKA Ateliér — funkční demo e-shopu
 
-Hotový český e-shop. Běží **jen na Cloudflare**:
+Český e-shop ateliéru (keramika, len, dřevo). Běží **jen na Cloudflare**:
 
 | Co | Kde to žije | K čemu |
 |---|---|---|
