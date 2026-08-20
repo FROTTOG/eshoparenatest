@@ -56,6 +56,7 @@ export function CookieBanner() {
     setPrefs(payload);
     setVisible(false);
     setModalOpen(false);
+    window.dispatchEvent(new CustomEvent("kavka-consent", { detail: payload }));
   }
 
   function acceptAll() {

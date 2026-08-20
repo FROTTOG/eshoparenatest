@@ -9,6 +9,7 @@ import { czk, dateCs, pickupFreeOver, shippingByKind } from "../format";
 import { optimizedImage } from "../image";
 import { useStore } from "../store";
 import { useSeo } from "../title";
+import { trackAddToCart, trackViewItem } from "../analytics";
 
 export function ProductPage() {
   const { slug } = useParams();
@@ -24,6 +25,8 @@ export function ProductPage() {
   const [ok, setOk] = useState("");
   const [form, setForm] = useState({ rating: 5, title: "", comment: "" });
   const [lightbox, setLightbox] = useState(false);
+  const [watchEmail, setWatchEmail] = useState("");
+  const [watchMsg, setWatchMsg] = useState("");
   const closeLightboxRef = useRef<HTMLButtonElement>(null);
   const vatRate = Number(useStore().settings.invoice_vat_rate || 21);
 
@@ -52,6 +55,10 @@ export function ProductPage() {
       if (signal?.aborted) return;
       setP(product);
       setStatus("ok");
+      trackViewItem(
+        { item_id: product.sku, item_name: product.name, price: product.price, item_category: product.category_name },
+        product.price
+      );
       if (product.category_slug) {
         const r = await api<{ items: P[] }>(`/products?category=${encodeURIComponent(product.category_slug)}&limit=8`, { signal });
         if (signal?.aborted) return;
@@ -101,6 +108,10 @@ export function ProductPage() {
     setBusy(true);
     try {
       await addToCart(p.id, qty);
+      trackAddToCart(
+        { item_id: p.sku, item_name: p.name, price: p.price, quantity: qty, item_category: p.category_name },
+        p.price * qty
+      );
       setAdded(true);
       window.setTimeout(() => setAdded(false), 2200);
     } catch (e) {

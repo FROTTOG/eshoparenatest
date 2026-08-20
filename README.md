@@ -22,7 +22,7 @@
 - košík, kupóny (`KAVKA10`, `VITEJ150`, `LEN20`)
 - pokladna i jako host
 - doprava: **Z-BOX** a **Zásilkovna** (živý widget Packety), **Balíkovna** (iframe mapa České pošty), **na adresu**, **osobní odběr**
-- platba: převod s **QR (SPD)**, dobírka, karta při převzetí, hotově v ateliéru
+- platba: převod s **QR (SPD)**, **Apple Pay**, **Google Pay**, dobírka, karta při převzetí, hotově v ateliéru
 - historie objednávek, sledování podle čísla + e-mailu
 - hodnocení koupeného zboží
 
@@ -37,6 +37,13 @@
 - **exporty do účetnictví** — iDoklad (CSV), Fakturoid (CSV), POHODA (XML dataPack), objednávky a faktury v CSV
 - nastavení obchodu a IBAN
 - nahrání fotek do R2
+- **tisk štítků** — Česká pošta (Podání online), PPL a DPD jedním klikem z objednávky
+- **XML feedy** Heureka / Zboží.cz / Google Shopping
+- **GTM, GA4 a Meta Pixel** + e-commerce události `view_item`, `add_to_cart`, `purchase`
+- **e-mailové notifikace** (objednávka, stav, hlídací pes, opuštěný košík) přes Resend
+- **hlídací pes** u vyprodaného zboží
+- **opouštěcí pop-up** se slevou 5 % (`STAY5`)
+- **upsell v košíku** (např. zápalky ke svíčce)
 - **stránky** — drag & drop editor (toolbox s více než 20 bloky: nadpisy, text, obrázky, tlačítka, citáty, FAQ, galerie, video, mapa, HTML…), přidávání/mazání stránek
 - **navbar a logo** — úprava položek menu, pořadí, vlastní text a SVG loga
 

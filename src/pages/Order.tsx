@@ -5,6 +5,7 @@ import { PayQr } from "../components/PayQr";
 import { czk, dateCs, statusLabel } from "../format";
 import { useStore } from "../store";
 import { usePageTitle } from "../title";
+import { trackPurchase } from "../analytics";
 
 export function OrderPage() {
   usePageTitle("Objednávka — KAVKA");
@@ -17,7 +18,14 @@ export function OrderPage() {
     if (!number) return;
     setErr("");
     void api<{ order: Order }>(`/orders/${number}`)
-      .then((r) => setOrder(r.order))
+      .then((r) => {
+        setOrder(r.order);
+        const key = `ga4-purchase-${r.order.number}`;
+        if (!sessionStorage.getItem(key) && r.order.status !== "cancelled") {
+          sessionStorage.setItem(key, "1");
+          trackPurchase({ number: r.order.number, total: r.order.total, items: r.order.items });
+        }
+      })
       .catch((e) => setErr(e instanceof ApiError ? e.message : "Nepodařilo se načíst."));
   }, [number]);
 
@@ -48,6 +56,18 @@ export function OrderPage() {
           Faktura ke stažení (PDF / tisk)
         </a>
       </p>
+      {order.tracking_number ? (
+        <p>
+          Sledování zásilky:{" "}
+          {order.tracking_url ? (
+            <a className="text-link" href={order.tracking_url} target="_blank" rel="noreferrer">
+              {order.tracking_number}
+            </a>
+          ) : (
+            <b>{order.tracking_number}</b>
+          )}
+        </p>
+      ) : null}
 
       {order.payment_code === "transfer" && order.payment_status === "pending" && order.total > 0 && (
         <div className="form" style={{ margin: "18px 0" }}>

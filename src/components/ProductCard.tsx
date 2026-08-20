@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { Product } from "../api";
 import { optimizedImage } from "../image";
 import { useStore } from "../store";
+import { trackAddToCart } from "../analytics";
 import { IconCart, IconCheck } from "./Icons";
 import { Reveal } from "./Reveal";
 import { Price, Stars, Stock } from "./Ui";
@@ -22,6 +23,7 @@ export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
     setBusy(true);
     try {
       await addToCart(p.id);
+      trackAddToCart({ item_id: p.sku, item_name: p.name, price: p.price, quantity: 1, item_category: p.category_name }, p.price);
       setAdded(true);
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => setAdded(false), 1800);

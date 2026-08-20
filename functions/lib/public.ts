@@ -15,8 +15,11 @@ import {
 } from "./helpers";
 import { hashPassword, orderNumber, randomId, verifyPassword } from "./crypto";
 import { ensureInvoiceForOrder, invoiceHtml, loadSettings } from "./invoices";
+import { registerFeeds } from "./feeds";
+import { notifyAbandonedCart, notifyOrderCreated } from "./mail";
 
 export function registerPublic(app: App) {
+  registerFeeds(app);
   app.get("/health", (c) => c.json({ ok: true, store: c.env.STORE_NAME || "KAVKA" }));
 
   app.get("/settings", async (c) => {
@@ -49,6 +52,13 @@ export function registerPublic(app: App) {
       "logo_title",
       "logo_subtext",
       "logo_svg",
+      "gtm_id",
+      "ga4_id",
+      "meta_pixel_id",
+      "wallet_merchant_name",
+      "apple_pay_merchant_id",
+      "google_pay_merchant_id",
+      "exit_coupon",
     ];
     const pub: Record<string, string> = {};
     for (const k of publicKeys) if (all[k] != null) pub[k] = all[k];
@@ -402,6 +412,79 @@ export function registerPublic(app: App) {
     return c.json(await loadCart(c.env.DB, c.get("cartId")));
   });
 
+  app.get("/cart/upsells", async (c) => {
+    const cart = await loadCart(c.env.DB, c.get("cartId"));
+    const inCart = new Set(cart.items.map((i) => i.product_id));
+    const ids = cart.items.map((i) => i.product_id);
+    if (!ids.length) return c.json({ items: [] });
+    const placeholders = ids.map(() => "?").join(",");
+    const mapped =
+      (
+        await c.env.DB
+          .prepare(
+            `SELECT p.id, p.name, p.slug, p.sku, p.price, p.image, p.stock, p.short_description, u.product_id AS for_product
+             FROM product_upsells u
+             JOIN products p ON p.id = u.upsell_product_id
+             WHERE u.product_id IN (${placeholders}) AND p.active = 1 AND p.stock > 0
+             ORDER BY u.sort_order, p.price`
+          )
+          .bind(...ids)
+          .all()
+      ).results || [];
+    const fallback =
+      mapped.length
+        ? []
+        : (
+            await c.env.DB
+              .prepare(
+                `SELECT p.id, p.name, p.slug, p.sku, p.price, p.image, p.stock, p.short_description, p.category_id AS for_product
+                 FROM products p
+                 WHERE p.active = 1 AND p.stock > 0 AND p.featured = 1
+                 ORDER BY p.price ASC LIMIT 6`
+              )
+              .all()
+          ).results || [];
+    const seen = new Set<number>();
+    const items = [...mapped, ...fallback].filter((p) => {
+      const id = (p as { id: number }).id;
+      if (inCart.has(id) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    return c.json({ items: items.slice(0, 4) });
+  });
+
+  app.post("/cart/abandon", async (c) => {
+    const body = await c.req.json<{ email?: string }>();
+    const email = (body.email || c.get("user")?.email || "").trim().toLowerCase();
+    if (!validEmail(email)) return c.json({ error: "Zadejte platný e-mail." }, 400);
+    const cart = await loadCart(c.env.DB, c.get("cartId"));
+    if (!cart.items.length) return c.json({ ok: true, skipped: true });
+    const s = await loadSettings(c.env.DB);
+    const code = s.exit_coupon || "STAY5";
+    try {
+      await notifyAbandonedCart(c.env.DB, email, code);
+    } catch (err) {
+      console.error("abandon mail", err);
+    }
+    return c.json({ ok: true, coupon: code });
+  });
+
+  app.post("/stock-alerts", async (c) => {
+    const body = await c.req.json<{ product_id?: number; email?: string }>();
+    const email = (body.email || c.get("user")?.email || "").trim().toLowerCase();
+    const productId = Number(body.product_id);
+    if (!validEmail(email)) return c.json({ error: "Zadejte platný e-mail." }, 400);
+    const p = await c.env.DB.prepare("SELECT id, stock, name FROM products WHERE id = ? AND active = 1").bind(productId).first<{ id: number; stock: number; name: string }>();
+    if (!p) return c.json({ error: "Produkt nenalezen." }, 404);
+    if (p.stock > 0) return c.json({ error: "Produkt je skladem — můžete ho rovnou koupit." }, 400);
+    await c.env.DB
+      .prepare("INSERT OR IGNORE INTO stock_alerts (product_id, email) VALUES (?, ?)")
+      .bind(productId, email)
+      .run();
+    return c.json({ ok: true, message: `Až bude ${p.name} znovu skladem, napíšeme na ${email}.` });
+  });
+
   app.post("/checkout", async (c) => {
     const body = await c.req.json<{
       email?: string;
@@ -559,7 +642,8 @@ export function registerPublic(app: App) {
     const number = orderNumber();
     // Při nulové částce (např. slevový poukaz na 100 %) není co platit —
     // objednávka je automaticky zaplacená a QR platba se nezobrazí.
-    let payStatus = payment.code === "transfer" ? "pending" : payment.code === "cod" || payment.code === "card_delivery" || payment.code === "cash_store" ? "cod" : "pending";
+    const walletPay = payment.code === "apple_pay" || payment.code === "google_pay";
+    let payStatus = payment.code === "transfer" ? "pending" : payment.code === "cod" || payment.code === "card_delivery" || payment.code === "cash_store" ? "cod" : walletPay ? "paid" : "pending";
     if (total <= 0) payStatus = "paid";
 
     const stmts: D1PreparedStatement[] = [];
@@ -675,7 +759,25 @@ export function registerPublic(app: App) {
       console.error("Auto invoice error:", err);
     }
 
+    const origin = new URL(c.req.url).origin;
+    await c.env.DB.prepare("UPDATE settings SET value = ? WHERE key = 'store_url' AND (value IS NULL OR value = '')").bind(origin).run();
+
     const order = await loadOrder(c.env.DB, orderId);
+    try {
+      if (order) {
+        await notifyOrderCreated(c.env.DB, {
+          number: String(order.number),
+          email: String(order.email),
+          name: String(order.name),
+          total: Number(order.total),
+          shipping_name: String(order.shipping_name),
+          payment_name: String(order.payment_name),
+          items: (order.items as { name: string; quantity: number; price: number }[]) || [],
+        });
+      }
+    } catch (err) {
+      console.error("Order mail error:", err);
+    }
     const secure = isSecure(c);
     c.header("Set-Cookie", setCookie("oid", number, 2, secure));
     return c.json({ order });
@@ -866,7 +968,7 @@ export function registerPublic(app: App) {
   });
 }
 
-export async function loadOrder(db: D1Database, id: number) {
+export async function loadOrder(db: D1Database, id: number): Promise<Record<string, unknown> | null> {
   const order = await db.prepare("SELECT * FROM orders WHERE id = ?").bind(id).first();
   if (!order) return null;
   const items = (await db.prepare("SELECT * FROM order_items WHERE order_id = ?").bind(id).all()).results || [];
