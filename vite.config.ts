@@ -7,6 +7,18 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: false,
     assetsInlineLimit: 4096,
+    cssCodeSplit: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react") || id.includes("node_modules/react-dom") || id.includes("node_modules/react-router")) {
+            return "react";
+          }
+          if (id.includes("node_modules/qrcode")) return "qr";
+          if (id.includes("/src/pages/Admin")) return "admin";
+        },
+      },
+    },
   },
   server: {
     port: 5173,

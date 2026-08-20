@@ -14,7 +14,15 @@ export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
         <Link to={`/produkt/${p.slug}`} className="pcard-img">
           {p.compare_price && p.compare_price > p.price ? <span className="sale">Akce</span> : null}
           <WishButton p={p} />
-          <img src={p.image || "/products/hrnek.jpg"} alt={p.name} loading="lazy" />
+          <img
+            src={p.image || "/products/hrnek.jpg"}
+            alt={p.name}
+            loading={index < 2 ? "eager" : "lazy"}
+            decoding="async"
+            width={640}
+            height={640}
+            fetchPriority={index === 0 ? "high" : "auto"}
+          />
         </Link>
         <div className="pcard-body">
           <div className="cat">{p.category_name || "KAVKA"}</div>

@@ -1,17 +1,18 @@
-import { Link, Route, Routes } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { Account } from "./pages/Account";
-import { Admin } from "./pages/Admin";
 import { Login, Register } from "./pages/Auth";
 import { CartPage } from "./pages/Cart";
 import { Catalog } from "./pages/Catalog";
 import { Checkout } from "./pages/Checkout";
-import { EshopDemo } from "./pages/EshopDemo";
 import { Home } from "./pages/Home";
 import { OrderPage, Track } from "./pages/Order";
 import { ProductPage } from "./pages/Product";
 import { About, Privacy, Returns, ShippingInfo, Terms } from "./pages/Static";
 import { WishlistPage } from "./pages/Wishlist";
+
+const Admin = lazy(() => import("./pages/Admin").then((m) => ({ default: m.Admin })));
 
 function NotFound() {
   return (
@@ -28,12 +29,19 @@ function NotFound() {
 export function App() {
   return (
     <Routes>
-      <Route path="/admin/*" element={<Admin />} />
+      <Route
+        path="/admin/*"
+        element={
+          <Suspense fallback={<div className="wrap empty">Otevíráme administraci…</div>}>
+            <Admin />
+          </Suspense>
+        }
+      />
       <Route element={<Layout />}>
         <Route index element={<Home />} />
-        <Route path="ukazka" element={<EshopDemo />} />
-        <Route path="demo" element={<EshopDemo />} />
-        <Route path="eshop-ukazka" element={<EshopDemo />} />
+        <Route path="ukazka" element={<Navigate to="/" replace />} />
+        <Route path="demo" element={<Navigate to="/" replace />} />
+        <Route path="eshop-ukazka" element={<Navigate to="/" replace />} />
         <Route path="katalog" element={<Catalog />} />
         <Route path="katalog/:slug" element={<Catalog />} />
         <Route path="produkt/:slug" element={<ProductPage />} />

@@ -63,30 +63,21 @@ export function Catalog() {
 
   return (
     <div className="wrap">
-      <div style={{ background: "color-mix(in srgb, var(--gold) 14%, var(--card))", border: "1px solid var(--line)", borderRadius: 14, padding: "10px 14px", marginTop: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
-        <span style={{ background: "var(--ink)", color: "#fff", padding: "2px 8px", borderRadius: 999, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700 }}>DEMO KATALOG</span>
-        <span style={{ color: "var(--ink-soft)" }}>
-          Prohlížíte si <b>ukázkové produkty</b> platformy KAVKA. V ostrém e-shopu je nahradíte svými — fotky, ceny i sklad si spravujete v adminu.
-        </span>
-        <a href="/#nabidka" style={{ marginLeft: "auto", color: "var(--accent)", fontWeight: 700, whiteSpace: "nowrap" }}>
-          Chci vlastní katalog →
-        </a>
-      </div>
       <div className="crumbs">
-        <Link to="/">Domů</Link> / <Link to="/katalog">Ukázkový katalog</Link>
+        <Link to="/">Domů</Link> / <Link to="/katalog">Katalog</Link>
         {cat ? ` / ${cat.name}` : q ? ` / „${q}“` : ""}
       </div>
       <div className="toolbar">
         <div>
-          <h1 className="serif catalog-title">{cat ? cat.name : q ? `Hledání: ${q}` : "Ukázkový obchod"}</h1>
+          <h1 className="serif catalog-title">{cat ? cat.name : q ? `Hledání: ${q}` : "Katalog"}</h1>
           <p style={{ color: "var(--muted)", margin: "6px 0 0", maxWidth: 560 }}>
             {loading
               ? "Načítám polici…"
               : cat?.description
-                ? `${cat.description} — demo kategorie v KAVKA`
+                ? cat.description
                 : total === 1
-                  ? "1 ukázková věc — v ostrém obchodě tu bude vaše zboží"
-                  : `${total} ukázkových věcí • Nahraďte je svými produkty na jedno kliknutí v adminu`}
+                  ? "1 věc na polici"
+                  : `${total} věcí z ateliéru`}
           </p>
         </div>
         <div className="toolbar-tools">

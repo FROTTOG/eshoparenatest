@@ -7,7 +7,6 @@ import {
   IconCash,
   IconCookie,
   IconFileText,
-  IconLock,
   IconLocker,
   IconMail,
   IconParcel,
@@ -24,7 +23,6 @@ import {
 import { openCookieSettings } from "../components/CookieBanner";
 import { czk } from "../format";
 import { useStore } from "../store";
-import { vendorContact } from "../vendor";
 import { usePageTitle } from "../title";
 
 function Box({ title, children }: { title: string; children: React.ReactNode }) {
@@ -42,7 +40,6 @@ function Box({ title, children }: { title: string; children: React.ReactNode }) 
 
 export function About() {
   const { settings } = useStore();
-  const vendor = vendorContact(settings);
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const ico = settings.store_ico || "19200456";
   const dic = settings.store_dic || "CZ19200456";
@@ -55,74 +52,46 @@ export function About() {
   const bankName = settings.bank_name || "Česká spořitelna, a.s.";
 
   return (
-    <Box title="O platformě KAVKA">
-      <div style={{ background: "var(--ink)", color: "#fff", padding: 18, borderRadius: 16, marginBottom: 24, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 0 6px rgba(34,197,94,0.18)", flexShrink: 0 }} />
-        <span style={{ fontSize: 13, flex: 1, minWidth: 200 }}>
-          <b>ŽIVÁ UKÁZKA</b> — Prohlížíte si reálný běžící e-shop. Stejný kód vám nasadíme s vaším logem, barvami a produkty do 24 hodin.
-        </span>
-        <a href="/#nabidka" className="btn btn-sm" style={{ marginLeft: "auto", background: "#c4a574", color: "#1c1915", whiteSpace: "nowrap" }}>
-          Chci KAVKA →
-        </a>
-      </div>
-
+    <Box title="O ateliéru KAVKA">
       <p className="lead" style={{ fontSize: 19, color: "var(--ink)", lineHeight: 1.4 }}>
-        <b>KAVKA je česká e-shop platforma jako SaaS i jako prodej na klíč.</b>
-        <br />
-        Vidíte hotový obchod s keramikou, lnem a dřevem? To je jen <em>ukázkový obsah</em>. Pod ním běží systém, který zítra může prodávat vaše produkty — na vaší doméně, s vaším IČO a vaší cenou.
+        <b>KAVKA Ateliér</b> je malá dílna na Vinohradech. Točíme kameninu, šijeme praný len a olejujeme dub —
+        věci, které mají zůstat na stole i za deset let.
       </p>
 
       <div className="trust" style={{ margin: "24px 0" }}>
         <article>
           <IconWrap className="accent">
-            <IconTruck />
+            <IconShop />
           </IconWrap>
-          <h3>SaaS pronájem</h3>
-          <p>
-            490 Kč / měsíc bez DPH. Běží na vašem Cloudflare, my aktualizujeme. Můžete kdykoli odkoupit.
-          </p>
+          <h3>Dílna na Korunní</h3>
+          <p>Otevřeno {settings.store_hours || "Po–Pá 10:00–18:00"}. Můžete si zboží prohlédnout a odnést hned.</p>
         </article>
         <article>
           <IconWrap className="accent">
-            <IconBuilding />
+            <IconTruck />
           </IconWrap>
-          <h3>Prodej na klíč</h3>
-          <p>
-            29 900 Kč jednorázově. Předáme repozitář, nasadíme na vaši doménu, zaškolíme, naimportujeme zboží.
-          </p>
+          <h3>Posíláme po celé ČR</h3>
+          <p>Z-BOX, Zásilkovna, Balíkovna i kurýr na adresu. Na pokladně vybíráte místo na živé mapě.</p>
         </article>
         <article>
           <IconWrap className="accent">
             <IconShield />
           </IconWrap>
-          <h3>Bez provizí</h3>
-          <p>
-            Platíte jen Cloudflare (často 0–5 $) a případně nájem. Žádná procenta z tržeb jako u marketplace.
-          </p>
+          <h3>14 dní na vrácení</h3>
+          <p>Zákonná záruka 24 měsíců. Reklamace vyřídíme do 30 dnů — nebo osobně v ateliéru.</p>
         </article>
       </div>
 
-      <h3>Co je pod kapotou (a proč je to výhoda)</h3>
+      <h3>Jak nakupujete</h3>
       <ul className="info-list">
-        <li>
-          <IconWrap>
-            <IconTruck />
-          </IconWrap>
-          <div>
-            <b>Cloudflare Pages + D1 + R2</b>
-            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
-              Web + admin na Pages, data v SQL databázi D1, fotky v R2. Vše v EU, rychlé jako statika, HTTPS zdarma. Napojení na doménu na jedno kliknutí.
-            </p>
-          </div>
-        </li>
         <li>
           <IconWrap>
             <IconPin />
           </IconWrap>
           <div>
-            <b>Zásilkovna · Z-BOX · Balíkovna s živou mapou</b>
+            <b>Zásilkovna · Z-BOX · Balíkovna</b>
             <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
-              Oficiální widget Packety a iframe České pošty. Zákazník vybírá skutečné výdejní místo, vy ho vidíte v objednávce + záložní DB s body.
+              Na pokladně otevřete živou mapu dopravce a vyberete výdejní místo. Osobní odběr je v ateliéru zdarma.
             </p>
           </div>
         </li>
@@ -131,44 +100,28 @@ export function About() {
             <IconQr />
           </IconWrap>
           <div>
-            <b>Platby QR (SPD), dobírka, karta</b>
+            <b>Platba QR, dobírka, hotově</b>
             <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
-              IBAN si nastavíte v Nastavení, QR se generuje z částky a variabilního symbolu. Poplatek u dobírky volitelný.
-            </p>
-          </div>
-        </li>
-        <li>
-          <IconWrap>
-            <IconShield />
-          </IconWrap>
-          <div>
-            <b>Česká legislativa v základu</b>
-            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
-              Obchodní podmínky, GDPR, reklamace 14 dní / 24 měsíců, mimosoudní řešení sporů — vzory jsou v systému a tahají vaše IČO/DIČ/sídlo z nastavení.
+              Po objednávce uvidíte QR kód SPD pro převod. Dobírka, karta při převzetí nebo hotově v ateliéru.
             </p>
           </div>
         </li>
       </ul>
 
       <div style={{ marginTop: 28, padding: 20, background: "color-mix(in srgb, var(--gold) 10%, var(--card))", border: "1px dashed var(--gold)", borderRadius: 16 }}>
-        <h3 style={{ margin: "0 0 8px" }}>Co dostanete při předání?</h3>
-        <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 14, color: "var(--ink-soft)" }}>
-          <li>Kompletní kód (React + Hono) + návod na nasazení na váš Cloudflare účet</li>
-          <li>Admin v češtině: produkty, kategorie, sklad, objednávky, zákazníci, kupóny, doprava, platby, R2 fotky</li>
-          <li>Nastavení obchodu (IBAN, logo, barvy, adresa, otevíračka) + ARES napojení na IČO</li>
-          <li>Ukázková data, která smažete nebo nahradíte svými — seed se spustí sám</li>
-          <li>Doporučení na e-mailový provider (Resend / Mailgun) — Cloudflare sám e-maily neposílá</li>
-        </ul>
-        <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-          <a href="/katalog" className="btn-line btn-sm">
-            Projít ukázkový katalog
-          </a>
-          <a href="/admin" className="btn btn-sm">
-            Otevřít demo admin
-          </a>
-          <a href={vendor.web} target="_blank" rel="noreferrer" className="btn-dark btn-sm">
-            Objednat na {vendor.webLabel}
-          </a>
+        <h3 style={{ margin: "0 0 8px" }}>Navštivte nás</h3>
+        <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--ink-soft)" }}>
+          {address}
+          <br />
+          {settings.store_hours || "Po–Pá 10:00–18:00"}
+        </p>
+        <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+          <Link to="/katalog" className="btn btn-sm">
+            Do katalogu
+          </Link>
+          <Link to="/doprava-a-platba" className="btn-line btn-sm">
+            Doprava a platba
+          </Link>
         </div>
       </div>
 
@@ -176,7 +129,7 @@ export function About() {
 
       <div className="legal-box glass-card" style={{ padding: 20, borderRadius: 16, border: "1px solid var(--line)" }}>
         <h3 style={{ margin: "0 0 14px", display: "flex", alignItems: "center", gap: 8 }}>
-          <IconBuilding size={20} /> Identifikační údaje provozovatele ukázky
+          <IconBuilding size={20} /> Identifikační údaje provozovatele
         </h3>
         <table style={{ width: "100%", fontSize: 14 }}>
           <tbody>
@@ -185,7 +138,7 @@ export function About() {
               <td style={{ fontWeight: 600, padding: "6px 0" }}>{company}</td>
             </tr>
             <tr>
-              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Sídlo a ateliér (demo):</td>
+              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Sídlo a ateliér:</td>
               <td style={{ padding: "6px 0" }}>{address}</td>
             </tr>
             <tr>
@@ -201,7 +154,7 @@ export function About() {
               <td style={{ padding: "6px 0" }}>{registry}</td>
             </tr>
             <tr>
-              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Bankovní spojení (demo):</td>
+              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Bankovní spojení:</td>
               <td style={{ padding: "6px 0" }}>
                 {bankAcc} ({bankName})
                 <br />
@@ -209,49 +162,18 @@ export function About() {
               </td>
             </tr>
             <tr>
-              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Otevírací doba (demo):</td>
+              <td style={{ color: "var(--muted)", padding: "6px 0" }}>Otevírací doba:</td>
               <td style={{ padding: "6px 0" }}>{settings.store_hours || "Po–Pá 10:00–18:00"}</td>
             </tr>
           </tbody>
         </table>
-        <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>
-          Ve vašem ostrém nasazení se tyto údaje nahradí vašimi — administrace je plně editovatelná v Nastavení.
-        </p>
       </div>
 
-      <h3>Kontakt na tvůrce KAVKA a objednání systému</h3>
-      <div
-        className="glass-card"
-        style={{ padding: 20, borderRadius: 16, border: "1px solid var(--line)", display: "grid", gap: 10, marginBottom: 8 }}
-      >
-        <p style={{ margin: 0, fontSize: 15 }}>
-          Systém KAVKA vyvíjí a dodává <b>{vendor.person}</b>. Objednávky, cenové nabídky, nasazení na vaši doménu i technická
-          podpora běží přes:
-        </p>
-        <span>
-          <IconMail size={16} style={{ verticalAlign: "middle", marginRight: 8, color: "var(--accent)" }} />
-          Web a objednávky:{" "}
-          <a href={vendor.web} target="_blank" rel="noreferrer" className="linkish">
-            <b>{vendor.webLabel}</b>
-          </a>
-        </span>
-        <span>
-          <IconPhone size={16} style={{ verticalAlign: "middle", marginRight: 8, color: "var(--accent)" }} />
-          Telefon:{" "}
-          <a href={vendor.phoneHref} className="linkish">
-            <b>{vendor.phone}</b>
-          </a>
-        </span>
-        <a href={vendor.web} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ justifySelf: "start" }}>
-          Objednat KAVKA na {vendor.webLabel}
-        </a>
-      </div>
-
-      <h3>Kontakt na provozovatele ukázkového obchodu</h3>
+      <h3>Kontakt</h3>
       <p style={{ display: "grid", gap: 8 }}>
         <span>
           <IconMail size={16} style={{ verticalAlign: "middle", marginRight: 8, color: "var(--accent)" }} />
-          E-mail demo obchodu: <a href={`mailto:${email}`} className="linkish">
+          E-mail: <a href={`mailto:${email}`} className="linkish">
             <b>{email}</b>
           </a>
         </span>
@@ -290,17 +212,10 @@ function shipIcon(kind: string) {
 export function ShippingInfo() {
   const { shipping } = useStore();
   return (
-    <Box title="Doprava a platba — co umí KAVKA (ukázka)">
-      <div style={{ background: "var(--ink)", color: "#fff", padding: 14, borderRadius: 12, marginBottom: 16, display: "flex", gap: 10, alignItems: "center", fontSize: 13 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", flexShrink: 0 }} />
-        <span>Prohlížíte si konfiguraci demo obchodu. Všechny způsoby dopravy/platby si nastavíte v adminu a projeví se na pokladně.</span>
-        <a href="/admin" className="btn btn-sm" style={{ marginLeft: "auto", background: "#c4a574", color: "#1c1915", whiteSpace: "nowrap" }}>
-          Otevřít admin
-        </a>
-      </div>
+    <Box title="Doprava a platba">
       <p>
-        Toto je <b>ukázkový ceník dopravy</b> z administrace KAVKA. Objednávky balíme do recyklovatelných materiálů a expedujeme každý pracovní den do 24 hodin.
-        U výdejních míst máte k dispozici <b>oficiální živou mapu dopravce</b>. Ceny berete z aktuálního ceníku v administraci — zákazník je vidí na pokladně před objednáním.
+        Objednávky balíme do recyklovatelných materiálů a expedujeme každý pracovní den do 24 hodin.
+        U výdejních míst máte k dispozici <b>živou mapu dopravce</b>. Ceny dopravy vidíte na pokladně před odesláním objednávky.
       </p>
 
       <h3>Způsoby a ceník dopravy</h3>
