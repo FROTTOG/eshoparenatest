@@ -3,6 +3,47 @@ import { hashPassword } from "./crypto";
 import { PICKUP_POINTS } from "./points";
 import { INVOICES_SQL, INVOICES_INDEX_SQL } from "./invoices";
 
+/**
+ * Tabulka reklamací je i v SCHEMA_SQL, ale starší databáze (založené migrací
+ * 0001, která ji ještě neměla) si ji nevytvořily — proto ji zajišťujeme
+ * zvlášť při každém startu, stejně jako tabulku faktur.
+ */
+export const CLAIMS_SQL = `CREATE TABLE IF NOT EXISTS claims (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  order_id INTEGER,
+  order_number TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  subject TEXT NOT NULL DEFAULT '',
+  reason TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'new',
+  admin_note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`;
+
+export const CLAIMS_INDEX_SQL = [
+  "CREATE INDEX IF NOT EXISTS idx_claims_user ON claims(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status)",
+];
+
+/**
+ * Indexy ze SCHEMA_SQL, které chybí databázím založeným migrací 0001.
+ * Vytvoření je idempotentní, takže je pouštíme při každém studeném startu.
+ */
+export const LATE_INDEX_SQL = [
+  "CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category_id)",
+  "CREATE INDEX IF NOT EXISTS idx_products_active ON products(active)",
+  "CREATE INDEX IF NOT EXISTS idx_pickup_city ON pickup_points(city)",
+  "CREATE INDEX IF NOT EXISTS idx_pickup_type ON pickup_points(type)",
+  "CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(number)",
+  "CREATE INDEX IF NOT EXISTS idx_reviews_product ON reviews(product_id)",
+  "CREATE INDEX IF NOT EXISTS idx_cart_items ON cart_items(cart_id)",
+  "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
+];
+
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -700,6 +741,15 @@ async function prepareDatabase(env: Bindings) {
       await env.DB.prepare(stmt).run();
     } catch (err) {
       console.error("Invoices schema error:", err);
+    }
+  }
+
+  // Reklamace a indexy — doplníme i do starších databází (migrace 0001 je ještě neměla).
+  for (const stmt of [CLAIMS_SQL, ...CLAIMS_INDEX_SQL, ...LATE_INDEX_SQL]) {
+    try {
+      await env.DB.prepare(stmt).run();
+    } catch (err) {
+      console.error("Late schema error:", err);
     }
   }
 

@@ -9,10 +9,11 @@ import { Price, Stars, Stock } from "./Ui";
 import { WishButton } from "./WishButton";
 
 export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
-  const { addToCart, toast } = useStore();
+  const { addToCart, toast, settings } = useStore();
   const [busy, setBusy] = useState(false);
   const [added, setAdded] = useState(false);
   const timer = useRef<number | undefined>(undefined);
+  const vatRate = Number(settings.invoice_vat_rate || 21);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
@@ -55,7 +56,7 @@ export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
             <Link to={`/produkt/${p.slug}`}>{p.name}</Link>
           </h3>
           <Stars value={p.rating} count={p.review_count || 0} />
-          <Price price={p.price} compare={p.compare_price} />
+          <Price price={p.price} compare={p.compare_price} vatRate={vatRate} />
           <Stock n={p.stock} />
           <button
             className={`btn-line${added ? " btn-added" : ""}${busy ? " btn-busy" : ""}`}

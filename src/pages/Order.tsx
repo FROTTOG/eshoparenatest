@@ -113,7 +113,12 @@ export function OrderPage() {
                   </>
                 ) : (
                   <>
-                    {order.shipping_recipient ? `${order.shipping_recipient}\n` : ""}
+                    {order.shipping_recipient ? (
+                      <>
+                        {order.shipping_recipient}
+                        <br />
+                      </>
+                    ) : null}
                     {order.street}
                     <br />
                     {order.zip} {order.city}
