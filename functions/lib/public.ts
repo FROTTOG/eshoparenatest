@@ -38,6 +38,7 @@ export function registerPublic(app: App) {
       "iban",
       "bank_name",
       "bank_account",
+      "invoice_vat_rate",
       "hero_title",
       "hero_text",
       "packeta_api_key",
