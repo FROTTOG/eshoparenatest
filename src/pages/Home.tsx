@@ -14,6 +14,7 @@ import {
 import { ProductCard } from "../components/ProductCard";
 import { Reveal } from "../components/Reveal";
 import { cheapestPickup, czk, pickupFreeOver, shippingByKind } from "../format";
+import { optimizedImage } from "../image";
 import { useStore } from "../store";
 import { useSeo } from "../title";
 
@@ -29,7 +30,7 @@ export function Home() {
     title: `${storeName} Ateliér — keramika, len a dřevo`,
     description:
       "Ručně točená keramika, praný len a dřevo z ateliéru KAVKA. Doprava Z-BOX, Zásilkovna i Balíkovna. QR platba, osobní odběr na Vinohradech.",
-    image: "/hero.jpg",
+    image: "/hero.webp",
   });
 
   const freeOver = pickupFreeOver(shipping);
@@ -38,13 +39,30 @@ export function Home() {
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setLoadError(false);
     void Promise.all([
-      api<Category[]>("/categories").then(setCats),
-      api<{ items: Product[] }>("/products?featured=1&limit=8").then((r) => setItems(r.items)),
-    ]).finally(() => setLoading(false));
-  }, []);
+      api<Category[]>("/categories", { signal: controller.signal }),
+      api<{ items: Product[] }>("/products?featured=1&limit=8", { signal: controller.signal }),
+    ])
+      .then(([nextCats, nextItems]) => {
+        if (controller.signal.aborted) return;
+        setCats(nextCats);
+        setItems(nextItems.items);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setLoadError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [reload]);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -136,7 +154,7 @@ export function Home() {
           </div>
           <div className="demo-hero-img-wrap">
             <img
-              src="/hero.jpg"
+              src="/hero.webp"
               alt="Ateliér KAVKA — keramika, len a dřevo"
               className="demo-hero-img"
               width={960}
@@ -157,6 +175,18 @@ export function Home() {
         </div>
       </section>
 
+      {loadError && (
+        <div className="wrap load-error glass-card" role="alert">
+          <div>
+            <b>Produkty se teď nepodařilo načíst.</b>
+            <span>Zkontrolujte připojení a zkuste to znovu.</span>
+          </div>
+          <button type="button" className="btn-line btn-sm" onClick={() => setReload((n) => n + 1)}>
+            Načíst znovu
+          </button>
+        </div>
+      )}
+
       <section className="section wrap">
         <Reveal>
           <div className="section-head">
@@ -175,7 +205,7 @@ export function Home() {
           {cats.map((c) => (
             <Link key={c.id} to={`/katalog/${c.slug}`} className="demo-cat-card glass-card">
               <div className="demo-cat-img-wrap">
-                <img src={c.image || "/products/hrnek.jpg"} alt="" loading="lazy" decoding="async" width={480} height={360} />
+                <img src={optimizedImage(c.image)} alt="" loading="lazy" decoding="async" width={480} height={360} />
               </div>
               <div className="demo-cat-info">
                 <h3>{c.name}</h3>

@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError, type Cart as C } from "../api";
 import { czk, pickupFreeOver } from "../format";
+import { optimizedImage } from "../image";
 import { useStore } from "../store";
 import { usePageTitle } from "../title";
 
@@ -55,7 +56,7 @@ export function CartPage() {
         {cart.items.map((it) => (
           <div className="line-item" key={it.id}>
             <Link to={`/produkt/${it.slug}`}>
-              <img src={it.image} alt={it.name} />
+              <img src={optimizedImage(it.image)} alt={it.name} loading="lazy" decoding="async" width={88} height={88} />
             </Link>
             <div>
               <Link to={`/produkt/${it.slug}`}>

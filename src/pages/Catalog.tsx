@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { api, type Category, type Product } from "../api";
+import { api, ApiError, type Category, type Product } from "../api";
 import { ProductCard } from "../components/ProductCard";
 import { usePageTitle } from "../title";
 
@@ -17,27 +17,43 @@ export function Catalog() {
   const [items, setItems] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [reload, setReload] = useState(0);
 
   const cat = cats.find((c) => c.slug === slug);
   usePageTitle(cat ? `${cat.name} — KAVKA` : q ? `Hledání: ${q} — KAVKA` : "Katalog — KAVKA");
 
   useEffect(() => {
-    void api<Category[]>("/categories").then(setCats);
+    const controller = new AbortController();
+    void api<Category[]>("/categories", { signal: controller.signal })
+      .then(setCats)
+      .catch(() => undefined);
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     const qs = new URLSearchParams({ sort, limit: String(PAGE_SIZE), page: String(page) });
     if (q) qs.set("q", q);
     if (slug) qs.set("category", slug);
     if (inStock) qs.set("in_stock", "1");
     setLoading(true);
-    void api<{ items: Product[]; total: number }>(`/products?${qs}`)
+    setError("");
+    void api<{ items: Product[]; total: number }>(`/products?${qs}`, { signal: controller.signal })
       .then((r) => {
+        if (controller.signal.aborted) return;
         setItems(r.items);
         setTotal(r.total);
       })
-      .finally(() => setLoading(false));
-  }, [q, slug, sort, inStock, page]);
+      .catch((e) => {
+        if (controller.signal.aborted) return;
+        setError(e instanceof ApiError ? e.message : "Katalog se nepodařilo načíst.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [q, slug, sort, inStock, page, reload]);
 
   function patch(next: Record<string, string | null>, resetPage = true) {
     const n = new URLSearchParams(sp);
@@ -104,7 +120,15 @@ export function Catalog() {
           </Link>
         ))}
       </div>
-      {loading ? (
+      {error ? (
+        <div className="empty" role="alert">
+          <h2 className="serif" style={{ color: "var(--ink)" }}>Katalog si dává pauzu</h2>
+          <p>{error}</p>
+          <button type="button" className="btn" onClick={() => setReload((n) => n + 1)}>
+            Zkusit znovu
+          </button>
+        </div>
+      ) : loading ? (
         <div className="grid-products">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="pcard">

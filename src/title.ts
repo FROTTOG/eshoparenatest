@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 const DEFAULT_DESC =
   "KAVKA Ateliér — keramika, len a dřevo. Doprava Zásilkovna, Z-BOX i Balíkovna s živou mapou.";
-const DEFAULT_IMAGE = "/hero.jpg";
+const DEFAULT_IMAGE = "/hero.webp";
 
 function upsertMeta(attr: "name" | "property", key: string, value: string) {
   let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`);
@@ -37,7 +37,7 @@ export function useSeo(opts: { title: string; description?: string; image?: stri
   const type = opts.type || "website";
 
   useEffect(() => {
-    const url = window.location.href.split("#")[0];
+    const url = `${window.location.origin}${window.location.pathname}`;
     document.title = title;
     upsertMeta("name", "description", description);
     upsertMeta("property", "og:title", title);

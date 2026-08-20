@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, type Product } from "../api";
 import { czk } from "../format";
+import { optimizedImage } from "../image";
 import { IconSearch } from "./Icons";
 
 export function SearchBox({
@@ -16,12 +17,20 @@ export function SearchBox({
   const [open, setOpen] = useState(false);
   const nav = useNavigate();
   const loc = useLocation();
-  const timer = useRef(0);
+  const timer = useRef<number | undefined>(undefined);
+  const request = useRef<AbortController | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setOpen(false);
   }, [loc.pathname, loc.search]);
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(timer.current);
+      request.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     function hide(e: MouseEvent) {
@@ -32,19 +41,32 @@ export function SearchBox({
   }, []);
 
   function onChange(v: string) {
+    const query = v.trim();
     setQ(v);
     window.clearTimeout(timer.current);
-    if (v.trim().length < 2) {
+    request.current?.abort();
+
+    if (query.length < 2) {
       setHits([]);
       setOpen(false);
       return;
     }
+
     timer.current = window.setTimeout(() => {
-      void api<{ items: Product[] }>(`/products?q=${encodeURIComponent(v.trim())}&limit=6`).then((r) => {
-        setHits(r.items);
-        setOpen(true);
-      });
-    }, 220) as unknown as number;
+      const controller = new AbortController();
+      request.current = controller;
+      void api<{ items: Product[] }>(`/products?q=${encodeURIComponent(query)}&limit=6`, { signal: controller.signal })
+        .then((r) => {
+          if (controller.signal.aborted) return;
+          setHits(r.items);
+          setOpen(true);
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          setHits([]);
+          setOpen(true);
+        });
+    }, 220);
   }
 
   function search(e: FormEvent) {
@@ -87,7 +109,7 @@ export function SearchBox({
                   onDone?.();
                 }}
               >
-                <img src={p.image || "/products/hrnek.jpg"} alt="" />
+                <img src={optimizedImage(p.image)} alt="" loading="lazy" decoding="async" width={44} height={44} />
                 <span>
                   <b>{p.name}</b>
                   <small>

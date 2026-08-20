@@ -1,11 +1,12 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError, type Product as P } from "../api";
-import { IconArrow, IconCheck, IconClock, IconLeaf, IconShield } from "../components/Icons";
+import { IconArrow, IconCart, IconCheck, IconClock, IconLeaf, IconShield } from "../components/Icons";
 import { ProductCard } from "../components/ProductCard";
 import { Price, Stars, Stock } from "../components/Ui";
 import { WishButton } from "../components/WishButton";
 import { czk, dateCs, pickupFreeOver, shippingByKind } from "../format";
+import { optimizedImage } from "../image";
 import { useStore } from "../store";
 import { useSeo } from "../title";
 
@@ -23,39 +24,43 @@ export function ProductPage() {
   const [ok, setOk] = useState("");
   const [form, setForm] = useState({ rating: 5, title: "", comment: "" });
   const [lightbox, setLightbox] = useState(false);
+  const closeLightboxRef = useRef<HTMLButtonElement>(null);
   const vatRate = Number(useStore().settings.invoice_vat_rate || 21);
 
   useSeo({
     title: p ? `${p.name} — KAVKA` : "Produkt — KAVKA",
     description: p?.short_description || p?.description || "Kousek z ateliéru KAVKA.",
-    image: p?.image || p?.images?.[0],
+    image: p ? optimizedImage(p.image || p.images?.[0]) : undefined,
     type: "product",
   });
   const freeOver = pickupFreeOver(shipping);
   const zbox = shippingByKind(shipping, "pickup_zbox");
 
   const pics = useMemo(() => {
-    const list = (p?.images?.length ? p.images : p?.image ? [p.image] : []).filter(Boolean);
-    return list.length ? list : ["/products/hrnek.jpg"];
+    const list = (p?.images?.length ? p.images : p?.image ? [p.image] : []).filter(Boolean).map(optimizedImage);
+    return list.length ? list : ["/products/hrnek.webp"];
   }, [p]);
 
-  async function load() {
+  async function load(signal?: AbortSignal) {
     if (!slug) return;
     setStatus("load");
     setImg(0);
     setQty(1);
     setAdded(false);
     try {
-      const product = await api<P>(`/products/${slug}`);
+      const product = await api<P>(`/products/${slug}`, { signal });
+      if (signal?.aborted) return;
       setP(product);
       setStatus("ok");
       if (product.category_slug) {
-        const r = await api<{ items: P[] }>(`/products?category=${encodeURIComponent(product.category_slug)}&limit=8`);
+        const r = await api<{ items: P[] }>(`/products?category=${encodeURIComponent(product.category_slug)}&limit=8`, { signal });
+        if (signal?.aborted) return;
         setRelated(r.items.filter((x) => x.id !== product.id).slice(0, 4));
       } else {
         setRelated([]);
       }
     } catch (e) {
+      if (signal?.aborted) return;
       setP(null);
       setRelated([]);
       setStatus(e instanceof ApiError && e.status === 404 ? "404" : "err");
@@ -63,18 +68,33 @@ export function ProductPage() {
   }
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [slug]);
 
   useEffect(() => {
+    if (!lightbox) return;
+
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeLightboxRef.current?.focus();
+
     function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setLightbox(false);
       if (pics.length < 2) return;
       if (e.key === "ArrowRight") setImg((i) => (i + 1) % pics.length);
       if (e.key === "ArrowLeft") setImg((i) => (i - 1 + pics.length) % pics.length);
     }
+
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [pics.length]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [lightbox, pics.length]);
 
   async function buy() {
     if (!p || p.stock <= 0) return;
@@ -214,16 +234,27 @@ export function ProductPage() {
           <Stock n={p.stock} />
           <p className="desc">{p.description}</p>
           <div className="qty-row">
-            <div className="qty">
-              <button type="button" onClick={() => setQty((n) => Math.max(1, n - 1))} aria-label="Méně kusů">
+            <div className="qty" aria-label="Počet kusů">
+              <button
+                type="button"
+                disabled={qty <= 1}
+                onClick={() => setQty((n) => Math.max(1, n - 1))}
+                aria-label="Odebrat jeden kus"
+              >
                 −
               </button>
-              <span>{qty}</span>
-              <button type="button" onClick={() => setQty((n) => Math.min(Math.max(1, p.stock), n + 1))} aria-label="Více kusů">
+              <span aria-live="polite">{qty}</span>
+              <button
+                type="button"
+                disabled={p.stock <= 0 || qty >= p.stock}
+                onClick={() => setQty((n) => Math.min(Math.max(1, p.stock), n + 1))}
+                aria-label="Přidat jeden kus"
+              >
                 +
               </button>
             </div>
-            <button className="btn" disabled={p.stock <= 0 || busy} onClick={() => void buy()}>
+            <button type="button" className="btn" disabled={p.stock <= 0 || busy} onClick={() => void buy()}>
+              <IconCart size={17} />
               {p.stock <= 0 ? "Vyprodáno" : busy ? "Vkládám…" : added ? "V košíku" : "Vložit do košíku"}
             </button>
             <WishButton p={p} className="wish-inline" />
@@ -247,16 +278,6 @@ export function ProductPage() {
             </li>
           </ul>
         </div>
-      </div>
-
-      <div className="product-sticky">
-        <span>
-          <b>{p.name}</b>
-          <Price price={p.price} compare={p.compare_price} vatRate={vatRate} />
-        </span>
-        <button className="btn" disabled={p.stock <= 0 || busy} onClick={() => void buy()}>
-          {p.stock <= 0 ? "Vyprodáno" : added ? "V košíku" : "Do košíku"}
-        </button>
       </div>
 
       {related.length > 0 && (
@@ -337,19 +358,45 @@ export function ProductPage() {
         )}
       </section>
       {lightbox && (
-        <div className="map-modal" onClick={() => setLightbox(false)} style={{ cursor: "zoom-out" }}>
-          <div style={{ position: "relative", maxWidth: "92vw", maxHeight: "92vh", display: "grid", placeItems: "center" }} onClick={(e) => e.stopPropagation()}>
-            <button className="close-x" onClick={() => setLightbox(false)} aria-label="Zavřít" style={{ position: "fixed", top: 16, right: 16, zIndex: 5 }}>
+        <div
+          className="map-modal product-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Fotogalerie produktu ${p.name}`}
+          onClick={() => setLightbox(false)}
+        >
+          <div className="product-lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <button
+              ref={closeLightboxRef}
+              type="button"
+              className="close-x product-lightbox-close"
+              onClick={() => setLightbox(false)}
+              aria-label="Zavřít fotogalerii"
+            >
               ✕
             </button>
-            <img src={pics[img]} alt={p.name} style={{ maxWidth: "92vw", maxHeight: "86vh", objectFit: "contain", borderRadius: 16, background: "#fff" }} />
+            <img className="product-lightbox-image" src={pics[img]} alt={`${p.name}, fotografie ${img + 1} z ${pics.length}`} />
             {pics.length > 1 && (
               <>
-                <button className="btn-line" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)" }} onClick={() => setImg((i) => (i - 1 + pics.length) % pics.length)}>‹</button>
-                <button className="btn-line" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }} onClick={() => setImg((i) => (i + 1) % pics.length)}>›</button>
-                <div style={{ position: "absolute", bottom: -28, display: "flex", gap: 6 }}>
+                <button
+                  type="button"
+                  className="btn-line product-lightbox-prev"
+                  onClick={() => setImg((i) => (i - 1 + pics.length) % pics.length)}
+                  aria-label="Předchozí fotografie"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="btn-line product-lightbox-next"
+                  onClick={() => setImg((i) => (i + 1) % pics.length)}
+                  aria-label="Další fotografie"
+                >
+                  ›
+                </button>
+                <div className="product-lightbox-dots" aria-hidden="true">
                   {pics.map((_, i) => (
-                    <span key={i} style={{ width: 8, height: 8, borderRadius: 999, background: i === img ? "var(--accent)" : "rgba(255,255,255,.7)", border: "1px solid rgba(0,0,0,.2)" }} />
+                    <span key={i} className={i === img ? "on" : ""} />
                   ))}
                 </div>
               </>
