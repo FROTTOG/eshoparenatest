@@ -3054,3 +3054,570 @@ h1, h2, h3 { line-height: 1.15; }
     bottom: calc(14px + env(safe-area-inset-bottom));
   }
 }
+
+/* ============================================================
+   Vizuální doladění — světlo, hloubka a živá tlačítka
+   (poslední vrstva; přepisuje starší pravidla záměrně)
+   ============================================================ */
+
+:root {
+  /* Jemnější, vrstvená hloubka místo jednoho tvrdého stínu */
+  --sh-1: 0 1px 2px rgba(28, 25, 21, 0.05);
+  --sh-2: 0 2px 6px rgba(28, 25, 21, 0.05), 0 8px 20px rgba(28, 25, 21, 0.05);
+  --sh-3: 0 4px 12px rgba(28, 25, 21, 0.06), 0 18px 40px rgba(28, 25, 21, 0.09);
+  --sh-4: 0 8px 24px rgba(28, 25, 21, 0.08), 0 30px 70px rgba(28, 25, 21, 0.12);
+  --sh-accent: 0 10px 26px rgba(181, 74, 44, 0.28);
+  /* Pohyb: pružné odsazení a rychlá odezva na stisk */
+  --ease-out: cubic-bezier(0.22, 0.75, 0.28, 1);
+  --ease-spring: cubic-bezier(0.34, 1.42, 0.52, 1);
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
+}
+
+/* ------------------------------------------------------------
+   1) Tlačítka — sklovitý povrch, přelet světla, pružný stisk
+   ------------------------------------------------------------ */
+
+.btn, .btn-dark, .btn-line, .ghost {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 999px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  -webkit-tap-highlight-color: transparent;
+  will-change: transform;
+  transition:
+    transform 0.22s var(--ease-spring),
+    box-shadow 0.28s var(--ease-out),
+    background-color 0.25s var(--ease-out),
+    border-color 0.25s var(--ease-out),
+    color 0.25s var(--ease-out),
+    filter 0.25s var(--ease-out);
+}
+
+/* Přelet světla přes tlačítko při najetí */
+.btn::after,
+.btn-dark::after,
+.btn-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transform: translateX(-140%) skewX(-18deg);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.34) 45%,
+    rgba(255, 255, 255, 0.5) 55%,
+    transparent 100%
+  );
+  transition: transform 0.65s var(--ease-out);
+  pointer-events: none;
+}
+.btn:hover::after,
+.btn-dark:hover::after,
+.btn-line:hover::after { transform: translateX(140%) skewX(-18deg); }
+.btn-line::after { background: linear-gradient(90deg, transparent, rgba(28, 25, 21, 0.08), transparent); }
+
+/* Plná tlačítka — teplý přechod a zář značky */
+.btn {
+  background-image: linear-gradient(140deg, color-mix(in srgb, var(--accent) 92%, #ffffff) 0%, var(--accent) 45%, var(--accent-dark) 100%);
+  background-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 6px 16px rgba(181, 74, 44, 0.22);
+}
+.btn:hover {
+  background-color: var(--accent-dark);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.26) inset, var(--sh-accent);
+}
+.btn-dark {
+  background-image: linear-gradient(140deg, #2c2822 0%, var(--ink) 55%, #100e0b 100%);
+  background-color: var(--ink);
+  color: var(--bg);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset, 0 6px 16px rgba(28, 25, 21, 0.2);
+}
+.btn-dark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset, 0 12px 28px rgba(28, 25, 21, 0.28);
+}
+
+/* Obrysové tlačítko — barva se nalije zdola */
+.btn-line {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--ink) 72%, transparent);
+  color: var(--ink);
+}
+.btn-line::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: var(--ink);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 0.32s var(--ease-out);
+}
+.btn-line:hover {
+  color: var(--bg);
+  border-color: var(--ink);
+  transform: translateY(-2px);
+  box-shadow: var(--sh-2);
+}
+.btn-line:hover::before { transform: scaleY(1); }
+
+/* Stisk — krátké, výrazné zmáčknutí */
+.btn:active, .btn-dark:active, .btn-line:active, .ghost:active {
+  transform: translateY(0) scale(0.965);
+  transition-duration: 0.08s;
+}
+
+/* Ikonky uvnitř tlačítek se lehce pohnou */
+.btn svg, .btn-dark svg, .btn-line svg { transition: transform 0.28s var(--ease-spring); }
+.btn:hover svg, .btn-dark:hover svg, .btn-line:hover svg { transform: translateX(2px); }
+.btn:hover svg[data-static], .btn-line:hover svg[data-static] { transform: none; }
+
+/* Neaktivní tlačítka se nehýbou */
+.btn:disabled, .btn-dark:disabled, .btn-line:disabled, .ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none;
+  filter: grayscale(0.35);
+}
+.btn:disabled::after, .btn-dark:disabled::after, .btn-line:disabled::after { display: none; }
+
+/* Sjednocený prstenec při ovládání klávesnicí */
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, .choice:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  outline-offset: 3px;
+}
+
+/* Potvrzení „vloženo do košíku" přímo v tlačítku */
+.btn-added,
+.btn-line.btn-added {
+  background: var(--ok) !important;
+  border-color: var(--ok) !important;
+  color: #fff !important;
+  animation: btnPop 0.42s var(--ease-spring);
+}
+.btn-added::before { transform: scaleY(1); background: var(--ok); }
+@keyframes btnPop {
+  0% { transform: scale(0.92); }
+  55% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+
+/* Textové odkazy — podtržení vyjíždí zleva */
+.text-link { position: relative; }
+.text-link::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -3px;
+  height: 1.5px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s var(--ease-out);
+}
+.text-link:hover::after { transform: scaleX(1); }
+.linkish { transition: color 0.2s var(--ease-out), opacity 0.2s var(--ease-out); }
+.linkish:hover { color: var(--accent-dark); opacity: 1; }
+
+/* ------------------------------------------------------------
+   2) Hlavička a ikonky
+   ------------------------------------------------------------ */
+
+.header {
+  background: color-mix(in srgb, var(--bg) 76%, transparent);
+  transition: box-shadow 0.3s var(--ease-out), background 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
+}
+.header.scrolled {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  box-shadow: 0 8px 30px rgba(28, 25, 21, 0.08);
+  border-bottom-color: color-mix(in srgb, var(--line) 90%, transparent);
+}
+.icon-btn { transition: color 0.2s var(--ease-out), transform 0.22s var(--ease-spring); }
+.icon-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--bg-deep);
+  transform: scale(0.4);
+  opacity: 0;
+  transition: transform 0.28s var(--ease-spring), opacity 0.2s var(--ease-out);
+  z-index: -1;
+}
+.icon-btn { isolation: isolate; }
+.icon-btn:hover { background: transparent; color: var(--accent); }
+.icon-btn:hover::before { transform: scale(1); opacity: 1; }
+.icon-btn:active { transform: scale(0.9); }
+.badge {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg) 88%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.search-form { transition: border-color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), background 0.25s var(--ease-out); }
+.search-form:hover { border-color: color-mix(in srgb, var(--ink) 35%, var(--line)); }
+.search-form:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* ------------------------------------------------------------
+   3) Karty produktů a kategorií
+   ------------------------------------------------------------ */
+
+.pcard {
+  border-color: color-mix(in srgb, var(--line) 85%, transparent);
+  box-shadow: var(--sh-1);
+  transition:
+    transform 0.4s var(--ease-out),
+    box-shadow 0.4s var(--ease-out),
+    border-color 0.3s var(--ease-out);
+}
+.pcard:hover {
+  transform: translateY(-7px);
+  box-shadow: var(--sh-4);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+}
+.pcard-media { overflow: hidden; }
+.pcard-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 55%, rgba(28, 25, 21, 0.16) 100%);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-out);
+}
+.pcard:hover .pcard-media::after { opacity: 1; }
+.pcard:hover .pcard-img img { transform: scale(1.07); }
+.pcard h3 a { transition: color 0.22s var(--ease-out); }
+.pcard:hover h3 a { color: var(--accent-dark); }
+
+/* Tlačítko v kartě se při najetí na kartu samo „rozsvítí" */
+.pcard .btn-line:not(:disabled) { border-color: color-mix(in srgb, var(--ink) 25%, transparent); }
+.pcard:hover .btn-line:not(:disabled):not(.btn-added) {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+.pcard .btn-line:not(:disabled)::before { background: var(--accent); }
+.pcard .btn-line:hover:not(:disabled) { color: #fff; border-color: var(--accent); }
+
+.sale {
+  z-index: 2;
+  font-weight: 700;
+  text-transform: uppercase;
+  box-shadow: 0 6px 14px rgba(181, 74, 44, 0.3);
+  animation: saleIn 0.5s var(--ease-spring) both;
+}
+@keyframes saleIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+
+.wish-btn { transition: transform 0.24s var(--ease-spring), color 0.2s var(--ease-out), box-shadow 0.25s var(--ease-out); }
+.wish-btn:hover { transform: scale(1.12); box-shadow: 0 10px 22px rgba(28, 25, 21, 0.14); }
+.wish-btn:active { transform: scale(0.9); }
+.wish-btn.on svg { animation: heartBeat 0.5s var(--ease-spring); }
+@keyframes heartBeat {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.34); }
+  70% { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+
+.cat-card {
+  box-shadow: var(--sh-1);
+  border-color: color-mix(in srgb, var(--line) 85%, transparent);
+}
+.cat-card:hover {
+  box-shadow: var(--sh-3);
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
+}
+.cat-card span { transition: color 0.25s var(--ease-out); }
+.cat-card:hover span { color: var(--accent-dark); }
+
+/* ------------------------------------------------------------
+   4) Sekce, nadpisy, drobná typografie
+   ------------------------------------------------------------ */
+
+.section-head h2 { position: relative; padding-bottom: 10px; }
+.section-head h2::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 46px; height: 3px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent), var(--gold));
+}
+@media (max-width: 640px) {
+  .section-head h2::after { left: 50%; transform: translateX(-50%); }
+}
+.kicker { font-weight: 700; }
+.price { font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------
+   5) Formuláře — příjemné soustředění
+   ------------------------------------------------------------ */
+
+.form, .admin-form {
+  box-shadow: var(--sh-1);
+}
+.form input, .form textarea, .form select,
+.admin-form input:not([type="checkbox"]), .admin-form textarea, .admin-form select,
+.toolbar input, .toolbar select {
+  transition: border-color 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out), background 0.2s var(--ease-out);
+}
+.form input:hover, .form textarea:hover, .form select:hover,
+.admin-form input:not([type="checkbox"]):hover, .admin-form textarea:hover, .admin-form select:hover {
+  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+}
+.form input:focus, .form textarea:focus, .form select:focus,
+.admin-form input:not([type="checkbox"]):focus, .admin-form textarea:focus, .admin-form select:focus,
+.toolbar input:focus, .toolbar select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  outline: none;
+}
+.form label { font-weight: 500; }
+
+/* Výběr dopravy / platby */
+.choice {
+  position: relative;
+  overflow: hidden;
+  transition:
+    border-color 0.22s var(--ease-out),
+    box-shadow 0.22s var(--ease-out),
+    background 0.22s var(--ease-out),
+    transform 0.22s var(--ease-out);
+}
+.choice::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  transform: scaleY(0);
+  transition: transform 0.28s var(--ease-out);
+}
+.choice:hover { transform: translateY(-1px); box-shadow: var(--sh-2); }
+.choice.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--sh-2);
+  background: color-mix(in srgb, var(--accent) 4%, var(--card));
+}
+.choice.active::before { transform: scaleY(1); }
+
+/* Počítadlo kusů */
+.qty { transition: border-color 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out); }
+.qty:hover { border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+.qty button { transition: background 0.18s var(--ease-out), color 0.18s var(--ease-out), transform 0.14s var(--ease-out); }
+.qty button:hover:not(:disabled) { background: var(--bg-deep); color: var(--accent-dark); }
+.qty button:active:not(:disabled) { transform: scale(0.88); }
+.qty span { font-variant-numeric: tabular-nums; }
+
+/* Štítky a chipsy */
+.chip, .tab-btn, .pager button {
+  transition:
+    background 0.2s var(--ease-out),
+    color 0.2s var(--ease-out),
+    border-color 0.2s var(--ease-out),
+    transform 0.18s var(--ease-spring),
+    box-shadow 0.2s var(--ease-out);
+}
+.chip:active, .tab-btn:active, .pager button:active:not(:disabled) { transform: scale(0.94); }
+.pager button:hover:not(:disabled):not(.on) { border-color: var(--ink); box-shadow: var(--sh-1); }
+.tab-btn.active { box-shadow: var(--sh-2); }
+.tag { font-weight: 600; letter-spacing: 0.02em; }
+
+/* ------------------------------------------------------------
+   6) Košík, souhrn, tabulky
+   ------------------------------------------------------------ */
+
+.summary {
+  box-shadow: var(--sh-2);
+  border-color: color-mix(in srgb, var(--line) 85%, transparent);
+}
+.summary dl div:last-child { font-weight: 650; }
+.line-item img { transition: transform 0.35s var(--ease-out), box-shadow 0.3s var(--ease-out); }
+.line-item:hover img { transform: scale(1.04); box-shadow: var(--sh-2); }
+.table-wrap { box-shadow: var(--sh-1); }
+tbody tr { transition: background 0.18s var(--ease-out); }
+.table-wrap tbody tr:hover { background: color-mix(in srgb, var(--bg-deep) 40%, transparent); }
+.ship-meter-bar span { background: linear-gradient(90deg, var(--ok), color-mix(in srgb, var(--ok) 55%, var(--gold))); }
+
+/* ------------------------------------------------------------
+   7) Hlášky, patička, drobnosti
+   ------------------------------------------------------------ */
+
+.toast {
+  border-left: 3px solid var(--gold);
+  box-shadow: var(--sh-3);
+  animation: toastPop 0.42s var(--ease-spring) both;
+}
+.toast.err { border-left-color: #ffd0d0; }
+@keyframes toastPop {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+.toast-link { transition: opacity 0.2s var(--ease-out), transform 0.2s var(--ease-out); }
+.toast-link:hover { opacity: 0.8; transform: translateX(2px); }
+
+.footer { position: relative; }
+.footer::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--gold) 50%, var(--forest-2));
+  opacity: 0.85;
+}
+.footer ul a {
+  display: inline-block;
+  transition: color 0.2s var(--ease-out), transform 0.2s var(--ease-out);
+}
+.footer ul a:hover { transform: translateX(3px); color: #fff; }
+
+.trust article, .saas-card, .feature-box, .price-card, .export-card {
+  box-shadow: var(--sh-1);
+}
+.trust article:hover, .saas-card:hover { box-shadow: var(--sh-3); }
+.price-card {
+  transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), border-color 0.3s var(--ease-out);
+}
+.price-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--sh-3);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+.price-card.featured:hover { transform: translateY(-9px); }
+.hero-pills span { transition: transform 0.25s var(--ease-spring), border-color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out); }
+.hero-pills span:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  box-shadow: var(--sh-1);
+}
+.stars { text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4); }
+.gallery { box-shadow: var(--sh-2); }
+.gallery-thumbs button { transition: transform 0.22s var(--ease-spring), border-color 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out); }
+.gallery-thumbs button:hover { transform: translateY(-2px); border-color: var(--ink); box-shadow: var(--sh-1); }
+.search-hit { transition: background 0.18s var(--ease-out), transform 0.18s var(--ease-out); }
+.search-hit:hover { transform: translateX(2px); }
+.review { box-shadow: var(--sh-1); transition: box-shadow 0.25s var(--ease-out), transform 0.25s var(--ease-out); }
+.review:hover { box-shadow: var(--sh-2); transform: translateY(-2px); }
+.scroll-progress { box-shadow: 0 0 12px rgba(181, 74, 44, 0.35); }
+.scroll-top { box-shadow: var(--sh-3); }
+.side-nav a, .side-nav button { transition: background 0.18s var(--ease-out), color 0.18s var(--ease-out), transform 0.18s var(--ease-out); }
+.side-nav a:hover, .side-nav button:hover { transform: translateX(2px); }
+.admin nav a { transition: background 0.18s var(--ease-out), color 0.18s var(--ease-out), transform 0.18s var(--ease-out); }
+.admin nav a:hover { transform: translateX(2px); }
+.stat { transition: transform 0.28s var(--ease-out), box-shadow 0.28s var(--ease-out); box-shadow: var(--sh-1); }
+.stat:hover { transform: translateY(-3px); box-shadow: var(--sh-2); }
+
+/* ------------------------------------------------------------
+   8) Ohled na uživatele, kteří nechtějí pohyb
+   ------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:hover, .btn-dark:hover, .btn-line:hover,
+  .pcard:hover, .cat-card:hover, .price-card:hover, .stat:hover,
+  .trust article:hover, .review:hover, .choice:hover,
+  .wish-btn:hover, .icon-btn:hover, .footer ul a:hover {
+    transform: none !important;
+  }
+  .btn::after, .btn-dark::after, .btn-line::after { display: none; }
+}
+
+/* Načítací kolečko uvnitř tlačítka */
+.btn-spinner {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-top-color: currentColor;
+  animation: btnSpin 0.7s linear infinite;
+}
+@keyframes btnSpin { to { transform: rotate(360deg); } }
+.btn-busy { cursor: progress; }
+.btn-busy::after { display: none; }
+.btn-added svg { animation: checkPop 0.4s var(--ease-spring) both; }
+@keyframes checkPop {
+  0% { transform: scale(0.3) rotate(-12deg); opacity: 0; }
+  60% { transform: scale(1.18) rotate(0); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.btn-added:hover svg, .btn-line.btn-added:hover svg { transform: none; }
+
+/* ------------------------------------------------------------
+   9) Sklo, ikony a hero — o něco víc atmosféry
+   ------------------------------------------------------------ */
+
+.glass-card {
+  border: 1px solid color-mix(in srgb, #fff 55%, var(--line));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    var(--sh-2);
+}
+
+.demo-hero-inner { position: relative; }
+.demo-hero-inner::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: -30%;
+  right: -12%;
+  width: 60%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(196, 165, 116, 0.28), transparent 68%);
+  filter: blur(30px);
+  pointer-events: none;
+  animation: orb 16s ease-in-out infinite;
+}
+.demo-hero-content, .demo-hero-img-wrap { position: relative; z-index: 1; }
+.demo-hero-img { transition: transform 1.2s var(--ease-out); }
+.demo-hero-img-wrap:hover .demo-hero-img { transform: scale(1.03); }
+
+.icon-wrap, .feature-icon, .demo-notice-icon, .demo-split-icon {
+  transition: transform 0.32s var(--ease-spring), background 0.25s var(--ease-out), color 0.25s var(--ease-out);
+}
+.trust article:hover .icon-wrap,
+.saas-card:hover .icon-wrap,
+.feature-box:hover .feature-icon,
+.demo-split-box:hover .demo-split-icon {
+  transform: translateY(-2px) rotate(-4deg) scale(1.06);
+}
+.trust article:hover .icon-wrap:not(.accent) {
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  color: var(--accent);
+}
+
+.saas-badge {
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
+}
+.saas-badge:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+  box-shadow: 0 4px 14px rgba(181, 74, 44, 0.14);
+}
+
+/* Náhled e-shopu v hero — jemné nadnesení */
+.hero-card-preview {
+  transition: transform 0.5s var(--ease-out), box-shadow 0.5s var(--ease-out);
+}
+.hero-card-preview:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--sh-4);
+}
+
+/* Prázdné stavy a chybové boxy působí méně stroze */
+.empty { font-size: 15px; }
+.load-error { background: color-mix(in srgb, var(--card) 80%, transparent); box-shadow: var(--sh-1); }
