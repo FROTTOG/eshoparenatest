@@ -58,6 +58,8 @@ export function Admin() {
           <NavLink to="/admin/platby">Platby</NavLink>
           <NavLink to="/admin/stranky">Stránky (editor)</NavLink>
           <NavLink to="/admin/navbar">Menu a logo</NavLink>
+          <NavLink to="/admin/feedy">Feedy a měření</NavLink>
+          <NavLink to="/admin/emaily">E-maily</NavLink>
           <NavLink to="/admin/nastaveni">Nastavení</NavLink>
           <NavLink to="/">← E-shop</NavLink>
         </nav>
@@ -85,6 +87,8 @@ export function Admin() {
           <Route path="stranky/:id" element={<PageBuilder />} />
           <Route path="navbar" element={<NavbarSettings />} />
           <Route path="nastaveni" element={<SettingsPage />} />
+          <Route path="feedy" element={<FeedsPage />} />
+          <Route path="emaily" element={<EmailsPage />} />
         </Routes>
       </main>
     </div>
@@ -434,6 +438,38 @@ function OrderEdit() {
           Faktura (vystavit / otevřít)
         </button>
         <Link className="chip" to="/admin/faktury">Všechny faktury</Link>
+      </div>
+      <div className="row-actions" style={{ marginBottom: 16 }}>
+        {[
+          ["ceska_posta", "Česká pošta — tisk štítku"],
+          ["ppl", "PPL — tisk štítku"],
+          ["dpd", "DPD — tisk štítku"],
+        ].map(([carrier, label]) => (
+          <button
+            key={carrier}
+            className="btn btn-sm"
+            onClick={async () => {
+              try {
+                const r = await api<{ shipment: { tracking_number: string; tracking_url: string }; order: Order }>(
+                  `/admin/orders/${order.id}/label`,
+                  { method: "POST", body: JSON.stringify({ carrier }) }
+                );
+                setOrder(r.order);
+                toast(`Štítek ${r.shipment.tracking_number} je připravený.`);
+                window.open(`/api/admin/orders/${order.id}/label?carrier=${carrier}`, "_blank", "noopener");
+              } catch (e) {
+                toast(e instanceof ApiError ? e.message : "Štítek se nepodařilo vytvořit.", "err");
+              }
+            }}
+          >
+            {label}
+          </button>
+        ))}
+        {order.tracking_number && (
+          <a className="chip" href={order.tracking_url || "#"} target="_blank" rel="noreferrer">
+            Sledovat {order.tracking_number}
+          </a>
+        )}
       </div>
       <div className="admin-split" style={{ display: "grid", gap: 16, margin: "16px 0", background: "var(--card)", padding: 18, borderRadius: 16, border: "1px solid var(--line)" }}>
         <div>
@@ -1106,6 +1142,23 @@ function SettingsPage() {
     ["vendor_person", "Kontaktní osoba dodavatele systému KAVKA"],
     ["vendor_web", "Web pro objednání systému KAVKA"],
     ["vendor_phone", "Telefon pro objednání systému KAVKA"],
+    ["gtm_id", "Google Tag Manager ID (GTM-XXXX)"],
+    ["ga4_id", "Google Analytics 4 measurement ID (G-XXXX)"],
+    ["meta_pixel_id", "Meta Pixel ID (pro reklamy na Facebooku / Instagramu)"],
+    ["resend_api_key", "Resend API klíč pro odesílání e-mailů"],
+    ["mail_from", "Odesílatel e-mailů (ověřená doména v Resend)"],
+    ["mail_webhook", "Záložní webhook pro e-maily (pokud není Resend)"],
+    ["store_url", "Veřejná URL e-shopu (pro odkazy v e-mailech a feedech)"],
+    ["ceska_posta_api_key", "Česká pošta Podání online — API klíč / Basic"],
+    ["ceska_posta_api_url", "Česká pošta API URL"],
+    ["ppl_api_key", "PPL API klíč"],
+    ["ppl_api_url", "PPL API URL"],
+    ["dpd_api_key", "DPD API klíč"],
+    ["dpd_api_url", "DPD API URL"],
+    ["wallet_merchant_name", "Název obchodníka pro Apple Pay / Google Pay"],
+    ["apple_pay_merchant_id", "Apple Pay merchant ID"],
+    ["google_pay_merchant_id", "Google Pay merchant ID"],
+    ["exit_coupon", "Kupón pro opouštěcí pop-up (výchozí STAY5)"],
   ];
   return (
     <>
@@ -1128,6 +1181,127 @@ function SettingsPage() {
           <button className="btn-dark" type="submit">Uložit nastavení</button>
         </div>
       </form>
+    </>
+  );
+}
+
+function FeedsPage() {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const feeds = [
+    { name: "Heureka.cz", path: "/heureka.xml", hint: "Heureka → XML feed produktů (stejný i na /api/feeds/heureka.xml)" },
+    { name: "Zboží.cz", path: "/zbozi.xml", hint: "Seznam Zboží.cz → XML import" },
+    { name: "Google Shopping", path: "/google-shopping.xml", hint: "Google Merchant Center → Products → Feeds" },
+  ];
+  return (
+    <>
+      <h1>Feedy a měření</h1>
+      <p style={{ color: "var(--muted)" }}>
+        Adresy níže zadejte do Heureky, Zboží.cz a Google Merchant Center. GTM / GA4 / Meta Pixel vyplňte v{" "}
+        <Link to="/admin/nastaveni">Nastavení</Link>. Skripty se načtou až po souhlasu s analytickými cookies.
+      </p>
+      <div className="export-grid">
+        {feeds.map((f) => (
+          <div className="export-card" key={f.path}>
+            <div className="export-head">
+              <h3>{f.name}</h3>
+              <span className="export-badge">XML</span>
+            </div>
+            <p>{f.hint}</p>
+            <p className="export-how">
+              <a href={`${origin}${f.path}`} target="_blank" rel="noreferrer">
+                {origin}
+                {f.path}
+              </a>
+            </p>
+          </div>
+        ))}
+      </div>
+      <p style={{ marginTop: 18 }}>
+        E-commerce události: <code>view_item</code>, <code>add_to_cart</code>, <code>purchase</code>.
+      </p>
+    </>
+  );
+}
+
+function EmailsPage() {
+  const [rows, setRows] = useState<{ id: number; kind: string; recipient: string; subject: string; status: string; error: string | null; created_at: string }[]>([]);
+  const [alerts, setAlerts] = useState<{ id: number; email: string; product_name: string; notified_at: string | null; created_at: string }[]>([]);
+  useEffect(() => {
+    void api<typeof rows>("/admin/emails").then(setRows);
+    void api<typeof alerts>("/admin/stock-alerts").then(setAlerts);
+  }, []);
+  return (
+    <>
+      <h1>E-maily a hlídací psi</h1>
+      <p style={{ color: "var(--muted)" }}>
+        Potvrzení objednávky, změna stavu, naskladnění a opuštěný košík. Bez Resend klíče se e-maily ukládají sem (status{" "}
+        <b>logged</b>). Klíč vyplňte v nastavení.
+      </p>
+      <h2>Odeslané / zařazené</h2>
+      <div className="table-wrap" style={{ marginBottom: 22 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Kdy</th>
+              <th>Druh</th>
+              <th>Komu</th>
+              <th>Předmět</th>
+              <th>Stav</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td data-label="Kdy">{dateCs(r.created_at)}</td>
+                <td data-label="Druh">{r.kind}</td>
+                <td data-label="Komu">{r.recipient}</td>
+                <td data-label="Předmět">{r.subject}</td>
+                <td data-label="Stav">
+                  <span className={`tag ${r.status === "sent" ? "paid" : r.status === "failed" ? "cancelled" : "new"}`}>{r.status}</span>
+                  {r.error ? <small> {r.error}</small> : null}
+                </td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr>
+                <td colSpan={5} style={{ color: "var(--muted)" }}>
+                  Zatím žádné e-maily.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <h2>Hlídací pes</h2>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Produkt</th>
+              <th>E-mail</th>
+              <th>Od</th>
+              <th>Oznámeno</th>
+            </tr>
+          </thead>
+          <tbody>
+            {alerts.map((a) => (
+              <tr key={a.id}>
+                <td>{a.product_name}</td>
+                <td>{a.email}</td>
+                <td>{dateCs(a.created_at)}</td>
+                <td>{a.notified_at ? dateCs(a.notified_at) : "čeká"}</td>
+              </tr>
+            ))}
+            {!alerts.length && (
+              <tr>
+                <td colSpan={4} style={{ color: "var(--muted)" }}>
+                  Nikdo zatím hlídacího psa nenasadil.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

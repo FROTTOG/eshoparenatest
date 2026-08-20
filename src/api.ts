@@ -189,6 +189,9 @@ export type Order = {
   agree_terms?: number;
   agree_gdpr?: number;
   created_at: string;
+  tracking_number?: string;
+  tracking_carrier?: string;
+  tracking_url?: string;
   items: { id: number; product_id: number; name: string; sku: string; price: number; quantity: number }[];
 };
 

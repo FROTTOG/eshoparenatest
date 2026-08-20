@@ -1,6 +1,8 @@
 import type { App } from "./helpers";
 import { requireAdmin, slugify } from "./helpers";
 import { loadOrder } from "./public";
+import { notifyBackInStock, notifyOrderStatus } from "./mail";
+import { CARRIERS, createShipment, type CarrierCode } from "./shipping";
 import {
   cancelInvoiceForOrder,
   ensureInvoiceForOrder,
@@ -172,6 +174,18 @@ export function registerAdmin(app: App) {
       (b.reason || "Úprava skladu").trim(),
       c.get("user")!.id
     ).run();
+    if (p.stock <= 0 && next > 0) {
+      try {
+        const prod = await c.env.DB.prepare("SELECT id, name, slug FROM products WHERE id = ?").bind(id).first<{ id: number; name: string; slug: string }>();
+        const waiting = (await c.env.DB.prepare("SELECT email FROM stock_alerts WHERE product_id = ? AND notified_at IS NULL").bind(id).all<{ email: string }>()).results || [];
+        if (prod && waiting.length) {
+          await notifyBackInStock(c.env.DB, prod, waiting.map((w) => w.email));
+          await c.env.DB.prepare("UPDATE stock_alerts SET notified_at = datetime('now') WHERE product_id = ? AND notified_at IS NULL").bind(id).run();
+        }
+      } catch (err) {
+        console.error("stock alert mail", err);
+      }
+    }
     return c.json({ stock: next });
   });
 

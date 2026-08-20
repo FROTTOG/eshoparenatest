@@ -4,6 +4,8 @@ import { api } from "../api";
 import { useStore } from "../store";
 import { IconAdmin, IconArrowUp, IconCart, IconClose, IconCookie, IconHeart, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
 import { CookieBanner, openCookieSettings } from "./CookieBanner";
+import { ExitIntent } from "./ExitIntent";
+import { bootTags } from "../analytics";
 import { SearchBox } from "./SearchBox";
 import { Logo } from "./Ui";
 
@@ -79,6 +81,13 @@ export function Layout() {
       .then(setNavPages)
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    bootTags(settings);
+    const onConsent = () => bootTags(settings);
+    window.addEventListener("kavka-consent", onConsent);
+    return () => window.removeEventListener("kavka-consent", onConsent);
+  }, [settings.gtm_id, settings.ga4_id, settings.meta_pixel_id]);
 
   const navLinks = useMemo(() => {
     let base = NAV_LINKS;
@@ -314,6 +323,7 @@ export function Layout() {
       </footer>
 
       <CookieBanner />
+      <ExitIntent />
 
       {/* Tlačítko nahoru */}
       <button

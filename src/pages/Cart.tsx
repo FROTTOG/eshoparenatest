@@ -1,16 +1,29 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, ApiError, type Cart as C } from "../api";
+import { api, ApiError, type Cart as C, type Product } from "../api";
 import { czk, pickupFreeOver } from "../format";
 import { optimizedImage } from "../image";
 import { useStore } from "../store";
 import { usePageTitle } from "../title";
+import { trackAddToCart } from "../analytics";
 
 export function CartPage() {
-  const { cart, setCart, toast, shipping } = useStore();
+  const { cart, setCart, toast, shipping, addToCart } = useStore();
   const [code, setCode] = useState("");
+  const [upsells, setUpsells] = useState<Product[]>([]);
   usePageTitle("Košík — KAVKA", "Váš nákupní košík v ateliéru KAVKA.");
   const freeOver = pickupFreeOver(shipping);
+
+  const cartKey = cart?.items.map((i) => i.product_id).join(",") || "";
+  useEffect(() => {
+    if (!cartKey) {
+      setUpsells([]);
+      return;
+    }
+    void api<{ items: Product[] }>("/cart/upsells")
+      .then((r) => setUpsells(r.items || []))
+      .catch(() => setUpsells([]));
+  }, [cartKey]);
 
   async function qty(id: number, quantity: number) {
     try {
@@ -81,6 +94,44 @@ export function CartPage() {
             </div>
           </div>
         ))}
+        {upsells.length > 0 && (
+          <div className="upsell-box">
+            <h2 className="serif" style={{ margin: "24px 0 8px", fontSize: 22 }}>
+              Přidat jedním klikem
+            </h2>
+            <p className="muted-note" style={{ marginTop: 0 }}>
+              Doporučené doplňky k zboží v košíku — třeba zápalky ke svíčce.
+            </p>
+            {upsells.map((u) => (
+              <div className="upsell-row" key={u.id}>
+                <img src={optimizedImage(u.image)} alt="" width={56} height={56} />
+                <div>
+                  <Link to={`/produkt/${u.slug}`}>
+                    <strong>{u.name}</strong>
+                  </Link>
+                  <div style={{ color: "var(--muted)", fontSize: 13 }}>{u.short_description || u.sku}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div>{czk(u.price)}</div>
+                  <button
+                    type="button"
+                    className="btn-sm btn"
+                    onClick={async () => {
+                      try {
+                        await addToCart(u.id, 1);
+                        trackAddToCart({ item_id: u.sku, item_name: u.name, price: u.price, quantity: 1 }, u.price);
+                      } catch (err) {
+                        toast(err instanceof ApiError ? err.message : "Nešlo přidat.", "err");
+                      }
+                    }}
+                  >
+                    Přidat
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <p style={{ marginTop: 18 }}>
           <Link className="text-link" to="/katalog">
             ← Pokračovat v nákupu

@@ -32,6 +32,52 @@ export const CLAIMS_INDEX_SQL = [
  * Indexy ze SCHEMA_SQL, které chybí databázím založeným migrací 0001.
  * Vytvoření je idempotentní, takže je pouštíme při každém studeném startu.
  */
+export const GROWTH_SQL = [
+  `CREATE TABLE IF NOT EXISTS stock_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL,
+    email TEXT NOT NULL COLLATE NOCASE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    notified_at TEXT,
+    UNIQUE(product_id, email)
+  )`,
+  `CREATE TABLE IF NOT EXISTS product_upsells (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL,
+    upsell_product_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(product_id, upsell_product_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS shipments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL,
+    carrier TEXT NOT NULL,
+    tracking_number TEXT NOT NULL DEFAULT '',
+    tracking_url TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'created',
+    label_html TEXT NOT NULL DEFAULT '',
+    api_response TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS email_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL DEFAULT 'generic',
+    recipient TEXT NOT NULL,
+    subject TEXT NOT NULL DEFAULT '',
+    body_html TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'logged',
+    error TEXT,
+    meta TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_stock_alerts_product ON stock_alerts(product_id)",
+  "CREATE INDEX IF NOT EXISTS idx_shipments_order ON shipments(order_id)",
+  "CREATE INDEX IF NOT EXISTS idx_email_log_created ON email_log(created_at)",
+  "ALTER TABLE orders ADD COLUMN tracking_number TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE orders ADD COLUMN tracking_carrier TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE orders ADD COLUMN tracking_url TEXT NOT NULL DEFAULT ''",
+];
+
 export const LATE_INDEX_SQL = [
   "CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category_id)",
   "CREATE INDEX IF NOT EXISTS idx_products_active ON products(active)",
@@ -336,6 +382,24 @@ const SETTINGS: Record<string, string> = {
   hero_text:
     "Keramika z ateliéru, len z dílny, dřevo s kresbou. Posíláme po celé ČR — Z-BOX, Zásilkovna, Balíkovna i na adresu.",
   packeta_api_key: "197fd6840f332ccf",
+  gtm_id: "",
+  ga4_id: "",
+  meta_pixel_id: "",
+  resend_api_key: "",
+  mail_from: "ahoj@kavka.shop",
+  mail_webhook: "",
+  store_url: "",
+  feed_token: "",
+  ppl_api_key: "",
+  ppl_api_url: "",
+  dpd_api_key: "",
+  dpd_api_url: "",
+  ceska_posta_api_key: "",
+  ceska_posta_api_url: "",
+  wallet_merchant_name: "KAVKA Ateliér",
+  apple_pay_merchant_id: "",
+  google_pay_merchant_id: "",
+  exit_coupon: "STAY5",
 };
 
 type ProductSeed = {
@@ -512,6 +576,19 @@ const PRODUCTS: ProductSeed[] = [
     short: "Nízká kameninová miska s otvorem na tyčinku.",
     desc: "Malý stojánek, který chytí popel a drží tyčinku rovně. Kamenina, neglazovaný spodek. Průměr 9 cm. Hodí se k difuzéru Borovice, když chcete chvíli kouř.",
   },
+  {
+    name: "Dlouhé zápalky",
+    slug: "dlouhe-zapalky",
+    sku: "KAV-ZAP-01",
+    cat: "vune",
+    price: 49,
+    stock: 80,
+    image: "/products/svicka.webp",
+    featured: 0,
+    weight: 40,
+    short: "Krabička dlouhých zápalek k svíčce. Jedním klikem do košíku.",
+    desc: "Tenké dlouhé zápalky v kraftové krabičce. Ke svíčce Smrk nebo difuzéru, když chcete zapálit knot bez ožehnutí prstů. Přibližně 40 ks.",
+  },
 ];
 
 async function seed(env: Bindings) {
@@ -557,6 +634,8 @@ async function seed(env: Bindings) {
     ["cod", "Dobírka", "Zaplatíte hotově nebo kartou až při převzetí. Nelze u Z-BOXu.", 39, 2, "zasilkovna,balikovna,address"],
     ["card_delivery", "Kartou při převzetí", "Terminál u kurýra nebo na výdejním místě.", 0, 3, "zasilkovna,balikovna,address"],
     ["cash_store", "Hotově při odběru", "Jen při osobním vyzvednutí v ateliéru.", 0, 4, "store"],
+    ["apple_pay", "Apple Pay", "Zaplatíte v Safari / iPhonu přes Apple Pay. Objednávka se označí jako zaplacená hned.", 0, 5, "*"],
+    ["google_pay", "Google Pay", "Zaplatíte kartou uloženou v Google Pay. Objednávka se označí jako zaplacená hned.", 0, 6, "*"],
   ] as const;
   for (const p of pays) {
     stmts.push(
@@ -680,7 +759,86 @@ async function seed(env: Bindings) {
     await runChunked(db, mv);
   }
 
+  await seedGrowthExtras(env);
   await db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('seeded', '1')").run();
+}
+
+async function seedGrowthExtras(env: Bindings) {
+  const db = env.DB;
+  const extraPays = [
+    ["apple_pay", "Apple Pay", "Zaplatíte v Safari / iPhonu přes Apple Pay. Objednávka se označí jako zaplacená hned.", 0, 5, "*"],
+    ["google_pay", "Google Pay", "Zaplatíte kartou uloženou v Google Pay. Objednávka se označí jako zaplacená hned.", 0, 6, "*"],
+  ] as const;
+  for (const p of extraPays) {
+    await db
+      .prepare(
+        "INSERT OR IGNORE INTO payment_methods (code, name, description, fee, sort_order, allowed_shipping, active) VALUES (?, ?, ?, ?, ?, ?, 1)"
+      )
+      .bind(...p)
+      .run();
+  }
+  await db
+    .prepare(
+      "INSERT OR IGNORE INTO coupons (code, type, value, min_order, max_uses, used_count, active, description) VALUES ('STAY5', 'percent', 5, 0, 5000, 0, 1, 'Sleva 5 % za dokončení nákupu (opuštěný košík)')"
+    )
+    .run();
+  const extraShip = [
+    ["ppl", "PPL — na adresu", "Kurýr PPL. Štítek tisknete z administrace jedním klikem.", 99, 2000, "address", 6, "1–2 pracovní dny"],
+    ["dpd", "DPD — na adresu", "Kurýr DPD. Štítek tisknete z administrace jedním klikem.", 109, 2000, "address", 7, "1–2 pracovní dny"],
+    ["ceska_posta", "Česká pošta — na adresu", "Balík Do ruky. Podání online a tisk štítku z administrace.", 89, 2000, "address", 8, "2–3 pracovní dny"],
+  ] as const;
+  for (const s of extraShip) {
+    await db
+      .prepare(
+        "INSERT OR IGNORE INTO shipping_methods (code, name, description, price, free_over, kind, sort_order, eta, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)"
+      )
+      .bind(...s)
+      .run();
+  }
+
+  const vune = await db.prepare("SELECT id FROM categories WHERE slug = 'vune'").first<{ id: number }>();
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO products
+        (name, slug, sku, description, short_description, price, compare_price, stock, low_stock, category_id, image, weight, active, featured)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 10, ?, ?, ?, 1, 0)`
+    )
+    .bind(
+      "Dlouhé zápalky",
+      "dlouhe-zapalky",
+      "KAV-ZAP-01",
+      "Tenké dlouhé zápalky v kraftové krabičce. Ke svíčce Smrk nebo difuzéru, když chcete zapálit knot bez ožehnutí prstů. Přibližně 40 ks.",
+      "Krabička dlouhých zápalek k svíčce. Jedním klikem do košíku.",
+      49,
+      80,
+      vune?.id ?? null,
+      "/products/svicka.webp",
+      40
+    )
+    .run();
+
+  const candle = await db.prepare("SELECT id FROM products WHERE slug = 'sojova-svicka-smrk'").first<{ id: number }>();
+  const matches = await db.prepare("SELECT id FROM products WHERE slug = 'dlouhe-zapalky'").first<{ id: number }>();
+  const difuzer = await db.prepare("SELECT id FROM products WHERE slug = 'difuzer-borovice'").first<{ id: number }>();
+  const stojanek = await db.prepare("SELECT id FROM products WHERE slug = 'stojanek-vonnych-tycinek'").first<{ id: number }>();
+  if (candle && matches) {
+    await db
+      .prepare("INSERT OR IGNORE INTO product_upsells (product_id, upsell_product_id, sort_order) VALUES (?, ?, 0)")
+      .bind(candle.id, matches.id)
+      .run();
+  }
+  if (difuzer && stojanek) {
+    await db
+      .prepare("INSERT OR IGNORE INTO product_upsells (product_id, upsell_product_id, sort_order) VALUES (?, ?, 0)")
+      .bind(difuzer.id, stojanek.id)
+      .run();
+  }
+  if (matches) {
+    const hasImg = await db.prepare("SELECT id FROM product_images WHERE product_id = ?").bind(matches.id).first();
+    if (!hasImg) {
+      await db.prepare("INSERT INTO product_images (product_id, url, sort_order) VALUES (?, ?, 0)").bind(matches.id, "/products/svicka.webp").run();
+    }
+  }
 }
 
 async function runChunked(db: D1Database, stmts: D1PreparedStatement[], size = 20) {
@@ -745,7 +903,7 @@ async function prepareDatabase(env: Bindings) {
   }
 
   // Reklamace a indexy — doplníme i do starších databází (migrace 0001 je ještě neměla).
-  for (const stmt of [CLAIMS_SQL, ...CLAIMS_INDEX_SQL, ...LATE_INDEX_SQL]) {
+  for (const stmt of [CLAIMS_SQL, ...CLAIMS_INDEX_SQL, ...LATE_INDEX_SQL, ...GROWTH_SQL]) {
     try {
       await env.DB.prepare(stmt).run();
     } catch (err) {

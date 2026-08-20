@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError, type AresResult, type PaymentMethod, type PickupPoint, type ShippingMethod } from "../api";
 import { PickupChooser } from "../components/CarrierMaps";
+import { WalletPay } from "../components/WalletPay";
 import {
   IconBox,
   IconBuilding,
@@ -33,7 +34,7 @@ function shipIcon(kind: string) {
 function payIcon(code: string) {
   if (code === "transfer") return <IconQr />;
   if (code === "cod") return <IconBox />;
-  if (code === "card_delivery") return <IconCard />;
+  if (code === "card_delivery" || code === "apple_pay" || code === "google_pay") return <IconCard />;
   return <IconCash />;
 }
 
@@ -49,6 +50,7 @@ export function Checkout() {
   const [map, setMap] = useState(false);
   const [busy, setBusy] = useState(false);
   const [aresLoading, setAresLoading] = useState(false);
+  const [walletOk, setWalletOk] = useState(false);
   const [addresses, setAddresses] = useState<{ id: number; label: string; name: string; street: string; city: string; zip: string; phone: string }[]>([]);
 
   const [form, setForm] = useState({
@@ -130,6 +132,10 @@ export function Checkout() {
   useEffect(() => {
     if (allowedPay.length && !allowedPay.some((p) => p.code === pay)) setPay(allowedPay[0].code);
   }, [allowedPay, pay]);
+
+  useEffect(() => {
+    setWalletOk(false);
+  }, [pay]);
 
   const sub = cart ? cart.subtotal - cart.discount : 0;
   const shipPrice = selectedShip ? (selectedShip.free_over != null && sub >= selectedShip.free_over ? 0 : selectedShip.price) : 0;
@@ -628,6 +634,25 @@ export function Checkout() {
             <b>{p.fee ? `+ ${czk(p.fee)}` : "zdarma"}</b>
           </label>
         ))}
+        {(pay === "apple_pay" || pay === "google_pay") && (
+          <div className="form glass-card" style={{ margin: "8px 0 18px" }}>
+            {walletOk ? (
+              <p style={{ margin: 0 }}>
+                <IconCheck size={16} style={{ verticalAlign: "middle", marginRight: 6 }} />
+                Peněženka potvrzena. Dokončete objednávku tlačítkem níže.
+              </p>
+            ) : (
+              <WalletPay
+                amount={total}
+                code={pay}
+                onPaid={() => {
+                  setWalletOk(true);
+                  toast("Platba v peněžence je hotová — odešlete objednávku.");
+                }}
+              />
+            )}
+          </div>
+        )}
 
         {/* 5. POZNÁMKA */}
         <label className="form glass-card" style={{ marginTop: 16 }}>
