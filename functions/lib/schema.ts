@@ -320,7 +320,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "kuchyne",
     price: 490,
     stock: 24,
-    image: "/products/hrnek.jpg",
+    image: "/products/hrnek.webp",
     featured: 1,
     weight: 380,
     short: "Ručně točený hrnek s tečkovanou glazurou a surovým soklem.",
@@ -334,7 +334,7 @@ const PRODUCTS: ProductSeed[] = [
     price: 2890,
     compare: 3290,
     stock: 12,
-    image: "/products/povleceni.jpg",
+    image: "/products/povleceni.webp",
     featured: 1,
     weight: 1600,
     short: "Prané lněné povlečení v barvě říčního písku. 140 × 200 + 70 × 90.",
@@ -347,7 +347,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "textil",
     price: 2490,
     stock: 8,
-    image: "/products/deka.jpg",
+    image: "/products/deka.webp",
     featured: 1,
     weight: 1400,
     short: "Těžká vlněná deka v krémové a terakotě. 140 × 200 cm.",
@@ -360,7 +360,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "kuchyne",
     price: 890,
     stock: 18,
-    image: "/products/tac.jpg",
+    image: "/products/tac.webp",
     featured: 1,
     weight: 650,
     short: "Masivní dubový tác se zaoblenými rohy a živou kresbou.",
@@ -373,7 +373,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "vune",
     price: 420,
     stock: 40,
-    image: "/products/svicka.jpg",
+    image: "/products/svicka.webp",
     featured: 1,
     weight: 320,
     short: "Sójový vosk v jantarovém skle. Jehličí, kůra, trocha kouře.",
@@ -386,7 +386,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "domov",
     price: 1290,
     stock: 9,
-    image: "/products/vaza.jpg",
+    image: "/products/vaza.webp",
     featured: 1,
     weight: 900,
     short: "Ručně foukané kouřové sklo. Organický tvar, jedno ústí.",
@@ -400,7 +400,7 @@ const PRODUCTS: ProductSeed[] = [
     price: 1190,
     compare: 1390,
     stock: 15,
-    image: "/products/taska.jpg",
+    image: "/products/taska.webp",
     featured: 0,
     weight: 480,
     short: "Pevná plátěná taška s koženými uchy. Unese nákup i notebook.",
@@ -413,7 +413,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "vune",
     price: 560,
     stock: 22,
-    image: "/products/difuzer.jpg",
+    image: "/products/difuzer.webp",
     featured: 0,
     weight: 280,
     short: "Ratanové tyčinky v kouřovém skle. Pryskyřice a jehličí.",
@@ -426,7 +426,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "textil",
     price: 390,
     stock: 30,
-    image: "/products/rucnik.jpg",
+    image: "/products/rucnik.webp",
     featured: 0,
     weight: 220,
     short: "Bavlněný waffle ručník. Ovesná a terakota. 50 × 90 cm.",
@@ -439,7 +439,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "kuchyne",
     price: 640,
     stock: 16,
-    image: "/products/hrnek.jpg",
+    image: "/products/hrnek.webp",
     featured: 0,
     weight: 520,
     short: "Hluboká miska z kameniny. Kaše, polévka, večerní ovoce.",
@@ -452,7 +452,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "textil",
     price: 790,
     stock: 14,
-    image: "/products/deka.jpg",
+    image: "/products/deka.webp",
     featured: 0,
     weight: 450,
     short: "Potah z praného lnu v šalvějové zeleni. 45 × 45 cm, výplň v sadě.",
@@ -465,7 +465,7 @@ const PRODUCTS: ProductSeed[] = [
     cat: "vune",
     price: 280,
     stock: 35,
-    image: "/products/svicka.jpg",
+    image: "/products/svicka.webp",
     featured: 0,
     weight: 180,
     short: "Nízká kameninová miska s otvorem na tyčinku.",
@@ -482,11 +482,11 @@ async function seed(env: Bindings) {
   }
 
   const cats = [
-    ["Domov", "domov", "Vázy, dřevo, věci, které zůstanou na stole.", "/products/vaza.jpg", 1],
-    ["Textil", "textil", "Len, vlna, waffle. Látky, které chtějí ruku.", "/products/povleceni.jpg", 2],
-    ["Kuchyně", "kuchyne", "Hrnky, misky, tácy — denní chléb domácnosti.", "/products/hrnek.jpg", 3],
-    ["Vůně", "vune", "Svíčky a difuzéry s lesem, ne s cukrárnou.", "/products/svicka.jpg", 4],
-    ["Doplňky", "doplnky", "Tašky a drobnosti na cestu z domu.", "/products/taska.jpg", 5],
+    ["Domov", "domov", "Vázy, dřevo, věci, které zůstanou na stole.", "/products/vaza.webp", 1],
+    ["Textil", "textil", "Len, vlna, waffle. Látky, které chtějí ruku.", "/products/povleceni.webp", 2],
+    ["Kuchyně", "kuchyne", "Hrnky, misky, tácy — denní chléb domácnosti.", "/products/hrnek.webp", 3],
+    ["Vůně", "vune", "Svíčky a difuzéry s lesem, ne s cukrárnou.", "/products/svicka.webp", 4],
+    ["Doplňky", "doplnky", "Tašky a drobnosti na cestu z domu.", "/products/taska.webp", 5],
   ] as const;
   for (const c of cats) {
     stmts.push(
@@ -648,7 +648,9 @@ async function runChunked(db: D1Database, stmts: D1PreparedStatement[], size = 2
   }
 }
 
-export async function ensureReady(env: Bindings) {
+let ready: Promise<void> | null = null;
+
+async function prepareDatabase(env: Bindings) {
   const has = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").first();
   if (!has) {
     const stmts = SCHEMA_SQL.split(";")
@@ -701,9 +703,10 @@ export async function ensureReady(env: Bindings) {
     }
   }
 
-  for (const [k, v] of Object.entries(SETTINGS)) {
-    await env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)").bind(k, v).run();
-  }
+  const settingStmts = Object.entries(SETTINGS).map(([k, v]) =>
+    env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)").bind(k, v)
+  );
+  await runChunked(env.DB, settingStmts);
 
   if (seeded?.value === "1") return;
   const n = await env.DB.prepare("SELECT COUNT(*) AS c FROM products").first<{ c: number }>();
@@ -712,4 +715,19 @@ export async function ensureReady(env: Bindings) {
     return;
   }
   await seed(env);
+}
+
+/**
+ * Příprava schématu je pro jednu Worker instanci společná. Bez této cache by
+ * každý API požadavek znovu kontroloval všechny migrace a desítky nastavení.
+ * Při chybě cache zahodíme, aby se další požadavek mohl bezpečně pokusit znovu.
+ */
+export function ensureReady(env: Bindings): Promise<void> {
+  if (!ready) {
+    ready = prepareDatabase(env).catch((error) => {
+      ready = null;
+      throw error;
+    });
+  }
+  return ready;
 }

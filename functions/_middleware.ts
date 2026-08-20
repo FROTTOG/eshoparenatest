@@ -15,10 +15,14 @@ function esc(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
 }
 
+const DEMO_IMAGES = new Set(["deka", "difuzer", "hrnek", "povleceni", "rucnik", "svicka", "tac", "taska", "vaza"]);
+
 function abs(origin: string, path: string) {
-  if (!path) return `${origin}/hero.jpg`;
+  if (!path) return `${origin}/hero.webp`;
   if (path.startsWith("http")) return path;
-  return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
+  const match = path.match(/^\/products\/([a-z0-9-]+)\.jpg$/i);
+  const optimized = match && DEMO_IMAGES.has(match[1].toLowerCase()) ? `/products/${match[1].toLowerCase()}.webp` : path;
+  return `${origin}${optimized.startsWith("/") ? optimized : `/${optimized}`}`;
 }
 
 function injectSeo(
@@ -41,8 +45,12 @@ function injectSeo(
     `<meta name="twitter:description" content="${esc(seo.description)}" />`,
     `<meta name="twitter:image" content="${esc(seo.image)}" />`,
   ].join("\n    ");
-  let out = html.replace(/<title>[\s\S]*?<\/title>/i, "");
-  out = out.replace(/<meta\s+name=["']description["'][^>]*>/i, "");
+  let out = html.replace(/<title>[\s\S]*?<\/title>/gi, "");
+  out = out.replace(/<link\b[^>]*rel=["']canonical["'][^>]*>/gi, "");
+  out = out.replace(
+    /<meta\b[^>]*(?:name|property)=["'](?:description|og:[^"']+|twitter:[^"']+)["'][^>]*>/gi,
+    ""
+  );
   return out.replace("</head>", `    ${tags}\n  </head>`);
 }
 
@@ -73,7 +81,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const origin = url.origin;
   let title = `${context.env.STORE_NAME || "KAVKA"} Ateliér — keramika, len a dřevo`;
   let description = DEFAULT_DESC;
-  let image = `${origin}/hero.jpg`;
+  let image = `${origin}/hero.webp`;
   let type = "website";
 
   const productMatch = url.pathname.match(/^\/produkt\/([^/]+)\/?$/);
@@ -88,7 +96,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (p) {
         title = `${p.name} — KAVKA`;
         description = (p.short_description || p.description || DEFAULT_DESC).slice(0, 240);
-        image = abs(origin, p.image || "/hero.jpg");
+        image = abs(origin, p.image || "/hero.webp");
         type = "product";
       }
     } catch {
@@ -113,5 +121,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const headers = new Headers(htmlRes.headers);
   headers.set("content-type", "text/html; charset=utf-8");
   headers.set("cache-control", "public, max-age=0, must-revalidate");
+  if (/^\/(?:admin|ucet|pokladna|kosik|prihlaseni|registrace)(?:\/|$)/.test(url.pathname)) {
+    headers.set("x-robots-tag", "noindex, nofollow");
+  }
   return new Response(body, { status: htmlRes.status, headers });
 };

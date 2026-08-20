@@ -4,6 +4,7 @@ import { api, ApiError, type Order, type Product } from "../api";
 import { IconClose, IconMenu } from "../components/Icons";
 import { Logo } from "../components/Ui";
 import { czk, dateCs, statusLabel } from "../format";
+import { optimizedImage } from "../image";
 import { useStore } from "../store";
 
 export function Admin() {
@@ -156,7 +157,7 @@ function Products() {
           <tbody>
             {rows.map((p) => (
               <tr key={p.id}>
-                <td>{p.image ? <img src={p.image} alt="" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} /> : null}</td>
+                <td>{p.image ? <img src={optimizedImage(p.image)} alt="" loading="lazy" decoding="async" width={44} height={44} style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} /> : null}</td>
                 <td data-label="Název"><Link to={`/admin/produkty/${p.id}`}>{p.name}</Link></td>
                 <td data-label="SKU">{p.sku}</td>
                 <td data-label="Cena">{czk(p.price)}</td>
@@ -762,6 +763,7 @@ function Customers() {
 }
 
 function Coupons() {
+  const { toast } = useStore();
   const [rows, setRows] = useState<{ id: number; code: string; type: string; value: number; min_order: number; max_uses: number | null; used_count: number; active: number; description: string }[]>([]);
   const [form, setForm] = useState({ code: "", type: "percent", value: 10, min_order: 0, max_uses: 100, description: "" });
   const load = () => void api<typeof rows>("/admin/coupons").then(setRows);

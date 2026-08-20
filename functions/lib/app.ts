@@ -3,7 +3,6 @@ import type { Bindings, Variables } from "./types";
 import { ensureReady } from "./schema";
 import {
   CART_DAYS,
-  ensureCart,
   isSecure,
   newCartId,
   readCookie,
@@ -28,10 +27,10 @@ app.use("*", async (c, next) => {
   try {
     await ensureReady(c.env);
   } catch (e) {
+    console.error("Database setup error:", e);
     return c.json(
       {
         error: "Databáze se nepodařilo připravit. Zkontrolujte oprávnění D1 v Cloudflare.",
-        detail: String(e),
       },
       503
     );
@@ -49,8 +48,9 @@ app.use("*", async (c, next) => {
     headers.push(setCookie("cid", cartId, CART_DAYS, isSecure(c)));
   }
   c.set("cartId", cartId);
-  await ensureCart(c.env.DB, cartId, user?.id ?? null);
 
+  // Košík zakládají až jeho vlastní endpointy. Veřejné čtení katalogu tak
+  // zbytečně nezapisuje do D1 při každém požadavku.
   await next();
 
   for (const h of headers) {
@@ -64,7 +64,7 @@ registerAdmin(app);
 app.notFound((c) => c.json({ error: "Tato API cesta neexistuje." }, 404));
 app.onError((err, c) => {
   console.error(err);
-  return c.json({ error: "Něco se pokazilo na serveru.", detail: err.message }, 500);
+  return c.json({ error: "Něco se pokazilo na serveru." }, 500);
 });
 
 export default app;

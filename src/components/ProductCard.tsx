@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { Product } from "../api";
+import { optimizedImage } from "../image";
 import { useStore } from "../store";
 import { IconCart } from "./Icons";
 import { Reveal } from "./Reveal";
@@ -11,19 +12,21 @@ export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
   return (
     <Reveal delay={(index % 4) * 70} className="reveal-cell">
       <article className="pcard">
-        <Link to={`/produkt/${p.slug}`} className="pcard-img">
-          {p.compare_price && p.compare_price > p.price ? <span className="sale">Akce</span> : null}
+        <div className="pcard-media">
+          <Link to={`/produkt/${p.slug}`} className="pcard-img" aria-label={`Detail produktu ${p.name}`}>
+            {p.compare_price && p.compare_price > p.price ? <span className="sale">Akce</span> : null}
+            <img
+              src={optimizedImage(p.image)}
+              alt={p.name}
+              loading={index < 2 ? "eager" : "lazy"}
+              decoding="async"
+              width={640}
+              height={640}
+              fetchPriority={index === 0 ? "high" : "auto"}
+            />
+          </Link>
           <WishButton p={p} />
-          <img
-            src={p.image || "/products/hrnek.jpg"}
-            alt={p.name}
-            loading={index < 2 ? "eager" : "lazy"}
-            decoding="async"
-            width={640}
-            height={640}
-            fetchPriority={index === 0 ? "high" : "auto"}
-          />
-        </Link>
+        </div>
         <div className="pcard-body">
           <div className="cat">{p.category_name || "KAVKA"}</div>
           <h3>
