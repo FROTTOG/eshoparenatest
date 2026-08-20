@@ -10,6 +10,7 @@ import { Home } from "./pages/Home";
 import { OrderPage, Track } from "./pages/Order";
 import { ProductPage } from "./pages/Product";
 import { About, Privacy, Returns, ShippingInfo, Terms } from "./pages/Static";
+import { DynamicPage } from "./pages/DynamicPage";
 import { WishlistPage } from "./pages/Wishlist";
 
 const Admin = lazy(() => import("./pages/Admin").then((m) => ({ default: m.Admin })));
@@ -58,6 +59,7 @@ export function App() {
         <Route path="obchodni-podminky" element={<Terms />} />
         <Route path="ochrana-udaju" element={<Privacy />} />
         <Route path="reklamace" element={<Returns />} />
+        <Route path="stranka/:slug" element={<DynamicPage />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
