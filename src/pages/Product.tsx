@@ -253,8 +253,13 @@ export function ProductPage() {
                 +
               </button>
             </div>
-            <button type="button" className="btn" disabled={p.stock <= 0 || busy} onClick={() => void buy()}>
-              <IconCart size={17} />
+            <button
+              type="button"
+              className={`btn${added ? " btn-added" : ""}${busy ? " btn-busy" : ""}`}
+              disabled={p.stock <= 0 || busy}
+              onClick={() => void buy()}
+            >
+              {busy ? <span className="btn-spinner" aria-hidden="true" /> : added ? <IconCheck size={17} /> : <IconCart size={17} />}
               {p.stock <= 0 ? "Vyprodáno" : busy ? "Vkládám…" : added ? "V košíku" : "Vložit do košíku"}
             </button>
             <WishButton p={p} className="wish-inline" />
