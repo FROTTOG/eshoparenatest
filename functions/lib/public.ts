@@ -45,6 +45,10 @@ export function registerPublic(app: App) {
       "vendor_person",
       "vendor_web",
       "vendor_phone",
+      "navbar_items",
+      "logo_title",
+      "logo_subtext",
+      "logo_svg",
     ];
     const pub: Record<string, string> = {};
     for (const k of publicKeys) if (all[k] != null) pub[k] = all[k];
@@ -109,6 +113,20 @@ export function registerPublic(app: App) {
     } catch {
       return c.json({ error: "Nepodařilo se spojit s registrem ARES. Můžete údaje vyplnit ručně." }, 500);
     }
+  });
+
+  // Seznam zveřejněných stránek z editoru (pro dynamický navbar)
+  app.get("/pages", async (c) => {
+    const rows = (await c.env.DB.prepare("SELECT id, title, slug, in_nav, nav_label, nav_order FROM pages WHERE published = 1 ORDER BY nav_order, id").all()).results || [];
+    return c.json(rows);
+  });
+
+  // Veřejná stránka z editoru (drag & drop builder)
+  app.get("/pages/:slug", async (c) => {
+    const slug = (c.req.param("slug") || "").toLowerCase();
+    const page = await c.env.DB.prepare("SELECT * FROM pages WHERE slug = ? AND published = 1").bind(slug).first();
+    if (!page) return c.json({ error: "Stránka nenalezena." }, 404);
+    return c.json({ page });
   });
 
   app.get("/categories", async (c) => {
@@ -539,7 +557,10 @@ export function registerPublic(app: App) {
     const total = afterDiscount + shipPrice + payment.fee;
 
     const number = orderNumber();
-    const payStatus = payment.code === "transfer" ? "pending" : payment.code === "cod" || payment.code === "card_delivery" || payment.code === "cash_store" ? "cod" : "pending";
+    // Při nulové částce (např. slevový poukaz na 100 %) není co platit —
+    // objednávka je automaticky zaplacená a QR platba se nezobrazí.
+    let payStatus = payment.code === "transfer" ? "pending" : payment.code === "cod" || payment.code === "card_delivery" || payment.code === "cash_store" ? "cod" : "pending";
+    if (total <= 0) payStatus = "paid";
 
     const stmts: D1PreparedStatement[] = [];
     stmts.push(

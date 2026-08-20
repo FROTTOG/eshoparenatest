@@ -744,6 +744,108 @@ export function registerAdmin(app: App) {
     return c.json({ ok: true });
   });
 
+  /* ============================================================
+     Stránky — drag & drop editor obsahu
+     ============================================================ */
+
+  function slugifyPage(s: string): string {
+    return (s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80);
+  }
+
+  app.get("/admin/pages", async (c) => {
+    const rows = (await c.env.DB.prepare("SELECT * FROM pages ORDER BY nav_order, in_nav DESC, id DESC").all()).results || [];
+    return c.json(rows);
+  });
+
+  app.get("/admin/pages/:id", async (c) => {
+    const page = await c.env.DB.prepare("SELECT * FROM pages WHERE id = ?").bind(Number(c.req.param("id"))).first();
+    if (!page) return c.json({ error: "Stránka nenalezena." }, 404);
+    return c.json({ page });
+  });
+
+  app.post("/admin/pages", async (c) => {
+    const b = await c.req.json<{ title?: string; slug?: string }>();
+    const title = String(b.title || "").trim();
+    if (!title) return c.json({ error: "Zadejte název stránky." }, 400);
+    let slug = slugifyPage(b.slug || title);
+    if (!slug) slug = "stranka-" + Date.now().toString(36);
+    // unikátní slug — případně přidej příponu
+    let candidate = slug;
+    let n = 1;
+    for (;;) {
+      const exists = await c.env.DB.prepare("SELECT id FROM pages WHERE slug = ?").bind(candidate).first();
+      if (!exists) break;
+      candidate = `${slug}-${n++}`;
+    }
+    const res = await c.env.DB.prepare(
+      "INSERT INTO pages (title, slug, blocks_json, in_nav, nav_label, nav_order, published, is_system) VALUES (?, ?, '[]', 0, '', 0, 1, 0)"
+    ).bind(title, candidate).run();
+    return c.json({ id: Number(res.meta.last_row_id), slug: candidate });
+  });
+
+  app.put("/admin/pages/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    const b = await c.req.json<{
+      title?: string;
+      slug?: string;
+      blocks_json?: string;
+      in_nav?: number | boolean;
+      nav_label?: string;
+      nav_order?: number;
+      published?: number | boolean;
+    }>();
+    let slug = slugifyPage(b.slug || "");
+    const cur = await c.env.DB.prepare("SELECT * FROM pages WHERE id = ?").bind(id).first<{ title: string; slug: string; is_system: number }>();
+    if (!cur) return c.json({ error: "Stránka nenalezena." }, 404);
+    if (!slug) slug = cur.slug;
+    if (slug !== cur.slug) {
+      const clash = await c.env.DB.prepare("SELECT id FROM pages WHERE slug = ? AND id != ?").bind(slug, id).first();
+      if (clash) return c.json({ error: "Tato adresa už je použitá." }, 409);
+    }
+    await c.env.DB.prepare(
+      "UPDATE pages SET title=?, slug=?, blocks_json=?, in_nav=?, nav_label=?, nav_order=?, published=?, updated_at=datetime('now') WHERE id=?"
+    ).bind(
+      String(b.title ?? cur.title ?? ""),
+      slug,
+      String(b.blocks_json ?? "[]"),
+      b.in_nav ? 1 : 0,
+      String(b.nav_label ?? ""),
+      Number(b.nav_order ?? 0),
+      b.published === 0 || b.published === false ? 0 : 1,
+      id
+    ).run();
+    return c.json({ ok: true });
+  });
+
+  app.patch("/admin/pages/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    const b = await c.req.json<{ published?: number; in_nav?: number; nav_label?: string; nav_order?: number }>();
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    if (b.published != null) { fields.push("published=?"); values.push(b.published ? 1 : 0); }
+    if (b.in_nav != null) { fields.push("in_nav=?"); values.push(b.in_nav ? 1 : 0); }
+    if (b.nav_label != null) { fields.push("nav_label=?"); values.push(String(b.nav_label)); }
+    if (b.nav_order != null) { fields.push("nav_order=?"); values.push(Number(b.nav_order)); }
+    if (fields.length) {
+      await c.env.DB.prepare(`UPDATE pages SET ${fields.join(", ")}, updated_at=datetime('now') WHERE id=?`).bind(...values, id).run();
+    }
+    return c.json({ ok: true });
+  });
+
+  app.delete("/admin/pages/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    const p = await c.env.DB.prepare("SELECT is_system FROM pages WHERE id = ?").bind(id).first<{ is_system: number }>();
+    if (p?.is_system) return c.json({ error: "Systémovou stránku nelze smazat." }, 400);
+    await c.env.DB.prepare("DELETE FROM pages WHERE id = ?").bind(id).run();
+    return c.json({ ok: true });
+  });
+
   app.post("/admin/upload", async (c) => {
     if (!c.env.MEDIA) return c.json({ error: "R2 bucket MEDIA není připojený. Viz README." }, 503);
     const form = await c.req.formData();

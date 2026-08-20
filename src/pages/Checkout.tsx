@@ -665,7 +665,7 @@ export function Checkout() {
 
         {/* Hlavní tlačítko se zákonnou formulací závazku platby */}
         <button className="btn checkout-submit" disabled={busy} style={{ marginTop: 18, width: "100%", padding: "16px 24px", fontSize: 14 }} type="submit">
-          {busy ? "Odesíláme objednávku…" : `Objednat s povinností platby · ${czk(total)}`}
+          {busy ? "Odesíláme objednávku…" : total <= 0 ? "Objednat zdarma · 0 Kč" : `Objednat s povinností platby · ${czk(total)}`}
         </button>
       </form>
 
@@ -726,7 +726,7 @@ export function Checkout() {
             formEl?.requestSubmit();
           }}
         >
-          {busy ? "Posíláme…" : "Objednat s povinností platby"}
+          {busy ? "Posíláme…" : total <= 0 ? "Objednat zdarma" : "Objednat s povinností platby"}
         </button>
       </div>
 

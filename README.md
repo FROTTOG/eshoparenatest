@@ -37,6 +37,8 @@
 - **exporty do účetnictví** — iDoklad (CSV), Fakturoid (CSV), POHODA (XML dataPack), objednávky a faktury v CSV
 - nastavení obchodu a IBAN
 - nahrání fotek do R2
+- **stránky** — drag & drop editor (toolbox s více než 20 bloky: nadpisy, text, obrázky, tlačítka, citáty, FAQ, galerie, video, mapa, HTML…), přidávání/mazání stránek
+- **navbar a logo** — úprava položek menu, pořadí, vlastní text a SVG loga
 
 ### Faktury a účetnictví
 

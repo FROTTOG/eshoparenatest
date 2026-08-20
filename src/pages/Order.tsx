@@ -49,7 +49,7 @@ export function OrderPage() {
         </a>
       </p>
 
-      {order.payment_code === "transfer" && order.payment_status === "pending" && (
+      {order.payment_code === "transfer" && order.payment_status === "pending" && order.total > 0 && (
         <div className="form" style={{ margin: "18px 0" }}>
           <h3 className="serif" style={{ margin: 0 }}>
             Zaplatit převodem

@@ -193,3 +193,17 @@ export type Order = {
 };
 
 export type Settings = Record<string, string>;
+
+export type Page = {
+  id: number;
+  title: string;
+  slug: string;
+  blocks_json: string;
+  in_nav: number;
+  nav_label: string;
+  nav_order: number;
+  published: number;
+  is_system: number;
+  created_at: string;
+  updated_at: string;
+};

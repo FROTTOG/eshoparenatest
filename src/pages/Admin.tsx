@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { api, ApiError, type Order, type Product } from "../api";
+import { api, ApiError, type Order, type Page, type Product } from "../api";
 import { IconClose, IconMenu } from "../components/Icons";
 import { Logo } from "../components/Ui";
 import { czk, dateCs, statusLabel } from "../format";
 import { optimizedImage } from "../image";
 import { useStore } from "../store";
+import { Pages, PageBuilder } from "./Pages";
 
 export function Admin() {
   const { user } = useStore();
@@ -55,6 +56,8 @@ export function Admin() {
           <NavLink to="/admin/doprava">Doprava</NavLink>
           <NavLink to="/admin/vydejni-mista">Výdejní místa</NavLink>
           <NavLink to="/admin/platby">Platby</NavLink>
+          <NavLink to="/admin/stranky">Stránky (editor)</NavLink>
+          <NavLink to="/admin/navbar">Menu a logo</NavLink>
           <NavLink to="/admin/nastaveni">Nastavení</NavLink>
           <NavLink to="/">← E-shop</NavLink>
         </nav>
@@ -78,6 +81,9 @@ export function Admin() {
           <Route path="doprava" element={<Shipping />} />
           <Route path="vydejni-mista" element={<Points />} />
           <Route path="platby" element={<Payments />} />
+          <Route path="stranky" element={<Pages />} />
+          <Route path="stranky/:id" element={<PageBuilder />} />
+          <Route path="navbar" element={<NavbarSettings />} />
           <Route path="nastaveni" element={<SettingsPage />} />
         </Routes>
       </main>
@@ -932,6 +938,138 @@ function ClaimsAdmin() {
   useEffect(() => { load(); }, []);
   async function upd(id: number, status: string) { await api(`/admin/claims/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }); toast("Uloženo."); load(); }
   return (<><h1>Reklamace</h1><div className="table-wrap"><table><thead><tr><th>Objednávka</th><th>Důvod</th><th>Stav</th><th></th></tr></thead><tbody>{rows.map(r=> <tr key={r.id}><td>{r.order_number || "—"}<br/><small>{r.email}</small></td><td><b>{r.reason}</b><br/><small>{r.description.slice(0,80)}</small></td><td><span className="tag">{r.status}</span></td><td className="row-actions"><select value={r.status} onChange={e=> void upd(r.id, e.target.value)}><option value="new">Nová</option><option value="processing">Vyřizuje se</option><option value="approved">Uznána</option><option value="rejected">Zamítnuta</option><option value="closed">Uzavřena</option></select></td></tr>)}</tbody></table></div></>);
+}
+
+function NavbarSettings() {
+  const { toast, refresh } = useStore();
+  const [items, setItems] = useState<{ label: string; to: string; end: boolean }[]>([
+    { label: "Domů", to: "/", end: true },
+    { label: "Katalog", to: "/katalog", end: false },
+    { label: "Doprava a platba", to: "/doprava-a-platba", end: false },
+    { label: "O ateliéru", to: "/o-nas", end: false },
+    { label: "Sledování", to: "/sledovani", end: false },
+  ]);
+  const [logoTitle, setLogoTitle] = useState("KAVKA");
+  const [logoSub, setLogoSub] = useState("ateliér");
+  const [logoSvg, setLogoSvg] = useState("");
+  const [navPages, setNavPages] = useState<Page[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    void api<Record<string, string>>("/admin/settings").then((s) => {
+      try {
+        const raw = s.navbar_items;
+        if (raw) {
+          const parsed = JSON.parse(raw) as { label: string; to: string; end?: boolean }[];
+          if (Array.isArray(parsed) && parsed.length) {
+            setItems(parsed.filter((i) => i && i.label && i.to).map((i) => ({ label: i.label, to: i.to, end: !!i.end })));
+          }
+        }
+      } catch {}
+      if (s.logo_title) setLogoTitle(s.logo_title);
+      if (s.logo_subtext) setLogoSub(s.logo_subtext);
+      if (s.logo_svg) setLogoSvg(s.logo_svg);
+      setLoaded(true);
+    });
+    void api<Page[]>("/admin/pages").then(setNavPages);
+  }, []);
+
+  function move(i: number, dir: number) {
+    setItems((prev) => {
+      const to = i + dir;
+      if (to < 0 || to >= prev.length) return prev;
+      const next = prev.slice();
+      const [it] = next.splice(i, 1);
+      next.splice(to, 0, it);
+      return next;
+    });
+  }
+
+  async function save() {
+    await api("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({ navbar_items: JSON.stringify(items), logo_title: logoTitle, logo_subtext: logoSub, logo_svg: logoSvg }),
+    });
+    toast("Navbar a logo uloženy.");
+    void refresh();
+  }
+
+  async function patchPage(p: Page, body: Record<string, unknown>) {
+    await api(`/admin/pages/${p.id}`, { method: "PATCH", body: JSON.stringify(body) });
+    setNavPages((prev) => prev.map((x) => (x.id === p.id ? { ...x, ...body } : x)));
+    toast("Uloženo.");
+  }
+
+  if (!loaded) return <p>Načítám…</p>;
+
+  return (
+    <>
+      <h1>Navbar a logo</h1>
+      <p style={{ color: "var(--muted)" }}>
+        Zde upravíte položky hlavního menu a textové logo v hlavičce. Pořadí měňte šipkami. Pokud pole necháte
+        prázdné pro navbar, použije se výchozí menu.
+      </p>
+
+      <div className="admin-form" style={{ gridTemplateColumns: "1fr" }}>
+        <label className="full">Logo – hlavní text
+          <input value={logoTitle} onChange={(e) => setLogoTitle(e.target.value)} />
+        </label>
+        <label className="full">Logo – podtext
+          <input value={logoSub} onChange={(e) => setLogoSub(e.target.value)} />
+        </label>
+        <label className="full">Vlastní SVG loga (volitelně, místo výchozí ikony)
+          <textarea rows={3} value={logoSvg} onChange={(e) => setLogoSvg(e.target.value)} placeholder="<svg …>…</svg>" />
+        </label>
+      </div>
+
+      <div className="table-wrap" style={{ marginBottom: 18 }}>
+        <table>
+          <thead><tr><th>Pořadí</th><th>Popisek</th><th>Odkaz</th><th></th></tr></thead>
+          <tbody>
+            {items.map((it, i) => (
+              <tr key={i}>
+                <td><button className="chip" onClick={() => move(i, -1)}>↑</button> <button className="chip" onClick={() => move(i, 1)}>↓</button></td>
+                <td><input style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 8px" }} value={it.label} onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} /></td>
+                <td><input style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 8px" }} value={it.to} onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))} /></td>
+                <td><button className="linkish" onClick={() => setItems(items.filter((_, j) => j !== i))}>Smazat</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{ padding: 12 }}>
+          <button
+            className="pb-add"
+            onClick={() => setItems((prev) => [...prev, { label: "Nový odkaz", to: "/", end: false }])}
+          >
+            + Přidat položku menu
+          </button>
+        </div>
+      </div>
+
+      <button className="btn-dark" onClick={() => void save()}>Uložit navbar a logo</button>
+
+      <h2 style={{ marginTop: 28, fontSize: 22 }}>Stránky v menu</h2>
+      <p style={{ color: "var(--muted)" }}>
+        Přepnutím „v menu“ u stránky ji přidáte do hlavního menu (řadí se podle pořadí).
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Stránka</th><th>V menu</th><th>Popisek</th><th>Pořadí</th></tr></thead>
+          <tbody>
+            {navPages.map((p) => (
+              <tr key={p.id}>
+                <td><Link to={`/admin/stranky/${p.id}`}>{p.title}</Link></td>
+                <td><input type="checkbox" checked={!!p.in_nav} onChange={(e) => void patchPage(p, { in_nav: e.target.checked ? 1 : 0 })} /></td>
+                <td><input style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "6px 8px" }} value={p.nav_label || ""} placeholder={p.title} onChange={(e) => void patchPage(p, { nav_label: e.target.value })} /></td>
+                <td><input type="number" style={{ width: 70, border: "1px solid var(--line)", borderRadius: 8, padding: "6px 8px" }} value={p.nav_order} onChange={(e) => void patchPage(p, { nav_order: Number(e.target.value) })} /></td>
+              </tr>
+            ))}
+            {!navPages.length && <tr><td colSpan={4} style={{ color: "var(--muted)" }}>Zatím žádné stránky.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
 }
 
 function SettingsPage() {

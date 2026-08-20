@@ -1,17 +1,25 @@
 import { Link } from "react-router-dom";
+import { useStore } from "../store";
 import { czk, priceWithoutVat } from "../format";
 
+const DEFAULT_SVG =
+  '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#1c1915"/><path d="M14 42c8-2 12-11 14-20 1 7 4 14 12 18 3-8 8-14 16-16-6 8-8 16-7 24H18c-1-8-2-14-4-6z" fill="#f4efe6"/><circle cx="40" cy="22" r="2.2" fill="#b54a2c"/></svg>';
+
 export function Logo() {
+  const { settings } = useStore();
+  const title = settings.logo_title || "KAVKA";
+  const sub = settings.logo_subtext || "ateliér";
+  const customSvg = settings.logo_svg;
   return (
-    <Link to="/" className="logo" aria-label="KAVKA Ateliér — domů">
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <rect width="64" height="64" rx="14" fill="#1c1915" />
-        <path d="M14 42c8-2 12-11 14-20 1 7 4 14 12 18 3-8 8-14 16-16-6 8-8 16-7 24H18c-1-8-2-14-4-6z" fill="#f4efe6" />
-        <circle cx="40" cy="22" r="2.2" fill="#b54a2c" />
-      </svg>
+    <Link to="/" className="logo" aria-label={`${title} — domů`}>
+      {customSvg ? (
+        <span className="logo-svg" dangerouslySetInnerHTML={{ __html: customSvg }} />
+      ) : (
+        <span className="logo-svg" dangerouslySetInnerHTML={{ __html: DEFAULT_SVG }} />
+      )}
       <span>
-        KAVKA
-        <small>ateliér</small>
+        {title}
+        <small>{sub}</small>
       </span>
     </Link>
   );

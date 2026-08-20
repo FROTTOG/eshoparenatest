@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { api } from "../api";
 import { useStore } from "../store";
 import { IconAdmin, IconArrowUp, IconCart, IconClose, IconCookie, IconHeart, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
 import { CookieBanner, openCookieSettings } from "./CookieBanner";
@@ -16,6 +17,7 @@ const NAV_LINKS = [
 
 export function Layout() {
   const { user, cart, settings, toasts, wishlist } = useStore();
+  const [navPages, setNavPages] = useState<{ id: number; title: string; slug: string; in_nav: number; nav_label: string; nav_order: number }[]>([]);
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -71,6 +73,42 @@ export function Layout() {
     setSearchOpen(false);
   }, [location.pathname]);
 
+  // Dynamický navbar: systémové odkazy + zveřejněné stránky s "v menu"
+  useEffect(() => {
+    void api<typeof navPages>("/pages")
+      .then(setNavPages)
+      .catch(() => {});
+  }, []);
+
+  const navLinks = useMemo(() => {
+    let base = NAV_LINKS;
+    try {
+      const raw = settings.navbar_items;
+      if (raw) {
+        const parsed = JSON.parse(raw) as { label?: string; to?: string; end?: boolean }[];
+        if (Array.isArray(parsed) && parsed.length) {
+          base = parsed
+            .filter((i) => i && i.label && i.to)
+            .map((i) => ({ to: String(i.to), label: String(i.label), end: !!i.end }));
+        }
+      }
+    } catch {
+      /* ponecháme výchozí */
+    }
+    const dyn = navPages
+      .filter((p) => p.in_nav)
+      .sort((a, b) => (a.nav_order || 0) - (b.nav_order || 0))
+      .map((p) => ({ to: `/stranka/${p.slug}`, label: p.nav_label || p.title, end: false }));
+    const seen = new Set<string>();
+    const out: { to: string; label: string; end: boolean }[] = [];
+    for (const l of [...base, ...dyn]) {
+      if (seen.has(l.to)) continue;
+      seen.add(l.to);
+      out.push({ to: l.to, label: l.label, end: !!l.end });
+    }
+    return out;
+  }, [settings.navbar_items, navPages]);
+
   useEffect(() => {
     document.body.style.overflow = open || searchOpen ? "hidden" : "";
     return () => {
@@ -100,7 +138,7 @@ export function Layout() {
         <div className="header-in">
           <Logo />
           <nav className="nav" aria-label="Hlavní navigace">
-            {NAV_LINKS.map((l) => (
+            {navLinks.map((l) => (
               <NavLink key={l.to} to={l.to} end={l.end}>
                 {l.label}
               </NavLink>
@@ -158,7 +196,7 @@ export function Layout() {
           </div>
           <SearchBox variant="mobile" onDone={() => setOpen(false)} />
           <nav className="mobile-nav-links" aria-label="Mobilní navigace">
-            {NAV_LINKS.map((l, i) => (
+            {navLinks.map((l, i) => (
               <NavLink key={l.to} to={l.to} end={l.end} onClick={() => setOpen(false)} style={{ animationDelay: `${60 + i * 45}ms` }}>
                 <span>{l.label}</span>
                 <span className="mobile-nav-arrow" aria-hidden="true">
