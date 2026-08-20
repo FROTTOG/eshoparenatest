@@ -48,7 +48,8 @@ export function Admin() {
           <NavLink to="/admin/faktury">Faktury</NavLink>
           <NavLink to="/admin/exporty">Exporty</NavLink>
           <NavLink to="/admin/zakaznici">Zákazníci</NavLink>
-          <NavLink to="/admin/kupony">Kupóny</NavLink>
+          <NavLink to="/admin/kupony">Kupóny / Dárkové poukazy</NavLink>
+          <NavLink to="/admin/reklamace">Reklamace</NavLink>
           <NavLink to="/admin/hodnoceni">Hodnocení</NavLink>
           <NavLink to="/admin/doprava">Doprava</NavLink>
           <NavLink to="/admin/vydejni-mista">Výdejní místa</NavLink>
@@ -71,6 +72,7 @@ export function Admin() {
           <Route path="exporty" element={<Exports />} />
           <Route path="zakaznici" element={<Customers />} />
           <Route path="kupony" element={<Coupons />} />
+          <Route path="reklamace" element={<ClaimsAdmin />} />
           <Route path="hodnoceni" element={<Reviews />} />
           <Route path="doprava" element={<Shipping />} />
           <Route path="vydejni-mista" element={<Points />} />
@@ -193,13 +195,28 @@ function ProductForm() {
     }
   }, [id]);
 
+  async function toWebp(file: File): Promise<File> {
+    if (file.type === "image/webp") return file;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width; canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d"); if (!ctx) return file;
+      ctx.drawImage(bitmap, 0, 0);
+      const blob: Blob | null = await new Promise(res => canvas.toBlob(res, "image/webp", 0.82));
+      if (!blob) return file;
+      return new File([blob], file.name.replace(/\.[^.]+$/, ".webp"), { type: "image/webp" });
+    } catch { return file; }
+  }
   async function upload(file: File) {
+    const webp = await toWebp(file);
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", webp);
     try {
       const r = await api<{ url: string }>("/admin/upload", { method: "POST", body: fd });
       setForm((f) => ({ ...f, image: r.url }));
-      toast("Fotka je v R2.");
+      if (id) { try { await api(`/admin/products/${id}/images`, { method: "POST", body: JSON.stringify({ url: r.url }) }); toast("Fotka přidána do galerie (webp)."); } catch {} }
+      else toast("Fotka je v R2 (webp).");
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Nahrání selhalo. Máte připojené R2?", "err");
     }
@@ -751,7 +768,12 @@ function Coupons() {
   useEffect(() => { load(); }, []);
   return (
     <>
-      <h1>Kupóny</h1>
+      <h1>Kupóny / Dárkové poukazy</h1>
+      <p style={{ color: "var(--muted)" }}>Dárkový poukaz = kupón na 1 použití (max_uses = 1). Použijte tlačítko níže pro rychlé vygenerování.</p>
+      <div style={{ marginBottom: 12 }}>
+        <button className="btn-line btn-sm" onClick={() => { const code = "DAREK-" + Math.random().toString(36).slice(2,7).toUpperCase(); setForm({ code, type: "fixed", value: 500, min_order: 0, max_uses: 1, description: "Dárkový poukaz na jedno použití" }); toast("Kód vygenerován: " + code); }}>🎁 Vygenerovat dárkový poukaz (1 použití)</button>
+        <button className="btn-line btn-sm" style={{ marginLeft: 8 }} onClick={() => setForm(f => ({ ...f, max_uses: 1, description: "Dárkový poukaz na jedno použití" }))}>Nastavit na 1 použití</button>
+      </div>
       <form className="admin-form" onSubmit={(e) => { e.preventDefault(); void api("/admin/coupons", { method: "POST", body: JSON.stringify(form) }).then(load); }}>
         <label>Kód<input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required /></label>
         <label>Typ
@@ -899,6 +921,15 @@ function Points() {
       </div>
     </>
   );
+}
+
+function ClaimsAdmin() {
+  const { toast } = useStore();
+  const [rows, setRows] = useState<{ id: number; order_number: string; email: string; reason: string; description: string; status: string; admin_note: string; created_at: string; user_name: string }[]>([]);
+  const load = () => void api<typeof rows>("/admin/claims").then(setRows);
+  useEffect(() => { load(); }, []);
+  async function upd(id: number, status: string) { await api(`/admin/claims/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }); toast("Uloženo."); load(); }
+  return (<><h1>Reklamace</h1><div className="table-wrap"><table><thead><tr><th>Objednávka</th><th>Důvod</th><th>Stav</th><th></th></tr></thead><tbody>{rows.map(r=> <tr key={r.id}><td>{r.order_number || "—"}<br/><small>{r.email}</small></td><td><b>{r.reason}</b><br/><small>{r.description.slice(0,80)}</small></td><td><span className="tag">{r.status}</span></td><td className="row-actions"><select value={r.status} onChange={e=> void upd(r.id, e.target.value)}><option value="new">Nová</option><option value="processing">Vyřizuje se</option><option value="approved">Uznána</option><option value="rejected">Zamítnuta</option><option value="closed">Uzavřena</option></select></td></tr>)}</tbody></table></div></>);
 }
 
 function SettingsPage() {

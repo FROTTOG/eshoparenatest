@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { czk } from "../format";
+import { czk, priceWithoutVat } from "../format";
 
 export function Logo() {
   return (
@@ -35,11 +35,16 @@ export function Stock({ n }: { n: number }) {
   return <span className="stock-ok">Skladem</span>;
 }
 
-export function Price({ price, compare }: { price: number; compare?: number | null }) {
+export function Price({ price, compare, vatRate }: { price: number; compare?: number | null; vatRate?: number }) {
+  const rate = vatRate ?? 21;
+  const without = priceWithoutVat(price, rate);
   return (
     <div className="price">
       {compare && compare > price ? <s>{czk(compare)}</s> : null}
-      {czk(price)}
+      {czk(price)}{" "}
+      <small style={{ color: "var(--muted)", fontWeight: 400, fontSize: 12, marginLeft: 6 }}>
+        ({czk(without)} bez DPH)
+      </small>
     </div>
   );
 }

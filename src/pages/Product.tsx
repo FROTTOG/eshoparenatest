@@ -22,6 +22,8 @@ export function ProductPage() {
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [form, setForm] = useState({ rating: 5, title: "", comment: "" });
+  const [lightbox, setLightbox] = useState(false);
+  const vatRate = Number(useStore().settings.invoice_vat_rate || 21);
 
   useSeo({
     title: p ? `${p.name} — KAVKA` : "Produkt — KAVKA",
@@ -178,10 +180,11 @@ export function ProductPage() {
           <button
             type="button"
             className="gallery-main"
-            onClick={() => setImg((i) => (i + 1) % pics.length)}
-            aria-label="Zvětšit další fotografii"
+            onClick={() => setLightbox(true)}
+            aria-label="Zvětšit fotografii"
           >
             <img src={pics[img]} alt={p.name} width={900} height={900} decoding="async" fetchPriority="high" />
+            <span className="gallery-zoom-hint">Klikněte pro zvětšení · {img + 1}/{pics.length}</span>
           </button>
           {pics.length > 1 && (
             <div className="gallery-thumbs">
@@ -206,7 +209,7 @@ export function ProductPage() {
           <h1>{p.name}</h1>
           <Stars value={p.rating} count={p.review_count || 0} />
           <div style={{ margin: "14px 0" }}>
-            <Price price={p.price} compare={p.compare_price} />
+            <Price price={p.price} compare={p.compare_price} vatRate={vatRate} />
           </div>
           <Stock n={p.stock} />
           <p className="desc">{p.description}</p>
@@ -249,7 +252,7 @@ export function ProductPage() {
       <div className="product-sticky">
         <span>
           <b>{p.name}</b>
-          <Price price={p.price} compare={p.compare_price} />
+          <Price price={p.price} compare={p.compare_price} vatRate={vatRate} />
         </span>
         <button className="btn" disabled={p.stock <= 0 || busy} onClick={() => void buy()}>
           {p.stock <= 0 ? "Vyprodáno" : added ? "V košíku" : "Do košíku"}
@@ -333,6 +336,27 @@ export function ProductPage() {
           </p>
         )}
       </section>
+      {lightbox && (
+        <div className="map-modal" onClick={() => setLightbox(false)} style={{ cursor: "zoom-out" }}>
+          <div style={{ position: "relative", maxWidth: "92vw", maxHeight: "92vh", display: "grid", placeItems: "center" }} onClick={(e) => e.stopPropagation()}>
+            <button className="close-x" onClick={() => setLightbox(false)} aria-label="Zavřít" style={{ position: "fixed", top: 16, right: 16, zIndex: 5 }}>
+              ✕
+            </button>
+            <img src={pics[img]} alt={p.name} style={{ maxWidth: "92vw", maxHeight: "86vh", objectFit: "contain", borderRadius: 16, background: "#fff" }} />
+            {pics.length > 1 && (
+              <>
+                <button className="btn-line" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)" }} onClick={() => setImg((i) => (i - 1 + pics.length) % pics.length)}>‹</button>
+                <button className="btn-line" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }} onClick={() => setImg((i) => (i + 1) % pics.length)}>›</button>
+                <div style={{ position: "absolute", bottom: -28, display: "flex", gap: 6 }}>
+                  {pics.map((_, i) => (
+                    <span key={i} style={{ width: 8, height: 8, borderRadius: 999, background: i === img ? "var(--accent)" : "rgba(255,255,255,.7)", border: "1px solid rgba(0,0,0,.2)" }} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

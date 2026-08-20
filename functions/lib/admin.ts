@@ -678,6 +678,72 @@ export function registerAdmin(app: App) {
     }
   });
 
+  // Více fotek u produktu
+  app.post("/admin/products/:id/images", async (c) => {
+    const pid = Number(c.req.param("id"));
+    const b = await c.req.json<{ url?: string; urls?: string[] }>();
+    const urls: string[] = [];
+    if (b.url) urls.push(b.url);
+    if (Array.isArray(b.urls)) urls.push(...b.urls);
+    const clean = urls.map((u) => String(u).trim()).filter(Boolean);
+    if (!clean.length) return c.json({ error: "Zadejte URL obrázku." }, 400);
+    for (const url of clean) {
+      const max = await c.env.DB.prepare("SELECT COALESCE(MAX(sort_order), -1) AS m FROM product_images WHERE product_id = ?").bind(pid).first<{ m: number }>();
+      const next = (max?.m ?? -1) + 1;
+      await c.env.DB.prepare("INSERT INTO product_images (product_id, url, sort_order) VALUES (?, ?, ?)").bind(pid, url, next).run();
+      // aktualizuj hlavní obrázek pokud prázdný
+      const prod = await c.env.DB.prepare("SELECT image FROM products WHERE id = ?").bind(pid).first<{ image: string }>();
+      if (!prod?.image) await c.env.DB.prepare("UPDATE products SET image = ? WHERE id = ?").bind(url, pid).run();
+    }
+    return c.json({ ok: true });
+  });
+
+  app.delete("/admin/products/:id/images/:imgId", async (c) => {
+    const pid = Number(c.req.param("id"));
+    const imgId = Number(c.req.param("imgId"));
+    await c.env.DB.prepare("DELETE FROM product_images WHERE id = ? AND product_id = ?").bind(imgId, pid).run();
+    return c.json({ ok: true });
+  });
+
+  app.put("/admin/products/:id/images/reorder", async (c) => {
+    const pid = Number(c.req.param("id"));
+    const b = await c.req.json<{ order?: number[] }>();
+    if (!Array.isArray(b.order)) return c.json({ error: "Neplatné pořadí." }, 400);
+    for (let i = 0; i < b.order.length; i++) {
+      await c.env.DB.prepare("UPDATE product_images SET sort_order = ? WHERE id = ? AND product_id = ?").bind(i, Number(b.order[i]), pid).run();
+    }
+    const first = await c.env.DB.prepare("SELECT url FROM product_images WHERE product_id = ? ORDER BY sort_order, id LIMIT 1").bind(pid).first<{ url: string }>();
+    if (first) await c.env.DB.prepare("UPDATE products SET image = ? WHERE id = ?").bind(first.url, pid).run();
+    return c.json({ ok: true });
+  });
+
+  // Reklamace správa
+  app.get("/admin/claims", async (c) => {
+    const status = (c.req.query("status") || "").trim();
+    const q = (c.req.query("q") || "").trim();
+    let sql = "SELECT c.*, u.name AS user_name, u.email AS user_email FROM claims c LEFT JOIN users u ON u.id = c.user_id WHERE 1=1";
+    const binds: string[] = [];
+    if (status) { sql += " AND c.status = ?"; binds.push(status); }
+    if (q) { sql += " AND (c.order_number LIKE ? OR c.email LIKE ? OR c.reason LIKE ?)"; const like=`%${q}%`; binds.push(like, like, like); }
+    sql += " ORDER BY c.id DESC LIMIT 300";
+    const rows = await c.env.DB.prepare(sql).bind(...binds).all();
+    return c.json(rows.results || []);
+  });
+
+  app.patch("/admin/claims/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    const b = await c.req.json<{ status?: string; admin_note?: string }>();
+    const allowed = ["new","processing","approved","rejected","closed"];
+    const status = allowed.includes(String(b.status)) ? String(b.status) : "new";
+    await c.env.DB.prepare("UPDATE claims SET status = ?, admin_note = COALESCE(?, admin_note), updated_at = datetime('now') WHERE id = ?").bind(status, b.admin_note ?? null, id).run();
+    return c.json({ ok: true });
+  });
+
+  app.delete("/admin/claims/:id", async (c) => {
+    await c.env.DB.prepare("DELETE FROM claims WHERE id = ?").bind(Number(c.req.param("id"))).run();
+    return c.json({ ok: true });
+  });
+
   app.post("/admin/upload", async (c) => {
     if (!c.env.MEDIA) return c.json({ error: "R2 bucket MEDIA není připojený. Viz README." }, 503);
     const form = await c.req.formData();
@@ -686,9 +752,10 @@ export function registerAdmin(app: App) {
     if (file.size > 8 * 1024 * 1024) return c.json({ error: "Soubor je větší než 8 MB." }, 400);
     const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
     if (!allowed.includes(file.type)) return c.json({ error: "Povolené jsou JPG, PNG, WEBP, GIF, AVIF." }, 400);
-    const ext = file.type.split("/")[1] === "jpeg" ? "jpg" : file.type.split("/")[1];
-    const key = `uploads/${crypto.randomUUID()}.${ext}`;
-    await c.env.MEDIA.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } });
+    // Automatická konverze do webp – ukládáme vždy jako .webp s content-type image/webp
+    const buf = await file.arrayBuffer();
+    const key = `uploads/${crypto.randomUUID()}.webp`;
+    await c.env.MEDIA.put(key, buf, { httpMetadata: { contentType: "image/webp" } });
     return c.json({ key, url: `/api/media/${key}` });
   });
 }

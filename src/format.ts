@@ -52,6 +52,14 @@ export function pointTypeLabel(t: string): string {
   return t;
 }
 
+export function priceWithoutVat(priceIncVat: number, vatRate = 21): number {
+  return Math.round(priceIncVat / (1 + vatRate / 100));
+}
+
+export function czkWithoutVat(n: number, vatRate = 21): string {
+  return `${czk(priceWithoutVat(n, vatRate))} bez DPH`;
+}
+
 export function spayd(iban: string, amount: number, vs: string, msg: string): string {
   const acc = iban.replace(/\s+/g, "").toUpperCase();
   const am = amount.toFixed(2);

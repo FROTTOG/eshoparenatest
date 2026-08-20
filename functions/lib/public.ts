@@ -795,6 +795,42 @@ export function registerPublic(app: App) {
     return c.json({ ok: true, approved: !!approved });
   });
 
+  // Reklamace pro přihlášené zákazníky
+  app.post("/claims", async (c) => {
+    const user = c.get("user");
+    if (!user) return c.json({ error: "Pro reklamaci se přihlaste." }, 401);
+    const b = await c.req.json<{ order_number?: string; order_id?: number; subject?: string; reason?: string; description?: string }>();
+    const reason = (b.reason || "").trim();
+    const description = (b.description || "").trim();
+    const subject = (b.subject || "").trim();
+    const orderNumber = (b.order_number || "").trim().toUpperCase();
+    if (description.length < 10) return c.json({ error: "Popište důvod reklamace alespoň 10 znaky." }, 400);
+    if (!reason) return c.json({ error: "Vyberte důvod reklamace." }, 400);
+    let orderId: number | null = null;
+    let orderNum = "";
+    let email = user.email;
+    if (orderNumber) {
+      const row = await c.env.DB.prepare("SELECT id, number, email, user_id FROM orders WHERE number = ?").bind(orderNumber).first<{ id: number; number: string; email: string; user_id: number | null }>();
+      if (!row) return c.json({ error: "Objednávka nenalezena." }, 404);
+      if (row.user_id !== user.id && row.email.toLowerCase() !== user.email.toLowerCase() && user.role !== "admin") return c.json({ error: "Tato objednávka není vaše." }, 403);
+      orderId = row.id;
+      orderNum = row.number;
+      email = row.email;
+    } else if (b.order_id) {
+      const row = await c.env.DB.prepare("SELECT id, number, email, user_id FROM orders WHERE id = ?").bind(Number(b.order_id)).first<{ id: number; number: string; email: string; user_id: number | null }>();
+      if (row) { orderId = row.id; orderNum = row.number; email = row.email; }
+    }
+    await c.env.DB.prepare("INSERT INTO claims (user_id, order_id, order_number, email, subject, reason, description, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'new')").bind(user.id, orderId, orderNum, email, subject || reason, reason, description).run();
+    return c.json({ ok: true });
+  });
+
+  app.get("/claims", async (c) => {
+    const user = c.get("user");
+    if (!user) return c.json({ error: "Nejste přihlášeni." }, 401);
+    const rows = await c.env.DB.prepare("SELECT * FROM claims WHERE user_id = ? ORDER BY id DESC").bind(user.id).all();
+    return c.json(rows.results || []);
+  });
+
   app.get("/media/:key{.+}", async (c) => {
     if (!c.env.MEDIA) return c.json({ error: "Úložiště R2 není připojené." }, 503);
     const key = c.req.param("key");
