@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type Category, type Product } from "../api";
 import {
@@ -7,13 +7,13 @@ import {
   IconLeaf,
   IconLocker,
   IconPin,
-  IconQr,
+  IconSearch,
   IconShield,
   IconTruck,
 } from "../components/Icons";
 import { ProductCard } from "../components/ProductCard";
 import { Reveal } from "../components/Reveal";
-import { cheapestPickup, czk, pickupFreeOver, shippingByKind } from "../format";
+import { czk, pickupFreeOver } from "../format";
 import { optimizedImage } from "../image";
 import { useStore } from "../store";
 import { useSeo } from "../title";
@@ -42,13 +42,67 @@ export function Home() {
   });
 
   const freeOver = pickupFreeOver(shipping);
-  const zbox = shippingByKind(shipping, "pickup_zbox");
-  const cheap = cheapestPickup(shipping);
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reload, setReload] = useState(0);
+  const [hero, setHero] = useState(0);
+  const [search, setSearch] = useState("");
+
+  const tiles = useMemo(
+    () => [
+      { icon: <IconGift size={21} />, cls: "accent", name: text("home_tile_1", "Dárkové poukazy"), sub: "Pro každou příležitost", to: "/katalog" },
+      { icon: <IconLeaf size={21} />, cls: "forest", name: text("home_tile_2", "Z ateliéru"), sub: "Ruční výroba", to: "/o-nas" },
+      { icon: <IconLocker size={21} />, cls: "gold", name: text("home_tile_3", "Výdejní místa"), sub: "Z-BOX, Zásilkovna", to: "/doprava-a-platba" },
+      { icon: <IconTruck size={21} />, cls: "accent", name: text("home_tile_4", "Doprava zdarma"), sub: freeOver ? `od ${czk(freeOver)}` : "po celé ČR", to: "/doprava-a-platba" },
+    ],
+    // text() čte settings — závislost na settings kvůli případné změně
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [freeOver, settings]
+  );
+
+  const heroSlides = useMemo(() => {
+    const slides: { kicker?: string; title: string; text: string; cta: string; to: string; image?: string; accent?: boolean }[] = [
+      {
+        kicker: text("home_badge", "ATELIÉR KAVKA"),
+        title: heroTitle,
+        text: heroText,
+        cta: text("home_hero_primary_cta", "Procházet katalog"),
+        to: "/katalog",
+        image: "/hero.webp",
+      },
+    ];
+    if (items[0]) {
+      slides.push({
+        kicker: "DOPORUČUJEME",
+        title: items[0].name,
+        text: items[0].category_name ? `Kolekce ${items[0].category_name} · ${czk(items[0].price)}` : czk(items[0].price),
+        cta: "Zobrazit produkt",
+        to: `/produkt/${items[0].slug}`,
+        image: optimizedImage(items[0].image),
+        accent: true,
+      });
+    }
+    if (settings.exit_coupon) {
+      slides.push({
+        kicker: "SLEVA NA PRVNÍ NÁKUP",
+        title: `10 % s kódem ${settings.exit_coupon}`,
+        text: "Zadejte kód v košíku a my odečteme slevu z první objednávky.",
+        cta: "Vybrat produkty",
+        to: "/katalog",
+        image: items[1] ? optimizedImage(items[1].image) : "/hero.webp",
+      });
+    }
+    return slides;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, heroTitle, heroText, settings.exit_coupon]);
+
+  useEffect(() => {
+    if (heroSlides.length <= 1) return;
+    const t = window.setInterval(() => setHero((h) => (h + 1) % heroSlides.length), 5000);
+    return () => window.clearInterval(t);
+  }, [heroSlides.length]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,88 +171,114 @@ export function Home() {
   }
 
   return (
-    <>
+    <div className="alza-home wrap">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <section className="demo-hero wrap">
-        <div className="demo-hero-inner glass-card">
-          <div className="demo-hero-content">
-            <div className="saas-badge">
-              <span className="saas-dot" /> {text("home_badge", "ATELIÉR KAVKA · VINOHRADY")}
-            </div>
-            <h1 className="serif">
-              {heroTitle.includes(",") ? (
-                <>
-                  {heroTitle.split(",")[0]},
-                  <br />
-                  <em>{heroTitle.split(",").slice(1).join(",").trim()}</em>
-                </>
-              ) : (
-                heroTitle
-              )}
-            </h1>
-            <p className="lead">{heroText}</p>
-            <div className="demo-hero-btns">
-              <Link to="/katalog" className="btn">
-                {text("home_hero_primary_cta", "Procházet katalog")} <IconArrow size={16} />
-              </Link>
-              <a href="#produkty" className="btn-line">
-                {text("home_hero_secondary_cta", "Vybrané kousky")}
-              </a>
-            </div>
-            <div className="hero-pills" style={{ marginTop: 24 }}>
-              {zbox ? (
-                <span>
-                  <IconLocker size={16} /> {zbox.name} od {czk(zbox.price)}
-                </span>
-              ) : cheap ? (
-                <span>
-                  <IconLocker size={16} /> {cheap.name} od {czk(cheap.price)}
-                </span>
-              ) : (
-                <span>
-                  <IconLocker size={16} /> Výdejní místa s mapou
-                </span>
-              )}
-              {freeOver ? (
-                <span>
-                  <IconTruck size={16} /> Doprava zdarma od {czk(freeOver)}
-                </span>
-              ) : (
-                <span>
-                  <IconPin size={16} /> Z-BOX, Zásilkovna, Balíkovna
-                </span>
-              )}
-              <span>
-                <IconQr size={16} /> QR platba SPD
-              </span>
-            </div>
-          </div>
-          <div className="demo-hero-img-wrap">
-            <img
-              src="/hero.webp"
-              alt="Ateliér KAVKA — keramika, len a dřevo"
-              className="demo-hero-img"
-              width={960}
-              height={720}
-              fetchPriority="high"
-              decoding="async"
-            />
-            <div className="demo-hero-badge glass-card">
-              <IconGift size={18} />
-              <div>
-                <b>{text("home_coupon_title", "Sleva 10 % na první nákup")}</b>
-                <span>
-                  {text("home_coupon_text", "V košíku zadejte kód")} <code>{settings.exit_coupon || "KAVKA10"}</code>
-                </span>
-              </div>
-            </div>
-          </div>
+      {/* Velký vyhledávací pruh jako na Alze */}
+      <form
+        className="alza-search-wrap"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const q = search.trim();
+          window.location.href = q ? `/katalog?q=${encodeURIComponent(q)}` : "/katalog";
+        }}
+      >
+        <div className="alza-search">
+          <IconSearch size={20} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Hledané slovo — hrnek, deka, svíčka…"
+            aria-label="Hledat v obchodě"
+          />
+          <button type="submit">Hledat</button>
         </div>
+      </form>
+
+      {/* Hero carousel */}
+      <section className="alza-hero" aria-roledescription="carousel">
+        <div className="alza-hero-track" style={{ transform: `translateX(-${hero * 100}%)` }}>
+          {heroSlides.map((s, i) => (
+            <div key={i} className={`alza-hero-slide${s.accent ? " slide-accent" : ""}`}>
+              <div className="alza-hero-copy">
+                {s.kicker && <span className="kicker">{s.kicker}</span>}
+                <h2>{s.title}</h2>
+                <p>{s.text}</p>
+                <Link to={s.to} className="alza-hero-cta">
+                  {s.cta} <IconArrow size={15} />
+                </Link>
+              </div>
+              {s.image && (
+                <div className="alza-hero-img">
+                  <img src={s.image} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {heroSlides.length > 1 && (
+          <>
+            <button
+              type="button"
+              className="alza-hero-nav prev"
+              aria-label="Předchozí"
+              onClick={() => setHero((h) => (h - 1 + heroSlides.length) % heroSlides.length)}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="alza-hero-nav next"
+              aria-label="Další"
+              onClick={() => setHero((h) => (h + 1) % heroSlides.length)}
+            >
+              ›
+            </button>
+            <div className="alza-hero-dots">
+              {heroSlides.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={i === hero ? "on" : ""}
+                  aria-label={`Slide ${i + 1}`}
+                  onClick={() => setHero(i)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Dlaždice zkratek */}
+      <section className="alza-tiles" aria-label="Rychlé odkazy">
+        {tiles.map((t) => (
+          <Link key={t.name} to={t.to} className="alza-tile">
+            <span className={`alza-tile-icon ${t.cls}`}>{t.icon}</span>
+            <span>
+              <b>{t.name}</b>
+              <small>{t.sub}</small>
+            </span>
+          </Link>
+        ))}
+        {cats.slice(0, 4).map((c) => (
+          <Link key={c.id} to={`/katalog/${c.slug}`} className="alza-tile">
+            {c.image ? (
+              <img className="alza-tile-img" src={optimizedImage(c.image)} alt="" loading="lazy" decoding="async" width={84} height={84} />
+            ) : (
+              <span className="alza-tile-icon forest">
+                <IconPin size={20} />
+              </span>
+            )}
+            <span>
+              <b>{c.name}</b>
+              <small>{c.description || "Kolekce z ateliéru"}</small>
+            </span>
+          </Link>
+        ))}
       </section>
 
       {loadError && (
-        <div className="wrap load-error glass-card" role="alert">
+        <div className="load-error" role="alert" style={{ marginBottom: 18 }}>
           <div>
             <b>Produkty se teď nepodařilo načíst.</b>
             <span>Zkontrolujte připojení a zkuste to znovu.</span>
@@ -209,56 +289,14 @@ export function Home() {
         </div>
       )}
 
-      <section className="section wrap">
-        <Reveal>
-          <div className="section-head">
-            <div>
-              <div className="kicker" style={{ color: "var(--accent)" }}>
-                Sortiment
-              </div>
-              <h2>{text("home_categories_title", "Kategorie")}</h2>
-            </div>
-            <Link to="/katalog" className="btn-line">
-              Celý obchod →
-            </Link>
-          </div>
-        </Reveal>
-        <div className="demo-cats-grid">
-          {cats.map((c, i) => (
-            <Reveal key={c.id} delay={(i % 5) * 60} className="reveal-cell">
-              <Link to={`/katalog/${c.slug}`} className="demo-cat-card glass-card">
-                <div className="demo-cat-img-wrap">
-                  <img src={optimizedImage(c.image)} alt="" loading="lazy" decoding="async" width={480} height={360} />
-                </div>
-                <div className="demo-cat-info">
-                  <h3>{c.name}</h3>
-                  <p>{c.description || text("home_category_fallback", "Kolekce z ateliéru")}</p>
-                  <span className="demo-cat-link">{text("home_category_cta", "Procházet kategorii")} →</span>
-                </div>
-              </Link>
-            </Reveal>
-          ))}
+      {/* Doporučené produkty */}
+      <section id="produkty">
+        <div className="alza-section-head">
+          <h2>{text("home_featured_title", "Doporučujeme")}</h2>
+          <Link to="/katalog">
+            Vše <IconArrow size={14} />
+          </Link>
         </div>
-      </section>
-
-      <section className="section wrap" id="produkty">
-        <Reveal>
-          <div className="section-head">
-            <div>
-              <div className="kicker" style={{ color: "var(--accent)" }}>
-                {text("home_featured_kicker", "Vybrané kousky")}
-              </div>
-              <h2>{text("home_featured_title", "Doporučujeme")}</h2>
-              <p style={{ color: "var(--ink-soft)", margin: "4px 0 0" }}>
-                {text("home_featured_text", "Ručně točená kamenina, praný len a dřevo s kresbou.")}
-              </p>
-            </div>
-            <Link to="/katalog" className="btn-line">
-              {text("home_featured_cta", "Zobrazit celý katalog")} →
-            </Link>
-          </div>
-        </Reveal>
-
         {loading ? (
           <div className="grid-products">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -281,59 +319,30 @@ export function Home() {
         )}
       </section>
 
-      <section className="section wrap">
-        <div className="trust" style={{ margin: 0 }}>
-          <Reveal delay={0}>
-            <article>
-              <IconLeaf />
-              <h3>{text("home_trust_1_title", "Z ateliéru")}</h3>
-              <p>{text("home_trust_1_text", "Keramika točená na kruhu, len z české dílny, dřevo olejované přírodním olejem.")}</p>
-            </article>
-          </Reveal>
-          <Reveal delay={90}>
-            <article>
-              <IconLocker />
-              <h3>{text("home_trust_2_title", "Doprava po ČR")}</h3>
-              <p>
-                {text("home_trust_2_text", "Z-BOX, Zásilkovna i Balíkovna s živou mapou")}
-                {freeOver ? ` · zdarma od ${czk(freeOver)}` : ""}. Osobní odběr na Vinohradech.
-              </p>
-            </article>
-          </Reveal>
-          <Reveal delay={180}>
-            <article>
-              <IconShield />
-              <h3>{text("home_trust_3_title", "14 dní na vrácení")}</h3>
-              <p>{text("home_trust_3_text", "Zákonná záruka 24 měsíců. Reklamace vyřídíme do 30 dnů, nebo osobně v ateliéru.")}</p>
-            </article>
-          </Reveal>
-        </div>
+      {/* Důvěra */}
+      <section className="alza-trust" aria-label="Proč nakoupit u nás">
+        <article>
+          <span className="alza-tile-icon">
+            <IconLeaf size={20} />
+          </span>
+          <b>{text("home_trust_1_title", "Z ateliéru")}</b>
+          <span>Ruční výroba, přírodní materiály</span>
+        </article>
+        <article>
+          <span className="alza-tile-icon forest">
+            <IconLocker size={20} />
+          </span>
+          <b>{text("home_trust_2_title", "Doprava po ČR")}</b>
+          <span>{freeOver ? `Zdarma od ${czk(freeOver)}` : "Z-BOX, Zásilkovna, Balíkovna"}</span>
+        </article>
+        <article>
+          <span className="alza-tile-icon gold">
+            <IconShield size={20} />
+          </span>
+          <b>{text("home_trust_3_title", "14 dní na vrácení")}</b>
+          <span>Záruka 24 měsíců</span>
+        </article>
       </section>
-
-      <section className="section wrap" style={{ paddingTop: 0 }}>
-        <Reveal>
-          <div className="cta-final">
-            <div>
-              <h2>
-                {text("home_cta_title", "Ateliér na Vinohradech.")}
-                <br />
-                <em>{text("home_cta_subtitle", "Otevřeno Po–Pá 10:00–18:00.")}</em>
-              </h2>
-              <p>
-                {settings.store_address || "Korunní 42, 120 00 Praha 2"} · {settings.store_phone || "+420 777 123 456"}
-              </p>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
-                <Link to="/katalog" className="btn">
-                  {text("home_cta_primary", "Nakoupit online")}
-                </Link>
-                <Link to="/o-nas" className="btn-line">
-                  {text("home_cta_secondary", "O ateliéru")}
-                </Link>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-    </>
+    </div>
   );
 }

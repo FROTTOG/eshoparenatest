@@ -8,6 +8,7 @@ import { ExitIntent } from "./ExitIntent";
 import { bootTags } from "../analytics";
 import { SearchBox } from "./SearchBox";
 import { Logo } from "./Ui";
+import { BottomNav } from "./BottomNav";
 import { czk, pickupFreeOver } from "../format";
 
 const NAV_LINKS = [
@@ -28,6 +29,10 @@ export function Layout() {
   const [showTop, setShowTop] = useState(false);
   const location = useLocation();
   const headerRef = useRef<HTMLElement>(null);
+
+  // Na pokladně má spodní lištu s odesláním objednávky — neduplikujeme ji
+  // se spodním menu, aby se navzájem nepřekrývaly.
+  const hideBottomNav = location.pathname.startsWith("/pokladna");
 
   useEffect(() => {
     const el = headerRef.current;
@@ -347,6 +352,11 @@ export function Layout() {
 
       <CookieBanner />
       <ExitIntent />
+
+      {/* Pevné spodní menu (mobilní styl jako alza.cz) */}
+      {!hideBottomNav && (
+        <BottomNav onSearch={() => setSearchOpen(true)} onMenu={() => setOpen((v) => !v)} />
+      )}
 
       {/* Tlačítko nahoru */}
       <button
