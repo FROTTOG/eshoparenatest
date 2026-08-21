@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError, type Category, type Product } from "../api";
 import { ProductCard } from "../components/ProductCard";
@@ -12,7 +12,11 @@ export function Catalog() {
   const q = sp.get("q") || "";
   const sort = sp.get("sort") || "featured";
   const inStock = sp.get("in_stock") === "1";
+  const priceMin = sp.get("price_min") || "";
+  const priceMax = sp.get("price_max") || "";
   const page = Math.max(1, Number(sp.get("page") || 1));
+  const [pmin, setPmin] = useState(priceMin);
+  const [pmax, setPmax] = useState(priceMax);
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -37,6 +41,8 @@ export function Catalog() {
     if (q) qs.set("q", q);
     if (slug) qs.set("category", slug);
     if (inStock) qs.set("in_stock", "1");
+    if (priceMin) qs.set("price_min", priceMin);
+    if (priceMax) qs.set("price_max", priceMax);
     setLoading(true);
     setError("");
     void api<{ items: Product[]; total: number }>(`/products?${qs}`, { signal: controller.signal })
@@ -53,7 +59,7 @@ export function Catalog() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [q, slug, sort, inStock, page, reload]);
+  }, [q, slug, sort, inStock, priceMin, priceMax, page, reload]);
 
   function patch(next: Record<string, string | null>, resetPage = true) {
     const n = new URLSearchParams(sp);
@@ -70,9 +76,28 @@ export function Catalog() {
     if (q) n.set("q", q);
     if (sort !== "featured") n.set("sort", sort);
     if (inStock) n.set("in_stock", "1");
+    if (priceMin) n.set("price_min", priceMin);
+    if (priceMax) n.set("price_max", priceMax);
     const qs = n.toString();
     const path = nextSlug ? `/katalog/${nextSlug}` : "/katalog";
     return qs ? `${path}?${qs}` : path;
+  }
+
+  function applyPrice(e: FormEvent) {
+    e.preventDefault();
+    const min = String(Math.max(0, Number(pmin) || 0)) || "";
+    const max = String(Math.max(0, Number(pmax) || 0)) || "";
+    if (min && max && Number(min) > Number(max)) {
+      patch({ price_min: max || null, price_max: min || null });
+    } else {
+      patch({ price_min: min || null, price_max: max || null });
+    }
+  }
+
+  function clearPrice() {
+    setPmin("");
+    setPmax("");
+    patch({ price_min: null, price_max: null });
   }
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -117,26 +142,65 @@ export function Catalog() {
         <div className="toolbar-tools">
           <label className="chip stock-toggle">
             <input type="checkbox" checked={inStock} onChange={(e) => patch({ in_stock: e.target.checked ? "1" : null })} />
-            Jen skladem
+            <span className="stock-toggle-label">Jen skladem</span>
           </label>
-          <select value={sort} onChange={(e) => patch({ sort: e.target.value })} aria-label="Řazení">
-            <option value="featured">Doporučené</option>
-            <option value="new">Nejnovější</option>
-            <option value="price_asc">Cena vzestupně</option>
-            <option value="price_desc">Cena sestupně</option>
-            <option value="name">Název</option>
-          </select>
+          <div className="select-wrap">
+            <select value={sort} onChange={(e) => patch({ sort: e.target.value })} aria-label="Řazení">
+              <option value="featured">Doporučené</option>
+              <option value="new">Nejnovější</option>
+              <option value="price_asc">Cena vzestupně</option>
+              <option value="price_desc">Cena sestupně</option>
+              <option value="name">Název</option>
+            </select>
+          </div>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
-        <Link className={`chip ${!slug ? "on" : ""}`} to={catHref()}>
-          Vše
-        </Link>
-        {cats.map((c) => (
-          <Link key={c.id} className={`chip ${slug === c.slug ? "on" : ""}`} to={catHref(c.slug)}>
-            {c.name}
+
+      <div className="catalog-filters">
+        <div className="cat-chips">
+          <Link className={`chip ${!slug ? "on" : ""}`} to={catHref()}>
+            Vše
           </Link>
-        ))}
+          {cats.map((c) => (
+            <Link key={c.id} className={`chip ${slug === c.slug ? "on" : ""}`} to={catHref(c.slug)}>
+              {c.name}
+            </Link>
+          ))}
+        </div>
+
+        <form className="price-filter" onSubmit={applyPrice}>
+          <span className="price-filter-title">Cena</span>
+          <input
+            type="number"
+            min={0}
+            step={10}
+            inputMode="numeric"
+            placeholder="od"
+            aria-label="Cena od"
+            value={pmin}
+            onChange={(e) => setPmin(e.target.value)}
+          />
+          <span className="price-filter-sep">–</span>
+          <input
+            type="number"
+            min={0}
+            step={10}
+            inputMode="numeric"
+            placeholder="do"
+            aria-label="Cena do"
+            value={pmax}
+            onChange={(e) => setPmax(e.target.value)}
+          />
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>Kč</span>
+          <button type="submit" className="btn-line btn-sm">
+            Filtrovat
+          </button>
+          {(priceMin || priceMax) && (
+            <button type="button" className="price-clear" onClick={clearPrice} aria-label="Zrušit filtr ceny">
+              ✕
+            </button>
+          )}
+        </form>
       </div>
       {error ? (
         <div className="empty" role="alert">

@@ -85,7 +85,7 @@ export function Home() {
       slides.push({
         kicker: "SLEVA NA PRVNÍ NÁKUP",
         title: `10 % s kódem ${settings.exit_coupon}`,
-        text: "Zadejte kód v košíku a my odečteme slevu z první objednávky.",
+        text: "Jen pro registrované zákazníky a jen jednou — kód využijete na první objednávku.",
         cta: "Vybrat produkty",
         to: "/katalog",
         image: items[1] ? optimizedImage(items[1].image) : "/hero.webp",

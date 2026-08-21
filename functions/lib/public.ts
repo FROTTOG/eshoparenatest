@@ -3,11 +3,11 @@ import {
   CART_DAYS,
   SESSION_DAYS,
   clearCookie,
-  couponDiscount,
   ensureCart,
   getCoupon,
   isSecure,
   loadCart,
+  loadCouponDiscount,
   mergeCarts,
   newCartId,
   setCookie,
@@ -174,6 +174,8 @@ export function registerPublic(app: App) {
     const sort = c.req.query("sort") || "featured";
     const featured = c.req.query("featured");
     const inStock = c.req.query("in_stock");
+    const priceMin = Math.max(0, Number(c.req.query("price_min") || 0));
+    const priceMax = Math.max(0, Number(c.req.query("price_max") || 0));
     const ids = (c.req.query("ids") || "")
       .split(",")
       .map((x) => Number(x.trim()))
@@ -196,6 +198,14 @@ export function registerPublic(app: App) {
     }
     if (featured === "1") where += " AND p.featured = 1";
     if (inStock === "1") where += " AND p.stock > 0";
+    if (priceMin > 0) {
+      where += " AND p.price >= ?";
+      binds.push(priceMin);
+    }
+    if (priceMax > 0) {
+      where += " AND p.price <= ?";
+      binds.push(priceMax);
+    }
     if (ids.length) {
       where += ` AND p.id IN (${ids.map(() => "?").join(",")})`;
       binds.push(...ids);
@@ -422,7 +432,7 @@ export function registerPublic(app: App) {
     const cart = await loadCart(c.env.DB, c.get("cartId"));
     const coupon = await getCoupon(c.env.DB, code);
     if (!coupon) return c.json({ error: "Kupón neexistuje." }, 404);
-    const disc = couponDiscount(coupon, cart.subtotal);
+    const disc = await loadCouponDiscount(c.env.DB, coupon, cart.subtotal, c.get("user")?.id ?? null);
     if (!disc.ok) return c.json({ error: disc.error }, 400);
     await ensureCart(c.env.DB, c.get("cartId"), c.get("user")?.id ?? null);
     await c.env.DB.prepare("UPDATE carts SET coupon_code = ? WHERE id = ?").bind(coupon.code, c.get("cartId")).run();
@@ -580,6 +590,23 @@ export function registerPublic(app: App) {
 
     const cart = await loadCart(c.env.DB, c.get("cartId"));
     if (!cart.items.length) return c.json({ error: "Košík je prázdný." }, 400);
+
+    // Sleva na první nákup (např. KAVKA10) patří jen přihlášeným zákazníkům.
+    if (cart.coupon?.code) {
+      const cpn = await getCoupon(c.env.DB, cart.coupon.code);
+      if (cpn?.requires_login && !user) {
+        return c.json({ error: "Slevu na první nákup využijí jen registrovaní zákazníci. Přihlaste se." }, 400);
+      }
+      if (cpn?.single_use && user) {
+        const red = await c.env.DB
+          .prepare("SELECT COUNT(*) AS c FROM coupon_redemptions WHERE coupon_code = ? AND user_id = ?")
+          .bind(cpn.code, user.id)
+          .first<{ c: number }>();
+        if ((red?.c || 0) > 0) {
+          return c.json({ error: "Slevu na první nákup už jste využili — platí jen jednou." }, 400);
+        }
+      }
+    }
 
     for (const it of cart.items) {
       if (it.quantity > it.stock) return c.json({ error: `${it.name}: na skladě je jen ${it.stock} ks.` }, 400);
@@ -757,6 +784,14 @@ export function registerPublic(app: App) {
           "UPDATE coupons SET used_count = used_count + 1 WHERE code = ? AND (max_uses IS NULL OR used_count < max_uses)"
         ).bind(cart.coupon.code)
       );
+      // Zaznamenáme čerpání „slevy na první nákup“ na konkrétního zákazníka.
+      if (user?.id) {
+        follow.push(
+          c.env.DB
+            .prepare("INSERT INTO coupon_redemptions (coupon_code, user_id, order_id) VALUES (?, ?, ?)")
+            .bind(cart.coupon.code, user.id, orderId)
+        );
+      }
     }
     follow.push(c.env.DB.prepare("DELETE FROM cart_items WHERE cart_id = ?").bind(c.get("cartId")));
     follow.push(c.env.DB.prepare("UPDATE carts SET coupon_code = NULL WHERE id = ?").bind(c.get("cartId")));

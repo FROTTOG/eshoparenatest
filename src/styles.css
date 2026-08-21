@@ -5117,3 +5117,314 @@ html.lightbox-open body {
 @media (max-width: 420px) {
   .alza-tiles { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ============================================================
+   Katalog — vylepšené filtry, cenový filtr, oprava „Jen skladem“
+   ============================================================ */
+
+/* „Jen skladem“ — checkbox vedle textu (grid z .toolbar label ho lámal na mobilu) */
+.toolbar .stock-toggle {
+  display: inline-flex !important;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.toolbar .stock-toggle:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.toolbar .stock-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.stock-toggle-label { font-size: 12.5px; color: var(--ink-soft); }
+
+/* Řadicí select — vlastní šipka */
+.select-wrap { position: relative; }
+.select-wrap select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 32px;
+  cursor: pointer;
+}
+.select-wrap::after {
+  content: "▾";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Lišta filtrů — kategorie + cena */
+.catalog-filters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px 18px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+}
+.cat-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.price-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.price-filter-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.price-filter input[type="number"] {
+  width: 72px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  color: var(--ink);
+  -moz-appearance: textfield;
+}
+.price-filter input[type="number"]::-webkit-outer-spin-button,
+.price-filter input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.price-filter input[type="number"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.price-filter-sep { color: var(--muted); }
+.price-clear {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.price-clear:hover { color: var(--danger); background: var(--bg-deep); }
+
+@media (max-width: 640px) {
+  .catalog-filters { flex-direction: column; align-items: stretch; }
+  .cat-chips { justify-content: flex-start; }
+  .price-filter { justify-content: flex-start; flex-wrap: wrap; }
+  .price-filter input[type="number"] { flex: 1 1 84px; width: auto; }
+}
+
+/* ============================================================
+   Hlavička — stav přihlášení (jméno zákazníka / „Přihlásit se“)
+   ============================================================ */
+
+.user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 14px 5px 6px;
+  border: 1px solid color-mix(in srgb, var(--ok) 32%, var(--line));
+  background: color-mix(in srgb, var(--ok) 7%, var(--card));
+  border-radius: 999px;
+  color: var(--ink);
+  white-space: nowrap;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.user-pill:hover {
+  border-color: var(--ok);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(47, 107, 79, 0.14);
+}
+.user-pill-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ok);
+  color: #fff;
+  flex-shrink: 0;
+}
+.user-pill-body {
+  display: grid;
+  gap: 1px;
+  line-height: 1.08;
+  text-align: left;
+}
+.user-pill-body b {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-pill-body small {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ok);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.03em;
+}
+.user-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent);
+}
+.user-login-btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .user-pill { padding: 4px 10px 4px 5px; gap: 6px; }
+  .user-pill-avatar { width: 26px; height: 26px; }
+  .user-pill-body b { font-size: 12px; max-width: 90px; }
+  .user-pill-body small { display: none; }
+  .user-login-btn { padding: 8px 12px; font-size: 11px; }
+}
+@media (max-width: 400px) {
+  .user-pill-body b { max-width: 64px; }
+}
+
+/* ============================================================
+   Hezčí hero na domovské stránce — vrstvy, sklo, CTA
+   ============================================================ */
+
+.alza-hero {
+  background: linear-gradient(150deg, #fbf7ef 0%, #f2e8d6 100%);
+  box-shadow: 0 10px 34px rgba(28, 25, 21, 0.07);
+}
+.alza-hero-track { position: relative; z-index: 1; }
+
+.alza-hero-slide {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(760px 340px at 88% -16%, rgba(196, 165, 116, 0.24), transparent 60%),
+    linear-gradient(140deg, #fdfaf3 0%, #f3ead9 62%, #ecdfc6 100%);
+}
+.alza-hero-slide.slide-accent {
+  background:
+    radial-gradient(820px 380px at 12% -22%, rgba(196, 165, 116, 0.28), transparent 60%),
+    linear-gradient(135deg, var(--forest) 0%, var(--forest-2) 100%);
+}
+/* Dekorativní světelné skvrny uvnitř slidu */
+.alza-hero-slide:not(.slide-accent)::after {
+  content: "";
+  position: absolute;
+  width: 46%;
+  aspect-ratio: 1;
+  top: -34%;
+  right: -8%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(196, 165, 116, 0.3), transparent 68%);
+  filter: blur(36px);
+  pointer-events: none;
+  z-index: 0;
+}
+.alza-hero-slide.slide-accent::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(500px 240px at 92% 108%, rgba(196, 165, 116, 0.2), transparent 65%),
+    radial-gradient(360px 200px at -4% 112%, rgba(196, 165, 116, 0.16), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.alza-hero-copy,
+.alza-hero-img { position: relative; z-index: 1; }
+.alza-hero-copy .kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  color: var(--accent-dark);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 800;
+  margin-bottom: 14px;
+}
+.alza-hero-copy .kicker::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.slide-accent .alza-hero-copy .kicker {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--gold);
+}
+.slide-accent .alza-hero-copy .kicker::before { background: var(--gold); box-shadow: 0 0 0 4px rgba(196, 165, 116, 0.22); }
+
+.alza-hero-copy h2 {
+  font-size: clamp(24px, 3.6vw, 36px);
+  text-wrap: balance;
+}
+.alza-hero-copy p { max-width: 32em; }
+
+.alza-hero-cta {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.alza-hero-cta svg { transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.alza-hero-cta:hover svg { transform: translateX(4px); }
+.alza-hero-cta:active { transform: scale(0.97); }
+
+/* Obrázek — jemný rám s hloubkou */
+.alza-hero-img {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 22px 48px rgba(28, 25, 21, 0.16);
+  background: var(--card);
+}
+.alza-hero-img::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(28, 25, 21, 0) 62%, rgba(28, 25, 21, 0.12) 100%);
+  pointer-events: none;
+}
+.alza-hero-img img { transform: scale(1.01); }
+
+@media (max-width: 980px) {
+  .alza-hero-img {
+    border-radius: 14px;
+    box-shadow: 0 12px 30px rgba(28, 25, 21, 0.14);
+  }
+}
+
+/* Účet v menu — při užších desktop šířkách se navigace smí zalomit na dva řádky */
+@media (min-width: 981px) and (max-width: 1260px) {
+  .nav { flex-wrap: wrap; row-gap: 4px; }
+  .nav a { font-size: 12px; letter-spacing: 0.05em; }
+}

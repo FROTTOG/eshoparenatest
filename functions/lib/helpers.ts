@@ -59,14 +59,28 @@ export type CouponRow = {
   valid_from: string | null;
   valid_to: string | null;
   active: number;
+  /** Kupón použijí jen přihlášení zákazníci. */
+  requires_login: number;
+  /** Kupón smí každý zákazník použít jen jednou. */
+  single_use: number;
 };
 
-export function couponDiscount(coupon: CouponRow | null, subtotal: number): { ok: boolean; discount: number; error?: string } {
+export function couponDiscount(
+  coupon: CouponRow | null,
+  subtotal: number,
+  opts: { user_id?: number | null; used_by_user?: number } = {}
+): { ok: boolean; discount: number; error?: string } {
   if (!coupon) return { ok: true, discount: 0 };
   if (!coupon.active) return { ok: false, discount: 0, error: "Kupón už není aktivní." };
   const now = new Date().toISOString().slice(0, 10);
   if (coupon.valid_from && now < coupon.valid_from) return { ok: false, discount: 0, error: "Kupón ještě nezačal platit." };
   if (coupon.valid_to && now > coupon.valid_to) return { ok: false, discount: 0, error: "Kupón vypršel." };
+  if (coupon.requires_login && !opts.user_id) {
+    return { ok: false, discount: 0, error: "Kupón je jen pro registrované zákazníky. Přihlaste se." };
+  }
+  if (coupon.single_use && (opts.used_by_user || 0) > 0) {
+    return { ok: false, discount: 0, error: "Tuto slevu už jste využili — platí jen jednou." };
+  }
   if (coupon.max_uses != null && coupon.used_count >= coupon.max_uses) return { ok: false, discount: 0, error: "Kupón už byl vyčerpán." };
   if (subtotal < coupon.min_order) {
     return { ok: false, discount: 0, error: `Kupón platí od ${coupon.min_order} Kč.` };
@@ -79,6 +93,27 @@ export function couponDiscount(coupon: CouponRow | null, subtotal: number): { ok
 export async function getCoupon(db: D1Database, code: string | null | undefined): Promise<CouponRow | null> {
   if (!code) return null;
   return db.prepare("SELECT * FROM coupons WHERE code = ?").bind(code.trim()).first<CouponRow>();
+}
+
+/**
+ * Stejné jako couponDiscount, ale pro kupóny s omezením „jednou na zákazníka“
+ * zjistí počet už použití daného uživatele z tabulky coupon_redemptions.
+ */
+export async function loadCouponDiscount(
+  db: D1Database,
+  coupon: CouponRow | null,
+  subtotal: number,
+  userId: number | null | undefined
+): Promise<{ ok: boolean; discount: number; error?: string }> {
+  let usedByUser = 0;
+  if (coupon?.single_use && userId) {
+    const r = await db
+      .prepare("SELECT COUNT(*) AS c FROM coupon_redemptions WHERE coupon_code = ? AND user_id = ?")
+      .bind(coupon.code, userId)
+      .first<{ c: number }>();
+    usedByUser = r?.c || 0;
+  }
+  return couponDiscount(coupon, subtotal, { user_id: userId ?? undefined, used_by_user: usedByUser });
 }
 
 export type CartItemRow = {
@@ -112,7 +147,7 @@ export async function loadCart(db: D1Database, cartId: string) {
     ).results || [];
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const coupon = await getCoupon(db, cart?.coupon_code);
-  const disc = couponDiscount(coupon, subtotal);
+  const disc = await loadCouponDiscount(db, coupon, subtotal, cart?.user_id);
   return {
     id: cartId,
     items,
