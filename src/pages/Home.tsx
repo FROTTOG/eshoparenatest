@@ -7,12 +7,10 @@ import {
   IconLeaf,
   IconLocker,
   IconPin,
-  IconSearch,
   IconShield,
   IconTruck,
 } from "../components/Icons";
 import { ProductCard } from "../components/ProductCard";
-import { Reveal } from "../components/Reveal";
 import { czk, pickupFreeOver } from "../format";
 import { optimizedImage } from "../image";
 import { useStore } from "../store";
@@ -48,7 +46,6 @@ export function Home() {
   const [loadError, setLoadError] = useState(false);
   const [reload, setReload] = useState(0);
   const [hero, setHero] = useState(0);
-  const [search, setSearch] = useState("");
 
   const tiles = useMemo(
     () => [
@@ -174,28 +171,7 @@ export function Home() {
     <div className="alza-home wrap">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      {/* Velký vyhledávací pruh jako na Alze */}
-      <form
-        className="alza-search-wrap"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const q = search.trim();
-          window.location.href = q ? `/katalog?q=${encodeURIComponent(q)}` : "/katalog";
-        }}
-      >
-        <div className="alza-search">
-          <IconSearch size={20} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Hledané slovo — hrnek, deka, svíčka…"
-            aria-label="Hledat v obchodě"
-          />
-          <button type="submit">Hledat</button>
-        </div>
-      </form>
-
-      {/* Hero carousel */}
+      {/* Hero carousel — vyhledávání je ve spodní liště (BottomNav) */}
       <section className="alza-hero" aria-roledescription="carousel">
         <div className="alza-hero-track" style={{ transform: `translateX(-${hero * 100}%)` }}>
           {heroSlides.map((s, i) => (
