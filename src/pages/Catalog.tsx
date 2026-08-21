@@ -95,7 +95,7 @@ export function Catalog() {
   };
 
   return (
-    <div className="wrap">
+    <div className="wrap alza-catalog">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <div className="crumbs">
         <Link to="/">Domů</Link> / <Link to="/katalog">Katalog</Link>

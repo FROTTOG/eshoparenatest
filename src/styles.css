@@ -4660,3 +4660,447 @@ html.lightbox-open body {
 @media (max-width: 980px) {
   .section-head { align-items: flex-start; }
 }
+
+/* ============================================================
+   2026 redesign — mobilní Alza styl (spodní menu, domov, katalog)
+   ============================================================ */
+
+/* Spodní navigace — pevná lišta na mobilu, pět rovnoměrných položek */
+.bottom-nav {
+  display: none;
+}
+@media (max-width: 980px) {
+  /* Rezerva pod obsahem, aby ho lišta nepřekryla */
+  .page > main { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .footer { margin-bottom: 0; }
+  .footer { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+
+  .bottom-nav {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 120;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    align-items: stretch;
+    height: calc(62px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(18px) saturate(1.3);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    border-top: 1px solid rgba(28, 25, 21, 0.08);
+    box-shadow: 0 -6px 24px rgba(28, 25, 21, 0.08);
+  }
+  .bn-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: transparent;
+    border: 0;
+    padding: 6px 2px 4px;
+    color: #6b655d;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.18s ease, transform 0.14s ease;
+  }
+  .bn-item:active { transform: scale(0.92); }
+  .bn-item.active { color: var(--accent); }
+  .bn-item svg { stroke-width: 1.8; }
+  .bn-icon-wrap { position: relative; display: grid; place-items: center; }
+  .bn-badge {
+    position: absolute;
+    top: -7px; right: -10px;
+    min-width: 17px; height: 17px; padding: 0 4px;
+    border-radius: 99px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px; font-weight: 800;
+    display: grid; place-items: center;
+    box-shadow: 0 0 0 2px #fff;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Vyhledávání — vystředěný kruh mírně nad lištou */
+  .bn-search { padding-top: 0; }
+  .bn-search-ring {
+    width: 46px; height: 46px;
+    margin-top: -18px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: linear-gradient(140deg, var(--accent) 0%, var(--accent-dark) 100%);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(181, 74, 44, 0.35), 0 0 0 4px rgba(255,255,255,0.9);
+  }
+  .bn-search span:last-child { margin-top: 2px; }
+  .bn-search .bn-search-ring + span { color: var(--accent); }
+
+  /* Cookie banner, toasty a tlačítko nahoru musí zůstat nad lištou */
+  .cookie-banner { bottom: calc(74px + env(safe-area-inset-bottom)); }
+  .toasts { bottom: calc(74px + env(safe-area-inset-bottom)); }
+  .scroll-top { bottom: calc(78px + env(safe-area-inset-bottom)); right: 14px; }
+
+  /* Checkout má vlastní spodní lištu — ta posouvá rezerva */
+  .two.checkout { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+
+/* ---- Domovská stránka v Alza stylu ---- */
+.alza-home { padding-top: 6px; }
+.alza-search-wrap {
+  max-width: 720px;
+  margin: 0 auto 16px;
+}
+.alza-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid rgba(28, 25, 21, 0.1);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 10px rgba(28, 25, 21, 0.05);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.alza-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.alza-search svg { color: var(--muted); flex-shrink: 0; }
+.alza-search input {
+  flex: 1; border: 0; background: transparent; outline: none;
+  font-size: 16px; color: var(--ink);
+}
+.alza-search input::placeholder { color: #9a9288; }
+.alza-search button {
+  border: 0; background: var(--ink); color: #fff;
+  border-radius: 10px; padding: 8px 16px;
+  font-size: 13px; font-weight: 700;
+}
+
+/* Hero carousel */
+.alza-hero {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(28, 25, 21, 0.07);
+  box-shadow: 0 4px 18px rgba(28, 25, 21, 0.06);
+  margin-bottom: 18px;
+  min-height: 220px;
+}
+.alza-hero-track {
+  display: flex;
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.alza-hero-slide {
+  flex: 0 0 100%;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 28px 40px;
+  min-height: 240px;
+  background: linear-gradient(135deg, #f7f2e8 0%, #efe6d6 100%);
+}
+.alza-hero-slide.slide-accent {
+  background: linear-gradient(135deg, var(--forest) 0%, var(--forest-2) 100%);
+  color: #efe8dc;
+}
+.alza-hero-slide.slide-accent .alza-hero-copy p { color: #cfc4b3; }
+.alza-hero-copy .kicker {
+  display: inline-block;
+  font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+.slide-accent .alza-hero-copy .kicker { color: var(--gold); }
+.alza-hero-copy h2 {
+  font-family: var(--serif);
+  font-size: clamp(22px, 3.4vw, 32px);
+  line-height: 1.12;
+  margin: 0 0 10px;
+  letter-spacing: -0.01em;
+}
+.alza-hero-copy p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  max-width: 30em;
+}
+.alza-hero-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent); color: #fff;
+  border: 0; border-radius: 12px;
+  padding: 11px 20px;
+  font-size: 14px; font-weight: 700;
+  box-shadow: 0 6px 16px rgba(181, 74, 44, 0.28);
+}
+.slide-accent .alza-hero-cta { background: var(--gold); color: var(--ink); box-shadow: 0 6px 16px rgba(196,165,116,0.3); }
+.alza-hero-img {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.alza-hero-img img {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: 14px;
+}
+.alza-hero-dots {
+  position: absolute; bottom: 12px; left: 0; right: 0;
+  display: flex; gap: 7px; justify-content: center;
+}
+.alza-hero-dots button {
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 0; padding: 0;
+  background: rgba(28, 25, 21, 0.22);
+  transition: background 0.2s, width 0.2s;
+}
+.alza-hero-dots button.on {
+  background: var(--accent);
+  width: 22px; border-radius: 99px;
+}
+.slide-accent .alza-hero-dots button { background: rgba(255,255,255,0.35); }
+.slide-accent .alza-hero-dots button.on { background: var(--gold); }
+.alza-hero-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 0; background: rgba(255,255,255,0.9);
+  display: grid; place-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  font-size: 20px; color: var(--ink);
+  opacity: 0; transition: opacity 0.25s;
+}
+.alza-hero:hover .alza-hero-nav { opacity: 1; }
+.alza-hero-nav.prev { left: 10px; }
+.alza-hero-nav.next { right: 10px; }
+
+/* Dlaždice zkratek / kategorií (2 sloupce jako na Alze) */
+.alza-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 26px;
+}
+.alza-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid rgba(28, 25, 21, 0.07);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: left;
+  text-decoration: none;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(28, 25, 21, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s;
+  min-height: 72px;
+}
+.alza-tile:active { transform: scale(0.97); }
+.alza-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(28,25,21,0.1); border-color: rgba(181,74,44,0.3); }
+.alza-tile-icon {
+  width: 42px; height: 42px; flex-shrink: 0;
+  border-radius: 11px;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 12%, #fff);
+  color: var(--accent);
+}
+.alza-tile-icon.forest { background: color-mix(in srgb, var(--forest) 12%, #fff); color: var(--forest); }
+.alza-tile-icon.gold { background: color-mix(in srgb, var(--gold) 22%, #fff); color: #8a6b2a; }
+.alza-tile-icon.accent { background: color-mix(in srgb, var(--accent) 14%, #fff); color: var(--accent-dark); }
+.alza-tile b {
+  display: block;
+  font-family: var(--sans);
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.alza-tile small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.alza-tile-img {
+  width: 42px; height: 42px; flex-shrink: 0;
+  border-radius: 11px; object-fit: cover;
+  background: var(--bg-deep);
+}
+
+.alza-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 2px 14px;
+}
+.alza-section-head h2 {
+  font-family: var(--sans);
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.alza-section-head a {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+
+/* Důvěra — proužek ikon */
+.alza-trust {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 26px 0 8px;
+}
+.alza-trust article {
+  background: #fff;
+  border: 1px solid rgba(28, 25, 21, 0.07);
+  border-radius: 14px;
+  padding: 16px 12px;
+  text-align: center;
+}
+.alza-trust .alza-tile-icon { margin: 0 auto 8px; width: 40px; height: 40px; }
+.alza-trust b { display: block; font-size: 13px; font-weight: 700; }
+.alza-trust span { font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px; }
+
+/* ---- Katalog / karty produktů v Alza stylu na mobilu ---- */
+@media (max-width: 980px) {
+  .alza-home .grid-products,
+  .alza-catalog .grid-products,
+  .pb-products {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+  .alza-home .pcard,
+  .alza-catalog .pcard {
+    border-radius: 14px;
+    border: 1px solid rgba(28,25,21,0.07);
+    box-shadow: 0 1px 3px rgba(28,25,21,0.05);
+  }
+  .alza-home .pcard-media,
+  .alza-catalog .pcard-media { aspect-ratio: 1; }
+  .alza-home .pcard-body,
+  .alza-catalog .pcard-body { padding: 10px 10px 12px; gap: 4px; }
+  .alza-home .pcard .cat,
+  .alza-catalog .pcard .cat {
+    font-size: 10px; letter-spacing: 0.08em;
+  }
+  .alza-home .pcard h3,
+  .alza-catalog .pcard h3 {
+    font-family: var(--sans);
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .alza-home .pcard .price,
+  .alza-catalog .pcard .price {
+    font-size: 16px; font-weight: 800;
+  }
+  .alza-home .pcard .price small,
+  .alza-catalog .pcard .price small { display: none; }
+  .alza-home .pcard .stars,
+  .alza-catalog .pcard .stars { font-size: 12px; }
+  .alza-home .pcard .stock-ok,
+  .alza-catalog .pcard .stock-ok { font-size: 11.5px; }
+  .alza-home .pcard .stock-low,
+  .alza-catalog .pcard .stock-low { font-size: 11.5px; }
+  .alza-home .pcard .stock-out,
+  .alza-catalog .pcard .stock-out { font-size: 11.5px; }
+  .alza-home .pcard .btn-line,
+  .alza-catalog .pcard .btn-line {
+    min-height: 36px;
+    padding: 8px 10px;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    text-transform: none;
+    border-radius: 10px;
+    margin-top: 4px;
+  }
+  .alza-home .pcard .sale,
+  .alza-catalog .pcard .sale {
+    top: 8px; left: 8px;
+    font-size: 10px; padding: 3px 7px;
+  }
+  .alza-home .pcard .wish-btn,
+  .alza-catalog .pcard .wish-btn {
+    top: 6px; right: 6px;
+    width: 32px; height: 32px;
+  }
+}
+
+/* Katalog — hlavička kompaktnější */
+.alza-catalog .crumbs { margin: 14px 0 10px; font-size: 12.5px; }
+.alza-catalog .toolbar { margin-bottom: 14px; }
+.alza-catalog .catalog-title {
+  font-family: var(--sans);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Na počítači dlaždice 3–4 vedle sebe, mřížka produktů 4 */
+@media (min-width: 981px) {
+  .alza-tiles { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .alza-home .grid-products { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .alza-hero { min-height: 300px; }
+  .alza-hero-slide { min-height: 320px; padding: 40px 48px 48px; }
+  .alza-hero-img img { max-height: 300px; }
+  .bottom-nav { display: none !important; }
+}
+@media (min-width: 641px) and (max-width: 980px) {
+  .alza-tiles { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ---- Doladění Alza redesignu ---- */
+@media (max-width: 980px) {
+  /* Košík a srdíčko v hlavičce jsou duplicitní se spodním menu — schováme je */
+  .header-actions > a[href="/kosik"],
+  .header-actions > a[href="/oblibene"] { display: none !important; }
+  .header-actions .desktop-only { display: none !important; }
+
+  /* Domovský search — lehčí stín a plná šířka */
+  .alza-search-wrap { margin-bottom: 12px; }
+  .alza-search { padding: 10px 14px; border-radius: 14px; }
+  .alza-search input { font-size: 15px; }
+
+  /* Hero carousel — kompaktnější na mobilu */
+  .alza-hero-slide {
+    grid-template-columns: 1fr;
+    padding: 22px 18px 44px;
+    min-height: 260px;
+    gap: 8px;
+  }
+  .alza-hero-img { order: -1; max-height: 150px; }
+  .alza-hero-img img { max-height: 150px; }
+  .alza-hero-copy { text-align: left; }
+  .alza-hero-copy p { -webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .alza-hero-cta { padding: 10px 18px; font-size: 13px; }
+
+  .alza-trust { gap: 8px; margin: 22px 0 0; }
+  .alza-trust article { padding: 12px 8px; }
+  .alza-trust b { font-size: 12px; }
+  .alza-trust span { font-size: 10.5px; }
+  .alza-tile { padding: 12px; gap: 10px; min-height: 64px; }
+  .alza-tile b { font-size: 13.5px; }
+  .alza-tile small { font-size: 11px; }
+  .alza-tile-icon { width: 38px; height: 38px; }
+  .alza-tile-img { width: 38px; height: 38px; }
+  .alza-section-head h2 { font-size: 17px; }
+}
+
+/* Na velmi úzkých displejích dlaždice 2 sloupce */
+@media (max-width: 420px) {
+  .alza-tiles { grid-template-columns: repeat(2, 1fr); }
+}
