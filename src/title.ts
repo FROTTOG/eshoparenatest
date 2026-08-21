@@ -30,12 +30,13 @@ function abs(path: string) {
   return `${window.location.origin}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export function useSeo(opts: { title: string; description?: string; image?: string; type?: string; noindex?: boolean }) {
+export function useSeo(opts: { title: string; description?: string; image?: string; type?: string; noindex?: boolean; canonical?: string }) {
   const title = opts.title;
   const description = opts.description || DEFAULT_DESC;
   const image = abs(opts.image || DEFAULT_IMAGE);
   const type = opts.type || "website";
   const noindex = !!opts.noindex;
+  const canonical = opts.canonical;
 
   useEffect(() => {
     const url = `${window.location.origin}${window.location.pathname}`;
@@ -57,10 +58,10 @@ export function useSeo(opts: { title: string; description?: string; image?: stri
     } else {
       document.head.querySelector('meta[name="robots"]')?.remove();
     }
-    upsertLink("canonical", url);
-  }, [title, description, image, type, noindex]);
+    upsertLink("canonical", canonical || url);
+  }, [title, description, image, type, noindex, canonical]);
 }
 
-export function usePageTitle(title: string, description?: string) {
-  useSeo({ title, description });
+export function usePageTitle(title: string, description?: string, canonical?: string) {
+  useSeo({ title, description, canonical });
 }

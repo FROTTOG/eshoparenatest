@@ -396,7 +396,7 @@ export function Layout() {
         <IconArrowUp className="scroll-top-icon" size={20} />
       </button>
 
-      <div className="toasts">
+      <div className="toasts" role="status" aria-live="polite">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind || ""}`}>
             <span>{t.text}</span>

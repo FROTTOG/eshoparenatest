@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError, type Cart as C, type Product } from "../api";
 import { czk, pickupFreeOver } from "../format";
-import { optimizedImage } from "../image";
+import { OptimizedImg } from "../components/OptimizedImg";
 import { useStore } from "../store";
 import { usePageTitle } from "../title";
 import { trackAddToCart } from "../analytics";
@@ -69,7 +69,7 @@ export function CartPage() {
         {cart.items.map((it) => (
           <div className="line-item" key={it.id}>
             <Link to={`/produkt/${it.slug}`}>
-              <img src={optimizedImage(it.image)} alt={it.name} loading="lazy" decoding="async" width={88} height={88} />
+              <OptimizedImg src={it.image} alt={it.name} loading="lazy" decoding="async" width={88} height={88} />
             </Link>
             <div>
               <Link to={`/produkt/${it.slug}`}>
@@ -104,7 +104,7 @@ export function CartPage() {
             </p>
             {upsells.map((u) => (
               <div className="upsell-row" key={u.id}>
-                <img src={optimizedImage(u.image)} alt="" width={56} height={56} />
+                <OptimizedImg src={u.image} alt="" width={56} height={56} loading="lazy" decoding="async" />
                 <div>
                   <Link to={`/produkt/${u.slug}`}>
                     <strong>{u.name}</strong>

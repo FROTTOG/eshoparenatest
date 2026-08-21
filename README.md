@@ -24,7 +24,9 @@
 - instalovatelnost jako aplikace — web manifest + apple-touch ikona (PWA-ready)
 - pokladna i jako host
 - doprava: **Z-BOX** a **Zásilkovna** (živý widget Packety), **Balíkovna** (iframe mapa České pošty), **na adresu**, **osobní odběr**
-- platba: převod s **QR (SPD)**, **Apple Pay**, **Google Pay**, dobírka, karta při převzetí, hotově v ateliéru
+- platba: převod s **QR (SPD)**, **Apple Pay**, **Google Pay**, **karta online přes platební bránu Comgate** (Visa/Mastercard i Apple/Google Pay přes bránu — viz níže), dobírka, karta při převzetí, hotově v ateliéru
+- **PWA**: instalace do mobilu, **offline režim** (service worker), **Web Push upozornění** hlídacího psa
+- **dvoufázové ověření (2FA/TOTP)** pro administrátory, ochrana přihlášení proti hádání hesla (rate limiting)
 - historie objednávek, sledování podle čísla + e-mailu
 - hodnocení koupeného zboží
 
@@ -40,11 +42,14 @@
 - nastavení obchodu a IBAN
 - nahrání fotek do R2
 - **tisk štítků** — Česká pošta (Podání online), PPL a DPD jedním klikem z objednávky
-- **XML feedy** Heureka / Zboží.cz / Google Shopping
+- **XML feedy** Heureka / Zboží.cz / Google Shopping + **OpenAI (ChatGPT Shopping) feed** (JSONL.GZ na `/openai-feed.jsonl.gz`)
 - **GTM, GA4 a Meta Pixel** + e-commerce události `view_item`, `add_to_cart`, `purchase`
+- **JSON-LD v prvotním HTML** (Organization, WebSite se SearchAction, Product + Offer se shippingDetails, BreadcrumbList) — pro Google merchant listings i AI vyhledávání
+- **vrstvená cache** veřejných API (Cloudflare Cache API + verze cache), **AVIF** varianty obrázků, `smart placement` Workeru u D1
+- **CSP hlavička**, **zálohy D1 do R2** jedním klikem, údržba logů z administrace
 - **e-mailové notifikace** (objednávka, stav, hlídací pes, opuštěný košík) přes Resend
-- **hlídací pes** u vyprodaného zboží
-- **opouštěcí pop-up** se slevou 5 % (`STAY5`)
+- **hlídací pes** u vyprodaného zboží — e-mailem i přes **Web Push** do prohlížeče
+- **opouštěcí pop-up** se slevou 5 % (`STAY5`) a **3e-mailová série opuštěného košíku** (24 h / 72 h, spouští cron)
 - **upsell v košíku** (např. zápalky ke svíčce)
 - **stránky** — drag & drop editor s **35+ bloky** (nadpisy, text, obrázky, tlačítka, citáty, FAQ, galerie, video, mapa, HTML **a nově**: hero sekce, živé produkty a kategorie z obchodu, ceníky, reference, tým, časová osa, záložky, odpočet, newsletter, tabulky, sociální sítě, soubory ke stažení…), přidávání/mazání stránek, **hledání v toolboxu**, **undo/redo (Ctrl+Z)**, klávesové zkratky (Ctrl+S, Delete)
 - **vzhled každého bloku** — vnitřní okraje, pozadí, barvy, zaoblení, stín, max. šířka, kotvy (#odkazy), animace při scrollu, skrytí na mobilu
@@ -92,6 +97,39 @@ Zákazník si fakturu stáhne přímo v detailu objednávky (tlačítko *Faktura
 
 Údaje jsou i v administraci (Nastavení → `vendor_person`, `vendor_web`, `vendor_phone`), takže si je při
 white-label nasazení přepíšete na sebe.
+
+### Platba kartou online (Comgate)
+
+Výchozí pokladna zůstává bez karetní brány. Karta online se zapne takto:
+
+1. Založte si účet u [Comgate](https://www.comgate.cz) (nebo jiné brány — kód je připravený na Comgate).
+2. V administraci: **Nastavení** → vyplňte `comgate_merchant` (ID obchodníka) a `comgate_secret` (heslo pro background komunikaci). `comgate_test` nechte `1` do doby, než si vše otestujete.
+3. Metoda **Online kartou** se tím aktivuje automaticky (přehled: **Platby**).
+4. V portálu Comgate nastavte návratové URL na `https://VAŠE-ADRESA/api/payments/return` (paidUrl/cancelUrl/pendingUrl, podporují `${refId}`) a background URL na `https://VAŠE-ADRESA/api/payments/comgate`.
+5. Pozor: vytváření platby server-to-server (`prepareOnly=true`) vyžaduje v portálu Comgate povolenou **IP adresu e-shopu**. Cloudflare Workers nemají statickou egress IP ve výchozím nastavení — povolte si je na účtu Cloudflare (Static outbound IPs) a ty pak zadejte v Comgate. E-shop s tím počítá: když se bránu nepodaří spustit, objednávka zůstane v „čeká na platbu“ a zákazník ji doplatí tlačítkem na stránce objednávky.
+6. Výsledek platby se **nikdy nevěří návratové URL** — vždy se ověřuje přes status API Comgate (transId + secret). Objednávka se označí jako zaplacená, vystaví se faktura a odejde e-mail.
+
+### Dvoufázové ověření (2FA)
+
+Administrace → **Nastavení → Bezpečnost a provoz → Zapnout dvoufázové ověření**. Naskenujte QR kód
+(Google Authenticator, 1Password…) a potvrďte kódem. Od té chvíle se po heslu zadává 6místný kód.
+Klíčem `totp_required = 1` se 2FA stane pro administrátory povinným.
+
+### Web Push a offline (PWA)
+
+Web je instalovatelný (manifest + ikony) a má service worker s offline fallbackem. Na detailu
+vyprodaného zboží (hlídací pes) si zákazník může zaškrtnout „Upozornit i v prohlížeči“ — po naskladnění
+přijde push notifikace (VAPID klíče se vygenerují samy do nastavení). Push vyžaduje HTTPS.
+
+### Cron úlohy
+
+Kód obsahuje automatizace, které se spouští z cronu (Cloudflare Dashboard → Pages projekt →
+Settings → Functions → Cron Triggers, např. každých 15 minut):
+
+- `POST /api/admin/mail/abandoned` — 2. a 3. e-mail série opuštěného košíku (24 h / 72 h); bez cronu ji spustíte ručně v administraci,
+- `POST /api/admin/maintenance` — úklid logů pokusů o přihlášení a prázdných starých košíků.
+
+Při nasazení přes `wrangler pages deploy` stačí odkomentovat sekci `[[triggers]]` ve `wrangler.toml`.
 
 **Ukázkové účty** (vzniknou samy po prvním otevření webu)
 
@@ -355,7 +393,11 @@ V D1 Console (Cloudflare → D1 → databáze → Console) můžete psát SQL, n
 - hesla jsou PBKDF2, ne otevřený text
 - relace je HTTP-only cookie
 - SQL jde přes parametry (ne slepování stringů)
-- nahrávání do R2 jen pro správce, jen obrázky do 8 MB
+- nahrávání do R2 jen pro správce, jen obrázky do 8 MB (soubor proudí přímo do R2, bez bufferu v Workeru)
+- přihlášení je chráněné proti hádání hesla (max. 8 pokusů za 15 minut na e-mail i IP)
+- volitelné **2FA (TOTP)** pro administrátory
+- výsledek platby kartou se ověřuje server-to-server přes status API brány
+- **CSP** hlavička na všech stránkách (povolené jen známé domény — Packeta, GTM/GA4, Meta, Google Fonts)
 - `AUTH_SECRET` držte jako Secret, ne v `wrangler.toml`
 
 ---

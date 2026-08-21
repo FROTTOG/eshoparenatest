@@ -1,7 +1,10 @@
 import type { App } from "./helpers";
 import { requireAdmin, slugify } from "./helpers";
 import { loadOrder } from "./public";
-import { notifyBackInStock, notifyOrderStatus, resolveMailConfig, sendTestMail } from "./mail";
+import { notifyBackInStock, notifyOrderStatus, processAbandonedCarts, resolveMailConfig, sendTestMail } from "./mail";
+import { bumpCache } from "./cache";
+import { pushToSubscriptions } from "./push";
+import { generateTotpSecret, verifyPassword, verifyTotp } from "./crypto";
 import { CARRIERS, createShipment, type CarrierCode } from "./shipping";
 import {
   cancelInvoiceForOrder,
@@ -115,6 +118,7 @@ export function registerAdmin(app: App) {
           c.get("user")!.id
         ).run();
       }
+      await bumpCache(c.env.DB);
       return c.json({ id });
     } catch (e) {
       return c.json({ error: "Slug nebo SKU už existuje.", detail: String(e) }, 409);
@@ -147,6 +151,7 @@ export function registerAdmin(app: App) {
         id
       )
       .run();
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
@@ -154,6 +159,7 @@ export function registerAdmin(app: App) {
     const id = Number(c.req.param("id"));
     await c.env.DB.prepare("DELETE FROM product_images WHERE product_id = ?").bind(id).run();
     await c.env.DB.prepare("DELETE FROM products WHERE id = ?").bind(id).run();
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
@@ -181,11 +187,27 @@ export function registerAdmin(app: App) {
         if (prod && waiting.length) {
           await notifyBackInStock(c.env.DB, prod, waiting.map((w) => w.email), c.env);
           await c.env.DB.prepare("UPDATE stock_alerts SET notified_at = datetime('now') WHERE product_id = ? AND notified_at IS NULL").bind(id).run();
+          // Kromě e-mailu upozorníme i přes Web Push.
+          const subs = (await c.env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE product_id = ?").bind(id).all<{ endpoint: string; p256dh: string; auth: string }>()).results || [];
+          if (subs.length) {
+            const origin = (await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'store_url'").first<{ value: string }>())?.value || "";
+            void pushToSubscriptions(
+              c.env.DB,
+              subs.map((s) => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } })),
+              {
+                title: `${prod.name} je znovu skladem`,
+                body: "Produkt, který jste hlídali, je zpátky na polici.",
+                url: `${origin || ""}/produkt/${prod.slug}`,
+              }
+            );
+            await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE product_id = ?").bind(id).run();
+          }
         }
       } catch (err) {
         console.error("stock alert mail", err);
       }
     }
+    await bumpCache(c.env.DB);
     return c.json({ stock: next });
   });
 
@@ -203,6 +225,7 @@ export function registerAdmin(app: App) {
     )
       .bind(b.name, slug, b.description || "", b.image || "", Number(b.sort_order || 0), b.active === 0 ? 0 : 1)
       .run();
+    await bumpCache(c.env.DB);
     return c.json({ id: res.meta.last_row_id });
   });
 
@@ -217,11 +240,13 @@ export function registerAdmin(app: App) {
       b.active === 0 || b.active === false ? 0 : 1,
       Number(c.req.param("id"))
     ).run();
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
   app.delete("/admin/categories/:id", async (c) => {
     await c.env.DB.prepare("DELETE FROM categories WHERE id = ?").bind(Number(c.req.param("id"))).run();
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
@@ -296,6 +321,7 @@ export function registerAdmin(app: App) {
       console.error("Invoice sync error:", err);
     }
 
+    await bumpCache(c.env.DB);
     return c.json({ order: await loadOrder(c.env.DB, id) });
   });
 
@@ -368,6 +394,7 @@ export function registerAdmin(app: App) {
   app.patch("/admin/reviews/:id", async (c) => {
     const b = await c.req.json<{ approved?: number }>();
     await c.env.DB.prepare("UPDATE reviews SET approved = ? WHERE id = ?").bind(b.approved ? 1 : 0, Number(c.req.param("id"))).run();
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
@@ -461,6 +488,7 @@ export function registerAdmin(app: App) {
         Number(c.req.param("id"))
       )
       .run();
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
@@ -484,6 +512,7 @@ export function registerAdmin(app: App) {
         Number(c.req.param("id"))
       )
       .run();
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
@@ -498,6 +527,15 @@ export function registerAdmin(app: App) {
       .filter(([k]) => k !== "seeded")
       .map(([k, v]) => c.env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").bind(k, String(v ?? "")));
     if (stmts.length) await c.env.DB.batch(stmts);
+    // Zapnutá platební brána (comgate_merchant) aktivuje metodu „karta online“;
+    // bez brány ji pokladna nikdy nenabízí.
+    if (b.comgate_merchant != null) {
+      await c.env.DB
+        .prepare("UPDATE payment_methods SET active = ? WHERE code = 'card'")
+        .bind(String(b.comgate_merchant || "").trim() ? 1 : 0)
+        .run();
+    }
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
@@ -887,6 +925,7 @@ export function registerAdmin(app: App) {
     const res = await c.env.DB.prepare(
       "INSERT INTO pages (title, slug, blocks_json, in_nav, nav_label, nav_order, published, is_system) VALUES (?, ?, '[]', 0, '', 0, 1, 0)"
     ).bind(title, candidate).run();
+    await bumpCache(c.env.DB);
     return c.json({ id: Number(res.meta.last_row_id), slug: candidate });
   });
 
@@ -944,6 +983,7 @@ export function registerAdmin(app: App) {
       String(b.page_max_width ?? cur.page_max_width ?? ""),
       id
     ).run();
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
@@ -959,6 +999,7 @@ export function registerAdmin(app: App) {
     if (fields.length) {
       await c.env.DB.prepare(`UPDATE pages SET ${fields.join(", ")}, updated_at=datetime('now') WHERE id=?`).bind(...values, id).run();
     }
+    await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
 
@@ -976,12 +1017,122 @@ export function registerAdmin(app: App) {
     const file = form.get("file");
     if (!(file instanceof File)) return c.json({ error: "Vyberte soubor." }, 400);
     if (file.size > 8 * 1024 * 1024) return c.json({ error: "Soubor je větší než 8 MB." }, 400);
-    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
-    if (!allowed.includes(file.type)) return c.json({ error: "Povolené jsou JPG, PNG, WEBP, GIF, AVIF." }, 400);
-    // Automatická konverze do webp – ukládáme vždy jako .webp s content-type image/webp
-    const buf = await file.arrayBuffer();
-    const key = `uploads/${crypto.randomUUID()}.webp`;
-    await c.env.MEDIA.put(key, buf, { httpMetadata: { contentType: "image/webp" } });
+    const allowed: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/gif": "gif",
+      "image/avif": "avif",
+    };
+    const ext = allowed[file.type];
+    if (!ext) return c.json({ error: "Povolené jsou JPG, PNG, WEBP, GIF, AVIF." }, 400);
+    // Soubor proudí přímo do R2 (bez načítání celého do paměti Workeru).
+    const key = `uploads/${crypto.randomUUID()}.${ext}`;
+    await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
     return c.json({ key, url: `/api/media/${key}` });
+  });
+
+  /* ============================================================
+     Dvoufázové ověření (TOTP) pro administrátory
+     ============================================================ */
+  app.get("/admin/totp", async (c) => {
+    const user = c.get("user")!;
+    const row = await c.env.DB.prepare("SELECT totp_secret FROM users WHERE id = ?").bind(user.id).first<{ totp_secret: string }>();
+    const required = (await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'totp_required'").first<{ value: string }>())?.value === "1";
+    return c.json({ enabled: !!(row?.totp_secret), required });
+  });
+
+  // Příprava tajemství pro QR kód — nic se ještě neukládá.
+  app.get("/admin/totp/setup", async (c) => {
+    const user = c.get("user")!;
+    const secret = generateTotpSecret();
+    const otpauth = `otpauth://totp/${encodeURIComponent("KAVKA")}:${encodeURIComponent(user.email)}?secret=${secret}&issuer=${encodeURIComponent("KAVKA")}`;
+    return c.json({ secret, otpauth });
+  });
+
+  app.post("/admin/totp/enable", async (c) => {
+    const user = c.get("user")!;
+    const b = await c.req.json<{ password?: string; code?: string; secret?: string }>();
+    const row = await c.env.DB.prepare("SELECT password_hash, totp_secret FROM users WHERE id = ?").bind(user.id).first<{ password_hash: string; totp_secret: string }>();
+    if (!row) return c.json({ error: "Uživatel nenalezen." }, 404);
+    if (row.totp_secret) return c.json({ error: "Dvoufázové ověření už je zapnuté." }, 409);
+    if (!(await verifyPassword(b.password || "", row.password_hash))) {
+      return c.json({ error: "Nesprávné heslo." }, 401);
+    }
+    const secret = (b.secret || "").replace(/[^A-Za-z2-7]/g, "").toUpperCase();
+    if (secret.length < 16) return c.json({ error: "Neplatné tajemství — obnovte QR kód." }, 400);
+    if (!(await verifyTotp(secret, b.code || ""))) {
+      return c.json({ error: "Ověřovací kód nesouhlasí — naskenujte QR kód a zadejte kód z aplikace." }, 400);
+    }
+    await c.env.DB.prepare("UPDATE users SET totp_secret = ? WHERE id = ?").bind(secret, user.id).run();
+    return c.json({ ok: true });
+  });
+
+  app.post("/admin/totp/disable", async (c) => {
+    const user = c.get("user")!;
+    const b = await c.req.json<{ password?: string; code?: string }>();
+    const row = await c.env.DB.prepare("SELECT password_hash, totp_secret FROM users WHERE id = ?").bind(user.id).first<{ password_hash: string; totp_secret: string }>();
+    if (!row) return c.json({ error: "Uživatel nenalezen." }, 404);
+    if (!row.totp_secret) return c.json({ ok: true });
+    if (!(await verifyPassword(b.password || "", row.password_hash))) {
+      return c.json({ error: "Nesprávné heslo." }, 401);
+    }
+    if (!(await verifyTotp(row.totp_secret, b.code || ""))) {
+      return c.json({ error: "Ověřovací kód nesouhlasí." }, 400);
+    }
+    await c.env.DB.prepare("UPDATE users SET totp_secret = '' WHERE id = ?").bind(user.id).run();
+    return c.json({ ok: true });
+  });
+
+  /* ============================================================
+     Provoz: záloha D1, série opuštěného košíku
+     ============================================================ */
+  app.post("/admin/backup", async (c) => {
+    const tables = [
+      "users", "sessions", "addresses", "categories", "products", "product_images",
+      "carts", "cart_items", "coupons", "coupon_redemptions", "shipping_methods",
+      "payment_methods", "pickup_points", "orders", "order_items", "reviews",
+      "stock_movements", "settings", "invoices", "claims", "stock_alerts",
+      "product_upsells", "shipments", "email_log", "pages", "login_attempts",
+      "push_subscriptions", "otp_challenges",
+    ];
+    const out: Record<string, unknown[]> = {};
+    for (const t of tables) {
+      try {
+        const rows = (await c.env.DB.prepare(`SELECT * FROM ${t}`).all()).results || [];
+        out[t] = rows;
+      } catch {
+        /* tabulka nemusí existovat */
+      }
+    }
+    const dump = {
+      exported_at: new Date().toISOString(),
+      tables: out,
+    };
+    const text = JSON.stringify(dump);
+    let r2Key = "";
+    if (c.env.MEDIA) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      r2Key = `backups/kavka-${stamp}.json`;
+      await c.env.MEDIA.put(r2Key, text, { httpMetadata: { contentType: "application/json" } });
+    }
+    return c.json({ ok: true, bytes: text.length, r2_key: r2Key || undefined });
+  });
+
+  // Ruční spuštění série opuštěného košíku (jinak běží z cronu — viz README).
+  app.post("/admin/mail/abandoned", async (c) => {
+    const r = await processAbandonedCarts(c.env.DB, c.env);
+    return c.json({ ok: true, ...r });
+  });
+
+  // Ruční smazání starých záznamů pokusů o přihlášení (údržba).
+  app.post("/admin/maintenance", async (c) => {
+    const cleaned = await c.env.DB
+      .prepare("DELETE FROM login_attempts WHERE created_at < datetime('now', '-1 day')")
+      .run();
+    const oldCarts = await c.env.DB
+      .prepare("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE updated_at < datetime('now', '-60 days'))")
+      .run();
+    return c.json({ ok: true, login_attempts_deleted: cleaned.meta.changes, old_cart_items_deleted: oldCarts.meta.changes });
   });
 }

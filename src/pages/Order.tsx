@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, ApiError, type Order, type Settings } from "../api";
+import { api, ApiError, type Order, type Product, type Settings } from "../api";
 import { PayQr } from "../components/PayQr";
+import { ProductCard } from "../components/ProductCard";
 import { czk, dateCs, statusLabel } from "../format";
 import { useStore } from "../store";
 import { usePageTitle } from "../title";
@@ -10,9 +11,31 @@ import { trackPurchase } from "../analytics";
 export function OrderPage() {
   usePageTitle("Objednávka — KAVKA");
   const { number } = useParams();
-  const { settings } = useStore();
+  const { settings, toast } = useStore();
   const [order, setOrder] = useState<Order | null>(null);
   const [err, setErr] = useState("");
+  const [related, setRelated] = useState<Product[]>([]);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payErr, setPayErr] = useState("");
+
+  async function payByCard() {
+    if (!number || payBusy) return;
+    setPayBusy(true);
+    setPayErr("");
+    try {
+      const r = await api<{ redirect_url?: string }>(`/orders/${number}/pay`, { method: "POST" });
+      if (r.redirect_url) {
+        window.location.href = r.redirect_url;
+        return;
+      }
+      setPayErr("Platební brána nevrátila adresu k zaplacení.");
+    } catch (e) {
+      setPayErr(e instanceof ApiError ? e.message : "Platbu se nepodařilo zahájit.");
+      toast(e instanceof ApiError ? e.message : "Platbu se nepodařilo zahájit.", "err");
+    } finally {
+      setPayBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!number) return;
@@ -25,6 +48,14 @@ export function OrderPage() {
           sessionStorage.setItem(key, "1");
           trackPurchase({ number: r.order.number, total: r.order.total, items: r.order.items });
         }
+        // Návrhy na dokoupení — jen pro objednávky, které se nepodařilo zaplatit
+        // kartou (ostatní už přesměrováváme nebo dokončili nákup).
+        void api<{ items: Product[] }>("/products?featured=1&limit=8")
+          .then((p) => {
+            const bought = new Set((r.order.items || []).map((i) => i.product_id).filter(Boolean) as number[]);
+            setRelated((p.items || []).filter((x) => !bought.has(x.id)).slice(0, 4));
+          })
+          .catch(() => setRelated([]));
       })
       .catch((e) => setErr(e instanceof ApiError ? e.message : "Nepodařilo se načíst."));
   }, [number]);
@@ -75,6 +106,22 @@ export function OrderPage() {
             Zaplatit převodem
           </h3>
           <PayQr amount={order.total} vs={order.number} message={`KAVKA ${order.number}`} settings={settings as Settings} />
+        </div>
+      )}
+
+      {order.payment_code === "card" && order.payment_status !== "paid" && order.status !== "cancelled" && order.total > 0 && (
+        <div className="form glass-card" style={{ margin: "18px 0", maxWidth: 560 }}>
+          <h3 className="serif" style={{ margin: 0 }}>
+            Doplatek kartou online
+          </h3>
+          <p style={{ color: "var(--muted)", fontSize: 14 }}>
+            Objednávka čeká na platbu. Platební bránu můžete spustit znovu tlačítkem níže — přesměrujeme vás na
+            zabezpečenou stránku brány.
+          </p>
+          {payErr && <p className="err">{payErr}</p>}
+          <button type="button" className="btn" disabled={payBusy} onClick={() => void payByCard()}>
+            {payBusy ? "Přesměrováváme…" : "Zaplatit kartou online"}
+          </button>
         </div>
       )}
 
@@ -194,6 +241,22 @@ export function OrderPage() {
           </p>
         </aside>
       </div>
+
+      {related.length > 0 && (
+        <section style={{ marginTop: 36 }} aria-label="Mohlo by se vám líbit">
+          <h2 className="serif" style={{ margin: 0 }}>
+            Mohlo by se vám líbit
+          </h2>
+          <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 6 }}>
+            Doplňky, které se k objednávce hodí — jedním klikem do košíku.
+          </p>
+          <div className="related-grid">
+            {related.map((p, i) => (
+              <ProductCard key={p.id} p={p} index={i} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

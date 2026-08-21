@@ -25,7 +25,10 @@ export function Catalog() {
   const [reload, setReload] = useState(0);
 
   const cat = cats.find((c) => c.slug === slug);
-  usePageTitle(cat ? `${cat.name} — KAVKA` : q ? `Hledání: ${q} — KAVKA` : "Katalog — KAVKA");
+  // Canonical bez filtrů a stránkování — filtrované kombinace URL tak neředí
+  // crawl budget a indexaci (facetová navigace).
+  const canonical = `${window.location.origin}${slug ? `/katalog/${slug}` : "/katalog"}`;
+  usePageTitle(cat ? `${cat.name} — KAVKA` : q ? `Hledání: ${q} — KAVKA` : "Katalog — KAVKA", undefined, canonical);
 
   useEffect(() => {
     const controller = new AbortController();

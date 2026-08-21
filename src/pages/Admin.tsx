@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type Order, type Page, type Product } from "../api";
+import QRCode from "qrcode";
 import { IconClose, IconMenu } from "../components/Icons";
 import { InfoButton } from "../components/InfoButton";
 import { Logo } from "../components/Ui";
@@ -899,7 +900,7 @@ function Shipping() {
 }
 
 function Payments() {
-  const [rows, setRows] = useState<{ id: number; name: string; description: string; fee: number; active: number; allowed_shipping: string; sort_order: number }[]>([]);
+  const [rows, setRows] = useState<{ id: number; code: string; name: string; description: string; fee: number; active: number; allowed_shipping: string; sort_order: number }[]>([]);
   const load = () => void api<typeof rows>("/admin/payments").then(setRows);
   useEffect(() => { load(); }, []);
   return (
@@ -912,6 +913,12 @@ function Payments() {
           <label className="full">Povolené dopravy (* = všechny)<input value={p.allowed_shipping} onChange={(e) => setRows(rows.map((x) => x.id === p.id ? { ...x, allowed_shipping: e.target.value } : x))} /></label>
           <label className="full">Popis<textarea value={p.description} onChange={(e) => setRows(rows.map((x) => x.id === p.id ? { ...x, description: e.target.value } : x))} /></label>
           <label><input type="checkbox" checked={!!p.active} onChange={(e) => setRows(rows.map((x) => x.id === p.id ? { ...x, active: e.target.checked ? 1 : 0 } : x))} /> Aktivní</label>
+          {p.code === "card" && (
+            <p className="full" style={{ fontSize: 13, color: "var(--muted)" }}>
+              Karta online se zákazníkům nabízí jen s vyplněnou platební bránou — nastavte <code>comgate_merchant</code> v{" "}
+              <Link to="/admin/nastaveni">Nastavení</Link>. Bez brány zůstává metoda skrytá.
+            </p>
+          )}
           <button className="btn-dark">Uložit</button>
         </form>
       ))}
@@ -1257,7 +1264,7 @@ function SettingsPage() {
             <span className="field-label">{label} <InfoButton title={label}>{help[k] || "Toto nastavení upravuje chování e-shopu. Změnu uložte tlačítkem dole a poté ověřte výsledek na veřejném webu."}</InfoButton></span>
             {k.includes("hero_text") || k.includes("home_") ? (
               <textarea value={form[k] || ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
-            ) : k === "resend_api_key" ? (
+            ) : k === "resend_api_key" || k === "comgate_secret" ? (
               <div style={{ display: "flex", gap: 8 }}>
                 <input
                   type={showKey ? "text" : "password"}
@@ -1265,7 +1272,7 @@ function SettingsPage() {
                   spellCheck={false}
                   value={form[k] || ""}
                   onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-                  placeholder="re_…"
+                  placeholder={k === "comgate_secret" ? "heslo z portálu Comgate" : "re_…"}
                 />
                 <button
                   type="button"
@@ -1293,7 +1300,186 @@ function SettingsPage() {
           <button className="btn-dark" type="submit">Uložit nastavení</button>
         </div>
       </form>
+
+      <SecuritySettings />
     </>
+  );
+}
+
+function SecuritySettings() {
+  const { toast } = useStore();
+  const [totp, setTotp] = useState<{ enabled: boolean; required: boolean } | null>(null);
+  const [setup, setSetup] = useState<{ secret: string; otpauth: string } | null>(null);
+  const [qr, setQr] = useState("");
+  const [pw, setPw] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = () => void api<{ enabled: boolean; required: boolean }>("/admin/totp").then(setTotp).catch(() => {});
+  useEffect(load, []);
+
+  async function startSetup() {
+    setBusy(true);
+    try {
+      const r = await api<{ secret: string; otpauth: string }>("/admin/totp/setup");
+      const data = await QRCode.toDataURL(r.otpauth, { width: 200, margin: 1 });
+      setSetup(r);
+      setQr(data);
+      setCode("");
+      setPw("");
+    } catch {
+      toast("Přípravu ověření se nepodařilo spustit.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function enable() {
+    if (!setup) return;
+    setBusy(true);
+    try {
+      await api("/admin/totp/enable", { method: "POST", body: JSON.stringify({ password: pw, code, secret: setup.secret }) });
+      toast("Dvoufázové ověření je zapnuté. Při příštím přihlášení budete zadávat kód z aplikace.");
+      setSetup(null);
+      setQr("");
+      load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Nepodařilo se zapnout.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disable() {
+    setBusy(true);
+    try {
+      await api("/admin/totp/disable", { method: "POST", body: JSON.stringify({ password: pw, code }) });
+      toast("Dvoufázové ověření je vypnuté.");
+      setPw("");
+      setCode("");
+      load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Nepodařilo se vypnout.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function backup() {
+    setBusy(true);
+    try {
+      const r = await api<{ bytes: number; r2_key?: string }>("/admin/backup", { method: "POST" });
+      toast(r.r2_key ? `Záloha uložená do R2 (${r.r2_key}, ${Math.round(r.bytes / 1024)} kB).` : `Záloha připravená (${Math.round(r.bytes / 1024)} kB). R2 není připojené.`, "ok");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Záloha selhala.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runAbandoned() {
+    setBusy(true);
+    try {
+      const r = await api<{ sent: number }>("/admin/mail/abandoned", { method: "POST" });
+      toast(`Série opuštěného košíku: odesláno ${r.sent} e-mailů.`);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Zpracování selhalo.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function maintenance() {
+    setBusy(true);
+    try {
+      await api("/admin/maintenance", { method: "POST" });
+      toast("Údržba dokončena.");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Údržba selhala.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="admin-form" style={{ marginTop: 28 }} aria-label="Bezpečnost a provoz">
+      <h2 style={{ margin: "0 0 4px" }}>Bezpečnost a provoz</h2>
+
+      <div className="totp-box">
+        <h3 style={{ margin: "12px 0 6px" }}>Dvoufázové ověření (TOTP)</h3>
+        <p style={{ color: "var(--muted)", fontSize: 13.5, margin: "0 0 10px" }}>
+          {totp?.enabled
+            ? "Zapnuté — při přihlášení se po heslu zadává 6místný kód z autentizační aplikace (Google Authenticator, 1Password…)."
+            : "Vypnuté — po zapnutí bude přihlášení chráněné jednorázovým kódem z autentizační aplikace."}
+        </p>
+        {totp?.enabled ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <label>
+              Heslo
+              <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />
+            </label>
+            <label>
+              Kód z aplikace
+              <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} placeholder="123456" />
+            </label>
+            <button type="button" className="btn-line" disabled={busy} onClick={() => void disable()}>
+              Vypnout 2FA
+            </button>
+          </div>
+        ) : setup ? (
+          <div>
+            <p style={{ margin: "0 0 8px", fontSize: 13.5 }}>
+              Naskenujte QR kód do autentizační aplikace (nebo zadejte tajemství ručně) a potvrďte aktuálním kódem:
+            </p>
+            <span className="totp-qr">
+              <img src={qr} alt="QR kód pro autentizační aplikaci" />
+            </span>
+            <p style={{ fontSize: 12, color: "var(--muted)", margin: "8px 0" }}>
+              Tajemství: <code>{setup.secret}</code>
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <label>
+                Heslo
+                <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" />
+              </label>
+              <label>
+                Kód z aplikace
+                <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} placeholder="123456" />
+              </label>
+              <button type="button" className="btn" disabled={busy} onClick={() => void enable()}>
+                Zapnout 2FA
+              </button>
+              <button type="button" className="linkish" style={{ background: "none", border: "none" }} onClick={() => setSetup(null)}>
+                Zrušit
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="btn-line" disabled={busy} onClick={() => void startSetup()}>
+            Zapnout dvoufázové ověření
+          </button>
+        )}
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <h3 style={{ margin: "12px 0 6px" }}>Záloha a údržba</h3>
+        <p style={{ color: "var(--muted)", fontSize: 13.5, margin: "0 0 10px" }}>
+          Záloha D1 (produkty, objednávky, zákazníci…) do R2. Sérii e-mailů opuštěného košíku jinak spouští cron —
+          zde ji spustíte ručně.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" className="btn-line" disabled={busy} onClick={() => void backup()}>
+            Zálohovat databázi
+          </button>
+          <button type="button" className="btn-line" disabled={busy} onClick={() => void runAbandoned()}>
+            Odeslat sérii opuštěných košíků
+          </button>
+          <button type="button" className="btn-line" disabled={busy} onClick={() => void maintenance()}>
+            Údržba (úklid logů)
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1303,6 +1489,7 @@ function FeedsPage() {
     { name: "Heureka.cz", path: "/heureka.xml", hint: "Heureka → XML feed produktů (stejný i na /api/feeds/heureka.xml)" },
     { name: "Zboží.cz", path: "/zbozi.xml", hint: "Seznam Zboží.cz → XML import" },
     { name: "Google Shopping", path: "/google-shopping.xml", hint: "Google Merchant Center → Products → Feeds" },
+    { name: "OpenAI (ChatGPT Shopping)", path: "/openai-feed.jsonl.gz", hint: "JSONL.GZ dle specifikace OpenAI Commerce — dodává se přes SFTP po schválení v ChatGPT merchant portálu" },
   ];
   return (
     <>

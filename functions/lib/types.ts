@@ -5,6 +5,8 @@ export type Bindings = {
   STORE_NAME?: string;
   RESEND_API_KEY?: string;
   MAIL_FROM?: string;
+  /** Volitelná vazba Analytics Engine ([[analytics_engine_datasets]]). */
+  METRICS?: { writeDataPoint: (row: { indexes?: [string]; doubles?: number[]; blobs?: string[] }) => void };
 };
 
 export type AppUser = {
