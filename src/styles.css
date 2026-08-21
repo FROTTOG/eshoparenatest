@@ -3,7 +3,7 @@
   --bg-deep: #e7dece;
   --ink: #1c1915;
   --ink-soft: #4a453e;
-  --muted: #7a7268;
+  --muted: #6d655b;
   --line: #d7ccbc;
   --card: #fffdf8;
   --accent: #b54a2c;
@@ -5427,4 +5427,140 @@ html.lightbox-open body {
 @media (min-width: 981px) and (max-width: 1260px) {
   .nav { flex-wrap: wrap; row-gap: 4px; }
   .nav a { font-size: 12px; letter-spacing: 0.05em; }
+}
+
+/* ============================================================
+   Přístupnost: viditelný focus (WCAG 2.4.7), tap targety,
+   indikátor kroků pokladny, trust signály, hlídací pes, TOTP.
+   ============================================================ */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.skip-link:focus-visible {
+  outline-offset: 0;
+}
+
+/* Indikátor kroků pokladny */
+.checkout-steps {
+  display: flex;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+.checkout-steps .cs-step {
+  flex: 1;
+  min-width: 0;
+}
+.checkout-steps .cs-step .cs-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.checkout-steps .cs-step.done .cs-bar,
+.checkout-steps .cs-step.active .cs-bar {
+  background: var(--forest);
+}
+.checkout-steps .cs-label {
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.checkout-steps .cs-step.active .cs-label {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Trust signály u plateb */
+.trust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.7);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.trust-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.trust-row svg { color: var(--forest); flex: none; }
+
+/* Hlídací pes na detailu produktu */
+.stock-alert-box {
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px dashed var(--gold);
+  border-radius: 16px;
+  background: rgba(255, 253, 248, 0.8);
+}
+.stock-alert-box .sa-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.stock-alert-box .sa-row input[type="email"] {
+  flex: 1;
+  min-width: 200px;
+}
+.stock-alert-box .sa-note {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+/* Související produkty po nákupu */
+.related-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+/* Dvoufázové ověření v administraci */
+.totp-box {
+  max-width: 460px;
+}
+.totp-box .totp-qr {
+  display: inline-block;
+  background: #fff;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.totp-box .totp-qr img {
+  display: block;
+  width: 180px;
+  height: 180px;
+}
+.totp-box code {
+  word-break: break-all;
+  background: var(--bg-deep);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* Zvětšení klikací plochy u drobných tlačítek na mobilu */
+@media (max-width: 640px) {
+  .qty button, .icon-btn, .wish-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }

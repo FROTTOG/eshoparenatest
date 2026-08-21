@@ -352,5 +352,89 @@ export async function notifyAbandonedCart(
     `<p>Nechali jste v košíku zboží. Když nákup dokončíte, máte slevu <b>5 %</b> s kódem <b>${escapeHtml(coupon)}</b>.</p>
      <p><a href="${escapeHtml(origin ? `${origin}/kosik` : "/kosik")}">Vrátit se do košíku</a></p>`
   );
-  await sendMail(db, { to, subject: `${store}: 5 % na dokončení nákupu`, html, kind: "abandoned_cart", meta: coupon }, env);
+  await sendMail(
+    db,
+    { to, subject: `${store}: 5 % na dokončení nákupu`, html, kind: "abandoned_cart", meta: `${coupon}|stage:1` },
+    env
+  );
+}
+
+/**
+ * 2. a 3. e-mail série opuštěného košíku (24 h a 72 h po opuštění).
+ * Posílá je plánovaná úloha (cron) nebo ručně administrátor.
+ */
+export async function notifyAbandonedCartStage(
+  db: D1Database,
+  to: string,
+  stage: 2 | 3,
+  env?: MailEnv
+): Promise<void> {
+  const s = await loadSettings(db);
+  const store = s.store_name || "KAVKA";
+  const origin = s.store_url || "";
+  const coupon = s.exit_coupon || "STAY5";
+  const cartUrl = origin ? `${origin}/kosik` : "/kosik";
+  const couponLine = stage === 2
+    ? `<p>Sleva <b>5 %</b> s kódem <b>${escapeHtml(coupon)}</b> na vás stále čeká.</p>`
+    : `<p>Poslední šance: sleva <b>5 %</b> s kódem <b>${escapeHtml(coupon)}</b> platí už jen dnes.</p>`;
+  const html = wrapMail(
+    store,
+    stage === 2 ? "Váš košík na vás počká ještě chvíli" : "Košík vám za chvíli uteče",
+    `<p>Všimli jsme si, že jste u nás nechali rozkoukané zboží — zatím vám ho držíme v košíku.</p>
+     ${couponLine}
+     <p><a href="${escapeHtml(cartUrl)}">Dokončit nákup</a></p>
+     <p style="color:#7a7268;font-size:12px">Pokud jste už objednali, tento e-mail prosím ignorujte.</p>`
+  );
+  await sendMail(
+    db,
+    {
+      to,
+      subject: stage === 2 ? `${store}: košík na vás čeká` : `${store}: poslední šance na nákup`,
+      html,
+      kind: "abandoned_cart",
+      meta: `${coupon}|stage:${stage}`,
+    },
+    env
+  );
+}
+
+/**
+ * Projde nevyřízené košíky se známým e-mailem a odešle 2./3. e-mail série
+ * podle stáří košíku. Volá se z cronu (viz README) nebo z administrace.
+ */
+export async function processAbandonedCarts(db: D1Database, env?: MailEnv): Promise<{ sent: number }> {
+  const rows =
+    (
+      await db
+        .prepare(
+          `SELECT c.id, c.email, c.updated_at
+           FROM carts c
+           WHERE c.email != ''
+             AND c.updated_at > datetime('now', '-5 days')
+             AND EXISTS (SELECT 1 FROM cart_items ci WHERE ci.cart_id = c.id)
+           ORDER BY c.updated_at ASC`
+        )
+        .all<{ id: string; email: string; updated_at: string }>()
+    ).results || [];
+  let sent = 0;
+  for (const cart of rows) {
+    const ageMs = Date.now() - new Date(cart.updated_at.replace(" ", "T") + "Z").getTime();
+    const ageH = ageMs / 3_600_000;
+    let stage: 2 | 3 | null = null;
+    if (ageH >= 72) stage = 3;
+    else if (ageH >= 24) stage = 2;
+    if (!stage) continue;
+    const already = await db
+      .prepare("SELECT COUNT(*) AS c FROM email_log WHERE kind = 'abandoned_cart' AND recipient = ? AND meta LIKE ?")
+      .bind(cart.email, `%|stage:${stage}`)
+      .first<{ c: number }>();
+    if ((already?.c || 0) > 0) continue;
+    try {
+      await notifyAbandonedCartStage(db, cart.email, stage, env);
+      sent++;
+    } catch (err) {
+      console.error("abandoned stage mail:", err);
+    }
+  }
+  return { sent };
 }

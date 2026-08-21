@@ -13,19 +13,20 @@ import {
   setCookie,
   validEmail,
 } from "./helpers";
-import { hashPassword, orderNumber, randomId, verifyPassword } from "./crypto";
-import { ensureInvoiceForOrder, invoiceHtml, loadSettings } from "./invoices";
+import { hashPassword, orderNumber, randomId, verifyPassword, verifyTotp } from "./crypto";
+import { ensureInvoiceForOrder, invoiceHtml, loadSettings, markInvoicePaid } from "./invoices";
 import { registerFeeds } from "./feeds";
-import { notifyAbandonedCart, notifyOrderCreated } from "./mail";
+import { notifyAbandonedCart, notifyAbandonedCartStage, notifyOrderCreated, notifyOrderStatus } from "./mail";
+import { cachedJson, bumpCache } from "./cache";
+import { comgateCreate, comgateStatus, type ComgateSettings } from "./payments";
+import { pushToSubscriptions } from "./push";
 
-export function registerPublic(app: App) {
-  registerFeeds(app);
-  app.get("/health", (c) => c.json({ ok: true, store: c.env.STORE_NAME || "KAVKA" }));
+const LOGIN_MAX_FAILS = 8;
 
-  app.get("/settings", async (c) => {
-    const rows = (await c.env.DB.prepare("SELECT key, value FROM settings").all<{ key: string; value: string }>()).results || [];
-    const all = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-    const publicKeys = [
+async function loadPublicSettings(db: D1Database): Promise<Record<string, string>> {
+  const rows = (await db.prepare("SELECT key, value FROM settings").all<{ key: string; value: string }>()).results || [];
+  const all = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const publicKeys = [
       "store_name",
       "store_company",
       "store_ico",
@@ -81,10 +82,23 @@ export function registerPublic(app: App) {
       "apple_pay_merchant_id",
       "google_pay_merchant_id",
       "exit_coupon",
+      "comgate_merchant",
+      "totp_required",
+      "vapid_public_key",
     ];
     const pub: Record<string, string> = {};
     for (const k of publicKeys) if (all[k] != null) pub[k] = all[k];
-    return c.json(pub);
+    // Indikátor, že je brána nastavená — pokladna podle toho nabídne kartu online.
+    pub.comgate_enabled = all.comgate_merchant ? "1" : "0";
+    return pub;
+}
+
+export function registerPublic(app: App) {
+  registerFeeds(app);
+  app.get("/health", (c) => c.json({ ok: true, store: c.env.STORE_NAME || "KAVKA" }));
+
+  app.get("/settings", async (c) => {
+    return cachedJson(c.env.DB, c.req.url, "/api/settings", 30, () => loadPublicSettings(c.env.DB));
   });
 
   app.get("/ares", async (c) => {
@@ -149,8 +163,10 @@ export function registerPublic(app: App) {
 
   // Seznam zveřejněných stránek z editoru (pro dynamický navbar)
   app.get("/pages", async (c) => {
-    const rows = (await c.env.DB.prepare("SELECT id, title, slug, in_nav, nav_label, nav_order FROM pages WHERE published = 1 ORDER BY nav_order, id").all()).results || [];
-    return c.json(rows);
+    return cachedJson(c.env.DB, c.req.url, "/api/pages", 60, async () => {
+      const rows = (await c.env.DB.prepare("SELECT id, title, slug, in_nav, nav_label, nav_order FROM pages WHERE published = 1 ORDER BY nav_order, id").all()).results || [];
+      return rows;
+    });
   });
 
   // Veřejná stránka z editoru (drag & drop builder)
@@ -162,10 +178,12 @@ export function registerPublic(app: App) {
   });
 
   app.get("/categories", async (c) => {
-    const rows = await c.env.DB.prepare(
-      "SELECT * FROM categories WHERE active = 1 ORDER BY sort_order, name"
-    ).all();
-    return c.json(rows.results || []);
+    return cachedJson(c.env.DB, c.req.url, "/api/categories", 120, async () => {
+      const rows = await c.env.DB.prepare(
+        "SELECT * FROM categories WHERE active = 1 ORDER BY sort_order, name"
+      ).all();
+      return rows.results || [];
+    });
   });
 
   app.get("/products", async (c) => {
@@ -185,58 +203,60 @@ export function registerPublic(app: App) {
     const limit = Math.min(48, Math.max(1, Number(c.req.query("limit") || 24)));
     const offset = (page - 1) * limit;
 
-    let where = "WHERE p.active = 1";
-    const binds: (string | number)[] = [];
-    if (q) {
-      where += " AND (p.name LIKE ? OR p.description LIKE ? OR p.sku LIKE ?)";
-      const like = `%${q}%`;
-      binds.push(like, like, like);
-    }
-    if (category) {
-      where += " AND c.slug = ?";
-      binds.push(category);
-    }
-    if (featured === "1") where += " AND p.featured = 1";
-    if (inStock === "1") where += " AND p.stock > 0";
-    if (priceMin > 0) {
-      where += " AND p.price >= ?";
-      binds.push(priceMin);
-    }
-    if (priceMax > 0) {
-      where += " AND p.price <= ?";
-      binds.push(priceMax);
-    }
-    if (ids.length) {
-      where += ` AND p.id IN (${ids.map(() => "?").join(",")})`;
-      binds.push(...ids);
-    }
+    return cachedJson(c.env.DB, c.req.url, "/api/products", 45, async () => {
+      let where = "WHERE p.active = 1";
+      const binds: (string | number)[] = [];
+      if (q) {
+        where += " AND (p.name LIKE ? OR p.description LIKE ? OR p.sku LIKE ?)";
+        const like = `%${q}%`;
+        binds.push(like, like, like);
+      }
+      if (category) {
+        where += " AND c.slug = ?";
+        binds.push(category);
+      }
+      if (featured === "1") where += " AND p.featured = 1";
+      if (inStock === "1") where += " AND p.stock > 0";
+      if (priceMin > 0) {
+        where += " AND p.price >= ?";
+        binds.push(priceMin);
+      }
+      if (priceMax > 0) {
+        where += " AND p.price <= ?";
+        binds.push(priceMax);
+      }
+      if (ids.length) {
+        where += ` AND p.id IN (${ids.map(() => "?").join(",")})`;
+        binds.push(...ids);
+      }
 
-    let order = "p.featured DESC, p.id DESC";
-    if (sort === "price_asc") order = "p.price ASC";
-    if (sort === "price_desc") order = "p.price DESC";
-    if (sort === "name") order = "p.name COLLATE NOCASE ASC";
-    if (sort === "new") order = "p.id DESC";
+      let order = "p.featured DESC, p.id DESC";
+      if (sort === "price_asc") order = "p.price ASC";
+      if (sort === "price_desc") order = "p.price DESC";
+      if (sort === "name") order = "p.name COLLATE NOCASE ASC";
+      if (sort === "new") order = "p.id DESC";
 
-    const count = await c.env.DB.prepare(
-      `SELECT COUNT(*) AS c FROM products p LEFT JOIN categories c ON c.id = p.category_id ${where}`
-    )
-      .bind(...binds)
-      .first<{ c: number }>();
+      const count = await c.env.DB.prepare(
+        `SELECT COUNT(*) AS c FROM products p LEFT JOIN categories c ON c.id = p.category_id ${where}`
+      )
+        .bind(...binds)
+        .first<{ c: number }>();
 
-    const rows = await c.env.DB.prepare(
-      `SELECT p.*, c.name AS category_name, c.slug AS category_slug,
-              (SELECT ROUND(AVG(rating), 1) FROM reviews r WHERE r.product_id = p.id AND r.approved = 1) AS rating,
-              (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.approved = 1) AS review_count
-       FROM products p
-       LEFT JOIN categories c ON c.id = p.category_id
-       ${where}
-       ORDER BY ${order}
-       LIMIT ? OFFSET ?`
-    )
-      .bind(...binds, limit, offset)
-      .all();
+      const rows = await c.env.DB.prepare(
+        `SELECT p.*, c.name AS category_name, c.slug AS category_slug,
+                (SELECT ROUND(AVG(rating), 1) FROM reviews r WHERE r.product_id = p.id AND r.approved = 1) AS rating,
+                (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.approved = 1) AS review_count
+         FROM products p
+         LEFT JOIN categories c ON c.id = p.category_id
+         ${where}
+         ORDER BY ${order}
+         LIMIT ? OFFSET ?`
+      )
+        .bind(...binds, limit, offset)
+        .all();
 
-    return c.json({ items: rows.results || [], total: count?.c || 0, page, limit });
+      return { items: rows.results || [], total: count?.c || 0, page, limit };
+    });
   });
 
   app.get("/products/:slug", async (c) => {
@@ -270,13 +290,23 @@ export function registerPublic(app: App) {
   });
 
   app.get("/shipping", async (c) => {
-    const rows = await c.env.DB.prepare("SELECT * FROM shipping_methods WHERE active = 1 ORDER BY sort_order").all();
-    return c.json(rows.results || []);
+    return cachedJson(c.env.DB, c.req.url, "/api/shipping", 120, async () => {
+      const rows = await c.env.DB.prepare("SELECT * FROM shipping_methods WHERE active = 1 ORDER BY sort_order").all();
+      return rows.results || [];
+    });
   });
 
   app.get("/payments", async (c) => {
-    const rows = await c.env.DB.prepare("SELECT * FROM payment_methods WHERE active = 1 ORDER BY sort_order").all();
-    return c.json(rows.results || []);
+    return cachedJson(c.env.DB, c.req.url, "/api/payments", 120, async () => {
+      // „Karta online“ se nabízí jen při nastavené bráně (comgate_merchant).
+      const rows = await c.env.DB.prepare("SELECT * FROM payment_methods WHERE active = 1 ORDER BY sort_order").all();
+      const settings = await loadPublicSettings(c.env.DB);
+      const all = (rows.results || []) as { code: string }[];
+      if (!settings.comgate_enabled) {
+        return all.filter((p) => p.code !== "card");
+      }
+      return all;
+    });
   });
 
   app.get("/pickup-points", async (c) => {
@@ -341,6 +371,22 @@ export function registerPublic(app: App) {
     const body = await c.req.json<{ email?: string; password?: string }>();
     const email = (body.email || "").trim().toLowerCase();
     const password = body.password || "";
+    const ip = c.req.header("cf-connecting-ip") || "unknown";
+
+    // Brute-force ochrana: max. 8 neúspěšných pokusů za 15 minut (na e-mail i IP).
+    // created_at je ve formátu datetime('now') — porovnáváme v SQL, ne v JS.
+    const emailFails = await c.env.DB
+      .prepare("SELECT COUNT(*) AS c FROM login_attempts WHERE key = ? AND created_at > datetime('now', '-15 minutes')")
+      .bind(`email:${email}`)
+      .first<{ c: number }>();
+    const ipFails = await c.env.DB
+      .prepare("SELECT COUNT(*) AS c FROM login_attempts WHERE key = ? AND created_at > datetime('now', '-15 minutes')")
+      .bind(`ip:${ip}`)
+      .first<{ c: number }>();
+    if ((emailFails?.c || 0) >= LOGIN_MAX_FAILS || (ipFails?.c || 0) >= LOGIN_MAX_FAILS) {
+      return c.json({ error: "Příliš mnoho pokusů o přihlášení. Zkuste to znovu za 15 minut." }, 429);
+    }
+
     const user = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first<{
       id: number;
       email: string;
@@ -348,10 +394,57 @@ export function registerPublic(app: App) {
       name: string;
       phone: string;
       role: "customer" | "admin";
+      totp_secret: string;
     }>();
     if (!user || !(await verifyPassword(password, user.password_hash))) {
+      await c.env.DB.prepare("INSERT INTO login_attempts (key) VALUES (?)").bind(`email:${email}`).run();
+      await c.env.DB.prepare("INSERT INTO login_attempts (key) VALUES (?)").bind(`ip:${ip}`).run();
       return c.json({ error: "Nesprávný e-mail nebo heslo." }, 401);
     }
+
+    // Dvoufázové ověření (TOTP) — pokud má uživatel nastavený tajný klíč.
+    const totpRequired = user.role === "admin" && user.totp_secret;
+    if (totpRequired) {
+      const challenge = randomId();
+      await c.env.DB
+        .prepare("INSERT INTO otp_challenges (id, user_id, expires_at) VALUES (?, ?, ?)")
+        .bind(challenge, user.id, Date.now() + 5 * 60_000)
+        .run();
+      return c.json({ need_otp: true, challenge, email: user.email });
+    }
+
+    const sid = randomId();
+    const exp = Date.now() + SESSION_DAYS * 86400 * 1000;
+    await c.env.DB.prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)").bind(sid, user.id, exp).run();
+    const cartId = await mergeCarts(c.env.DB, c.get("cartId"), user.id);
+    const secure = isSecure(c);
+    c.header("Set-Cookie", setCookie("sid", sid, SESSION_DAYS, secure));
+    c.header("Set-Cookie", setCookie("cid", cartId, CART_DAYS, secure), { append: true });
+    return c.json({ user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role } });
+  });
+
+  // Druhý faktor přihlášení — ověření TOTP kódu z autentizační aplikace.
+  app.post("/auth/otp", async (c) => {
+    const body = await c.req.json<{ challenge?: string; code?: string }>();
+    const challenge = (body.challenge || "").trim();
+    const code = (body.code || "").trim();
+    const row = await c.env.DB
+      .prepare("SELECT * FROM otp_challenges WHERE id = ? AND expires_at > ?")
+      .bind(challenge, Date.now())
+      .first<{ id: string; user_id: number }>();
+    if (!row) return c.json({ error: "Ověření vypršelo. Přihlaste se znovu." }, 400);
+    const user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(row.user_id).first<{
+      id: number;
+      email: string;
+      name: string;
+      phone: string;
+      role: "customer" | "admin";
+      totp_secret: string;
+    }>();
+    if (!user) return c.json({ error: "Uživatel nenalezen." }, 404);
+    const ok = await verifyTotp(user.totp_secret, code);
+    await c.env.DB.prepare("DELETE FROM otp_challenges WHERE id = ?").bind(challenge).run();
+    if (!ok) return c.json({ error: "Ověřovací kód nesouhlasí. Zkuste to znovu." }, 401);
     const sid = randomId();
     const exp = Date.now() + SESSION_DAYS * 86400 * 1000;
     await c.env.DB.prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)").bind(sid, user.id, exp).run();
@@ -492,6 +585,9 @@ export function registerPublic(app: App) {
     if (!validEmail(email)) return c.json({ error: "Zadejte platný e-mail." }, 400);
     const cart = await loadCart(c.env.DB, c.get("cartId"));
     if (!cart.items.length) return c.json({ ok: true, skipped: true });
+    // E-mail si pamatujeme u košíku — série opuštěného košíku na něj naváže.
+    await ensureCart(c.env.DB, c.get("cartId"), c.get("user")?.id ?? null);
+    await c.env.DB.prepare("UPDATE carts SET email = ?, updated_at = datetime('now') WHERE id = ?").bind(email, c.get("cartId")).run();
     const s = await loadSettings(c.env.DB);
     const code = s.exit_coupon || "STAY5";
     try {
@@ -515,6 +611,28 @@ export function registerPublic(app: App) {
       .bind(productId, email)
       .run();
     return c.json({ ok: true, message: `Až bude ${p.name} znovu skladem, napíšeme na ${email}.` });
+  });
+
+  // Web Push — upozornění „hlídací pes“ přímo do prohlížeče.
+  app.post("/push/subscribe", async (c) => {
+    const body = await c.req.json<{ product_id?: number; endpoint?: string; keys?: { p256dh?: string; auth?: string } }>();
+    const endpoint = (body.endpoint || "").trim();
+    if (!endpoint || !endpoint.startsWith("https://")) return c.json({ error: "Neplatná subscription." }, 400);
+    await c.env.DB
+      .prepare(
+        `INSERT INTO push_subscriptions (product_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)
+         ON CONFLICT(endpoint) DO UPDATE SET product_id = excluded.product_id, p256dh = excluded.p256dh, auth = excluded.auth`
+      )
+      .bind(Number(body.product_id) || 0, endpoint, body.keys?.p256dh || "", body.keys?.auth || "")
+      .run();
+    return c.json({ ok: true });
+  });
+
+  app.post("/push/unsubscribe", async (c) => {
+    const body = await c.req.json<{ endpoint?: string }>();
+    const endpoint = (body.endpoint || "").trim();
+    if (endpoint) await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(endpoint).run();
+    return c.json({ ok: true });
   });
 
   app.post("/checkout", async (c) => {
@@ -794,7 +912,7 @@ export function registerPublic(app: App) {
       }
     }
     follow.push(c.env.DB.prepare("DELETE FROM cart_items WHERE cart_id = ?").bind(c.get("cartId")));
-    follow.push(c.env.DB.prepare("UPDATE carts SET coupon_code = NULL WHERE id = ?").bind(c.get("cartId")));
+    follow.push(c.env.DB.prepare("UPDATE carts SET coupon_code = NULL, email = ? WHERE id = ?").bind(email, c.get("cartId")));
 
     const batch = await c.env.DB.batch(follow);
     for (let i = 0; i < cart.items.length; i++) {
@@ -835,9 +953,121 @@ export function registerPublic(app: App) {
     } catch (err) {
       console.error("Order mail error:", err);
     }
+
+    // Platba kartou online — vytvoříme relaci v platební bráně a zákazníka
+    // přesměrujeme na její zabezpečenou stránku. Když se to nepovede, objednávka
+    // zůstává platná (stav „čeká na platbu“) a dá se doplatit z detailu objednávky.
+    let redirectUrl: string | undefined;
+    if (payment.code === "card" && total > 0) {
+      const s = await loadSettings(c.env.DB);
+      const comgate: ComgateSettings = {
+        merchant: s.comgate_merchant,
+        secret: s.comgate_secret,
+        test: s.comgate_test !== "0",
+      };
+      const created = await comgateCreate(comgate, {
+        number,
+        email,
+        name: billingName,
+        total,
+      });
+      if (created.ok && created.transId) {
+        await c.env.DB
+          .prepare("UPDATE orders SET gateway_trans_id = ?, gateway = 'comgate' WHERE id = ?")
+          .bind(created.transId, orderId)
+          .run();
+        redirectUrl = created.redirect || `https://payments.comgate.cz/${created.transId}`;
+      } else {
+        console.error("comgate create failed:", created.error);
+      }
+    }
+
     const secure = isSecure(c);
     c.header("Set-Cookie", setCookie("oid", number, 2, secure));
-    return c.json({ order });
+    return c.json({ order, redirect_url: redirectUrl });
+  });
+
+  // Doplatek kartou z detailu objednávky (nebo nový pokus po neúspěšném startu brány).
+  app.post("/orders/:id/pay", async (c) => {
+    const key = c.req.param("id");
+    const user = c.get("user");
+    const oidCookie = (c.req.header("Cookie") || "").match(/(?:^|;\s*)oid=([^;]+)/)?.[1];
+    let orderRow: { id: number; number: string; user_id: number | null; total: number; payment_code: string } | null = null;
+    if (/^\d+$/.test(key)) {
+      orderRow = await c.env.DB.prepare("SELECT id, number, user_id, total, payment_code FROM orders WHERE id = ?").bind(Number(key)).first();
+    } else {
+      orderRow = await c.env.DB.prepare("SELECT id, number, user_id, total, payment_code FROM orders WHERE number = ?").bind(key).first();
+    }
+    if (!orderRow) return c.json({ error: "Objednávka nenalezena." }, 404);
+    const owns = user && orderRow.user_id === user.id;
+    const guest = oidCookie && oidCookie === orderRow.number;
+    const admin = user?.role === "admin";
+    if (!owns && !guest && !admin) return c.json({ error: "Objednávka nenalezena." }, 404);
+    if (orderRow.payment_code !== "card") return c.json({ error: "Tato objednávka se neplatí kartou." }, 400);
+    if (orderRow.total <= 0) return c.json({ error: "Objednávka je zdarma." }, 400);
+
+    const order = await loadOrder(c.env.DB, orderRow.id);
+    const s = await loadSettings(c.env.DB);
+    const comgate: ComgateSettings = {
+      merchant: s.comgate_merchant,
+      secret: s.comgate_secret,
+      test: s.comgate_test !== "0",
+    };
+    const created = await comgateCreate(comgate, {
+      number: String(order?.number || orderRow.number),
+      email: String(order?.email || ""),
+      name: String(order?.name || ""),
+      total: Number(orderRow.total),
+    });
+    if (!created.ok) return c.json({ error: created.error || "Platební brána není dostupná." }, 502);
+    if (created.transId) {
+      await c.env.DB
+        .prepare("UPDATE orders SET gateway_trans_id = ?, gateway = 'comgate' WHERE id = ?")
+        .bind(created.transId, orderRow.id)
+        .run();
+    }
+    return c.json({ redirect_url: created.redirect || `https://payments.comgate.cz/${created.transId}` });
+  });
+
+  // Návrat z platební brány (paidUrl/cancelUrl/pendingUrl v portálu Comgate).
+  // Výsledek nikdy nevěříme URL parametrům — ověříme stav přes status API.
+  app.get("/payments/return", async (c) => {
+    const refId = c.req.query("refId") || c.req.query("refid") || "";
+    const row = refId
+      ? await c.env.DB.prepare("SELECT id, number, gateway_trans_id, payment_status FROM orders WHERE number = ?").bind(refId).first<{ id: number; number: string; gateway_trans_id: string; payment_status: string }>()
+      : null;
+    if (!row) return c.redirect("/sledovani");
+    if (row.gateway_trans_id) {
+      const s = await loadSettings(c.env.DB);
+      const status = await comgateStatus({ merchant: s.comgate_merchant, secret: s.comgate_secret, test: s.comgate_test !== "0" }, row.gateway_trans_id);
+      if (status.ok && status.paid && row.payment_status !== "paid") {
+        await markOrderPaid(c.env.DB, row.id, "comgate", c.env);
+      }
+    }
+    return c.redirect(`/objednavka/${row.number}`);
+  });
+
+  // Server-to-server oznámení výsledku od brány — jen spouští ověření přes status API.
+  app.post("/payments/comgate", async (c) => {
+    let body: URLSearchParams;
+    try {
+      body = new URLSearchParams(await c.req.text());
+    } catch {
+      return c.json({ error: "Neplatný požadavek." }, 400);
+    }
+    const refId = body.get("refId") || "";
+    const transId = body.get("transId") || "";
+    const row = await c.env.DB
+      .prepare("SELECT id, gateway_trans_id, payment_status FROM orders WHERE number = ? AND gateway_trans_id = ?")
+      .bind(refId, transId)
+      .first<{ id: number; gateway_trans_id: string; payment_status: string }>();
+    if (!row) return c.json({ error: "Objednávka nenalezena." }, 404);
+    const s = await loadSettings(c.env.DB);
+    const status = await comgateStatus({ merchant: s.comgate_merchant, secret: s.comgate_secret, test: s.comgate_test !== "0" }, row.gateway_trans_id);
+    if (status.ok && status.paid && row.payment_status !== "paid") {
+      await markOrderPaid(c.env.DB, row.id, "comgate", c.env);
+    }
+    return c.json({ ok: true });
   });
 
   app.get("/orders", async (c) => {
@@ -1155,4 +1385,43 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
     Math.sin(dLat / 2) ** 2 +
     Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Po ověřené platbě kartou označí objednávku jako zaplacenou + faktura + e-mail. */
+export async function markOrderPaid(
+  db: D1Database,
+  id: number,
+  gateway: string,
+  env?: { RESEND_API_KEY?: string; MAIL_FROM?: string }
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE orders SET payment_status = 'paid',
+        status = CASE WHEN status = 'new' THEN 'paid' ELSE status END,
+        updated_at = datetime('now') WHERE id = ?`
+    )
+    .bind(id)
+    .run();
+  const s = await loadSettings(db);
+  try {
+    if (s.invoice_auto !== "0") {
+      await ensureInvoiceForOrder(db, id, s);
+      await markInvoicePaid(db, id, true);
+    }
+  } catch (err) {
+    console.error("invoice after card payment:", err);
+  }
+  try {
+    const order = await loadOrder(db, id);
+    if (order) {
+      await notifyOrderStatus(
+        db,
+        { number: String(order.number), email: String(order.email), name: String(order.name), status: "paid" },
+        env
+      );
+    }
+  } catch (err) {
+    console.error("paid status mail:", err);
+  }
+  void gateway;
 }

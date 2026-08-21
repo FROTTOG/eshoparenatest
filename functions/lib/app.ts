@@ -11,10 +11,16 @@ import {
 } from "./helpers";
 import { registerPublic } from "./public";
 import { registerAdmin } from "./admin";
+import { writeMetric } from "./metrics";
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().basePath("/api");
 
 app.use("*", async (c, next) => {
+  const started = Date.now();
+  const path = new URL(c.req.url).pathname;
+  let status = 200;
+  const original = c.res;
+  void original;
   if (!c.env.DB) {
     return c.json(
       {
@@ -56,6 +62,8 @@ app.use("*", async (c, next) => {
   for (const h of headers) {
     c.header("Set-Cookie", h, { append: true });
   }
+  status = c.res.status;
+  writeMetric(c.env, "api_request", [Date.now() - started, status], [path.slice(0, 96)]);
 });
 
 registerPublic(app);
@@ -64,6 +72,7 @@ registerAdmin(app);
 app.notFound((c) => c.json({ error: "Tato API cesta neexistuje." }, 404));
 app.onError((err, c) => {
   console.error(err);
+  writeMetric(c.env, "api_error", [500], [String(err).slice(0, 96)]);
   return c.json({ error: "Něco se pokazilo na serveru." }, 500);
 });
 

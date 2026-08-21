@@ -70,12 +70,38 @@ export const GROWTH_SQL = [
     meta TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  // Omezení pokusů o přihlášení (brute-force) a Web Push subscriptions.
+  `CREATE TABLE IF NOT EXISTS login_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL DEFAULT 0,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL DEFAULT '',
+    auth TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS otp_challenges (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
   "CREATE INDEX IF NOT EXISTS idx_stock_alerts_product ON stock_alerts(product_id)",
   "CREATE INDEX IF NOT EXISTS idx_shipments_order ON shipments(order_id)",
   "CREATE INDEX IF NOT EXISTS idx_email_log_created ON email_log(created_at)",
+  "CREATE INDEX IF NOT EXISTS idx_login_attempts_key ON login_attempts(key)",
   "ALTER TABLE orders ADD COLUMN tracking_number TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE orders ADD COLUMN tracking_carrier TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE orders ADD COLUMN tracking_url TEXT NOT NULL DEFAULT ''",
+  // Sloupce pro 2FA, platební bránu a opuštěné košíky (idempotentní ALTERy).
+  "ALTER TABLE users ADD COLUMN totp_secret TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE carts ADD COLUMN email TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE orders ADD COLUMN gateway_trans_id TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE orders ADD COLUMN gateway TEXT NOT NULL DEFAULT ''",
   // Editor stránek v2 — tabulka pages i se sloupci pro SEO a vzhled stránky.
   // Starší databáze (založené migrací 0003) dostanou chybějící sloupce
   // idempotentními ALTERy níže.
@@ -481,6 +507,15 @@ const SETTINGS: Record<string, string> = {
   apple_pay_merchant_id: "",
   google_pay_merchant_id: "",
   exit_coupon: "STAY5",
+  // Platební brána Comgate (karta online / Apple Pay / Google Pay přes bránu).
+  // Dokud není comgate_merchant vyplněný, metoda „karta online“ zůstává neaktivní.
+  comgate_merchant: "",
+  comgate_secret: "",
+  comgate_test: "1",
+  // Dvoufázové ověření (TOTP) pro administrátory: 0 = dobrovolné, 1 = povinné.
+  totp_required: "0",
+  // Verze cache katalogu — zvyšuje se automaticky po změnách v administraci.
+  cache_version: "1",
 };
 
 type ProductSeed = {
@@ -725,6 +760,14 @@ async function seed(env: Bindings) {
       ).bind(...p)
     );
   }
+  // Karta online přes platební bránu — výchozí stav neaktivní, zapne se
+  // v administraci (Doprava a platby) po vyplnění comgate_merchant.
+  stmts.push(
+    db.prepare(
+      `INSERT OR IGNORE INTO payment_methods (code, name, description, fee, sort_order, allowed_shipping, active)
+       VALUES ('card', 'Online kartou', 'Visa, Mastercard, Apple Pay a Google Pay přes zabezpečenou platební bránu. Po zaplacení expedujeme ihned.', 0, 0, '*', 0)`
+    )
+  );
 
   // KAVKA10 = „sleva na první nákup“: jen pro registrované a jen jednou.
   const coupons = [
@@ -847,6 +890,12 @@ async function seed(env: Bindings) {
 
 async function seedGrowthExtras(env: Bindings) {
   const db = env.DB;
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO payment_methods (code, name, description, fee, sort_order, allowed_shipping, active)
+       VALUES ('card', 'Online kartou', 'Visa, Mastercard, Apple Pay a Google Pay přes zabezpečenou platební bránu. Po zaplacení expedujeme ihned.', 0, 0, '*', 0)`
+    )
+    .run();
   const extraPays = [
     ["apple_pay", "Apple Pay", "Zaplatíte v Safari / iPhonu přes Apple Pay. Objednávka se označí jako zaplacená hned.", 0, 5, "*"],
     ["google_pay", "Google Pay", "Zaplatíte kartou uloženou v Google Pay. Objednávka se označí jako zaplacená hned.", 0, 6, "*"],
@@ -1010,6 +1059,19 @@ async function prepareDatabase(env: Bindings) {
       .run();
   } catch {
     /* kupón nemusí existovat */
+  }
+
+  // Platební metoda „karta online“ — i u databází založených dříve.
+  // Zůstává neaktivní, dokud správce nezapne platební bránu (comgate_merchant).
+  try {
+    await env.DB
+      .prepare(
+        `INSERT OR IGNORE INTO payment_methods (code, name, description, fee, sort_order, allowed_shipping, active)
+         VALUES ('card', 'Online kartou', 'Visa, Mastercard, Apple Pay a Google Pay přes zabezpečenou platební bránu. Po zaplacení expedujeme ihned.', 0, 0, '*', 0)`
+      )
+      .run();
+  } catch {
+    /* tabulka nemusí být ještě připravená */
   }
 
   // Faktury — doplníme i do starších databází.

@@ -8,14 +8,23 @@ import { Price, Stars, Stock } from "../components/Ui";
 import { WishButton } from "../components/WishButton";
 import { czk, dateCs, pickupFreeOver, shippingByKind } from "../format";
 import { optimizedImage } from "../image";
+import { OptimizedImg } from "../components/OptimizedImg";
 import { useStore } from "../store";
 import { useSeo } from "../title";
 import { trackAddToCart, trackViewItem } from "../analytics";
 
+function validWatchEmail(e: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+}
+
 export function ProductPage() {
   const { slug } = useParams();
-  const { user, addToCart, toast, shipping, recent, addRecent } = useStore();
+  const { user, addToCart, toast, shipping, recent, addRecent, settings } = useStore();
   const [p, setP] = useState<P | null>(null);
+  const [alertEmail, setAlertEmail] = useState("");
+  const [alertBusy, setAlertBusy] = useState(false);
+  const [alertDone, setAlertDone] = useState("");
+  const [pushWanted, setPushWanted] = useState(false);
   const [related, setRelated] = useState<P[]>([]);
   const [qty, setQty] = useState(1);
   const [img, setImg] = useState(0);
@@ -42,6 +51,10 @@ export function ProductPage() {
   const pics = useMemo(() => {
     const list = (p?.images?.length ? p.images : p?.image ? [p.image] : []).filter(Boolean).map(optimizedImage);
     return list.length ? list : ["/products/hrnek.webp"];
+  }, [p]);
+  const picsRaw = useMemo(() => {
+    const list = (p?.images?.length ? p.images : p?.image ? [p.image] : []).filter(Boolean);
+    return list.length ? list : ["/products/hrnek.jpg"];
   }, [p]);
 
   async function load(signal?: AbortSignal) {
@@ -109,6 +122,57 @@ export function ProductPage() {
       previousFocus?.focus({ preventScroll: true });
     };
   }, [lightbox, pics.length]);
+
+  const pushSupported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && !!settings.vapid_public_key;
+
+  function vapidToUint8(base64: string): Uint8Array<ArrayBuffer> {
+    const pad = "=".repeat((4 - (base64.length % 4)) % 4);
+    const raw = atob(base64.replace(/-/g, "+").replace(/_/g, "/") + pad);
+    const out = new Uint8Array(new ArrayBuffer(raw.length));
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  async function subscribePush(): Promise<string | null> {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidToUint8(settings.vapid_public_key || ""),
+      });
+      const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+      await api("/push/subscribe", { method: "POST", body: JSON.stringify({ product_id: p?.id, endpoint: json.endpoint, keys: json.keys }) });
+      return json.endpoint || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function watch() {
+    if (!p || !validWatchEmail(alertEmail)) {
+      toast("Zadejte platný e-mail pro upozornění.", "err");
+      return;
+    }
+    setAlertBusy(true);
+    try {
+      if (pushWanted && pushSupported && Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
+      if (pushWanted && pushSupported && Notification.permission === "granted") {
+        await subscribePush();
+      }
+      const r = await api<{ ok: boolean; message?: string }>("/stock-alerts", {
+        method: "POST",
+        body: JSON.stringify({ product_id: p.id, email: alertEmail }),
+      });
+      setAlertDone(r.message || "Hlídáme to za vás.");
+      toast("Hlídací pes je nastavený.");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Nepodařilo se nastavit hlídání.", "err");
+    } finally {
+      setAlertBusy(false);
+    }
+  }
 
   async function buy() {
     if (!p || p.stock <= 0) return;
@@ -320,7 +384,7 @@ export function ProductPage() {
             onClick={() => setLightbox(true)}
             aria-label="Zvětšit fotografii"
           >
-            <img src={pics[img]} alt={p.name} width={900} height={900} decoding="async" fetchPriority="high" />
+            <OptimizedImg src={picsRaw[img] || pics[img]} alt={p.name} width={900} height={900} decoding="async" fetchPriority="high" />
             <span className="gallery-zoom-hint">Klikněte pro zvětšení · {img + 1}/{pics.length}</span>
           </button>
           {pics.length > 1 && (
@@ -381,6 +445,45 @@ export function ProductPage() {
             </button>
             <WishButton p={p} className="wish-inline" />
           </div>
+
+          {p.stock <= 0 && (
+            <div className="stock-alert-box">
+              <b>Hlídací pes</b>
+              <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
+                Tohle zboží je právě vyprodané. Napište nám e-mail — jakmile kus naskladníme, dáme vám vědět.
+              </p>
+              {alertDone ? (
+                <p style={{ margin: "10px 0 0", color: "var(--ok)" }}>
+                  <IconCheck size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
+                  {alertDone}
+                </p>
+              ) : (
+                <>
+                  <div className="sa-row">
+                    <input
+                      type="email"
+                      placeholder={user?.email ? `např. ${user.email}` : "Váš e-mail"}
+                      value={alertEmail}
+                      onChange={(e) => setAlertEmail(e.target.value)}
+                      aria-label="E-mail pro upozornění o naskladnění"
+                      autoComplete="email"
+                    />
+                    <button type="button" className="btn" onClick={() => void watch()} disabled={alertBusy}>
+                      {alertBusy ? "Hlídám…" : "Hlídat dostupnost"}
+                    </button>
+                  </div>
+                  {pushSupported && (
+                    <label className="sa-note" style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+                      <input type="checkbox" checked={pushWanted} onChange={(e) => setPushWanted(e.target.checked)} />
+                      Upozornit i v prohlížeči (Web Push)
+                    </label>
+                  )}
+                  <p className="sa-note">E-mail použijeme pouze pro toto upozornění a podle GDPR ho dál nezpracováváme.</p>
+                </>
+              )}
+            </div>
+          )}
+
           <p style={{ color: "var(--muted)", fontSize: 13 }}>
             Hmotnost {p.weight} g · skladem {p.stock} ks
           </p>
@@ -413,7 +516,7 @@ export function ProductPage() {
           <div className="recent-strip">
             {recentOthers.map((r) => (
               <Link key={r.id} to={`/produkt/${r.slug}`} className="recent-card">
-                <img src={optimizedImage(r.image)} alt={r.name} loading="lazy" decoding="async" width={240} height={240} />
+                <OptimizedImg src={r.image} alt={r.name} loading="lazy" decoding="async" width={240} height={240} />
                 <div className="recent-card-body">
                   <span>{r.category_name || "KAVKA"}</span>
                   <b>{r.name}</b>

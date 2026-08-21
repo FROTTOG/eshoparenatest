@@ -220,7 +220,7 @@ export function Checkout() {
 
     setBusy(true);
     try {
-      const r = await api<{ order: { number: string } }>("/checkout", {
+      const r = await api<{ order: { number: string }; redirect_url?: string }>("/checkout", {
         method: "POST",
         body: JSON.stringify({
           email: form.email,
@@ -264,6 +264,12 @@ export function Checkout() {
         }),
       });
       await refresh();
+      // Platba kartou: přesměrování na zabezpečenou stránku platební brány.
+      // Objednávka už v tuto chvíli existuje (stav „čeká na platbu“).
+      if (r.redirect_url) {
+        window.location.href = r.redirect_url;
+        return;
+      }
       nav(`/objednavka/${r.order.number}`);
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "Objednávku nešlo odeslat.", "err");
@@ -291,6 +297,32 @@ export function Checkout() {
         <h1 className="serif" style={{ marginTop: 4 }}>
           Pokladna
         </h1>
+
+        {/* Indikátor postupu pokladnou */}
+        <div className="checkout-steps" role="list" aria-label="Postup objednávkou">
+          {[
+            { label: "Kontakt", done: !!form.email.trim() && !!form.phone.trim() },
+            { label: "Fakturace", done: !!form.billing_street.trim() && !!form.billing_city.trim() && !!form.billing_zip.trim() },
+            { label: "Doprava", done: !!selectedShip },
+            { label: "Platba", done: !!pay },
+          ].map((s, i) => {
+            const firstOpen = (idx: number) => ![
+              !!form.email.trim() && !!form.phone.trim(),
+              !!form.billing_street.trim() && !!form.billing_city.trim() && !!form.billing_zip.trim(),
+              !!selectedShip,
+              !!pay,
+            ][idx];
+            const active = firstOpen(i) || (i === 3 && !firstOpen(3));
+            return (
+              <div key={s.label} className={`cs-step${s.done ? " done" : ""}${active ? " active" : ""}`} role="listitem">
+                <div className="cs-bar" />
+                <div className="cs-label">
+                  {i + 1}. {s.label}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         {/* 1. KONTAKTNÍ ÚDAJE */}
         <div className="form glass-card" style={{ marginBottom: 18 }}>
@@ -363,6 +395,9 @@ export function Checkout() {
                       value={form.ico}
                       onChange={(e) => setForm({ ...form, ico: e.target.value })}
                       placeholder="8místné číslo (např. 19200456)"
+                      autoComplete="off"
+                      inputMode="numeric"
+                      maxLength={8}
                     />
                     <button
                       type="button"
@@ -382,6 +417,7 @@ export function Checkout() {
                     value={form.dic}
                     onChange={(e) => setForm({ ...form, dic: e.target.value })}
                     placeholder="např. CZ19200456"
+                    autoComplete="off"
                   />
                 </label>
               </div>
@@ -392,6 +428,7 @@ export function Checkout() {
                   value={form.company_name}
                   onChange={(e) => setForm({ ...form, company_name: e.target.value })}
                   placeholder="např. KAVKA Ateliér s.r.o."
+                  autoComplete="organization"
                 />
               </label>
             </div>
@@ -573,6 +610,7 @@ export function Checkout() {
                       value={form.shipping_recipient}
                       onChange={(e) => setForm({ ...form, shipping_recipient: e.target.value })}
                       placeholder="Jméno příjemce balíčku"
+                      autoComplete="name"
                     />
                   </label>
                   <label>
@@ -593,6 +631,7 @@ export function Checkout() {
                     value={form.shipping_street}
                     onChange={(e) => setForm({ ...form, shipping_street: e.target.value })}
                     placeholder="Ulice a č.p. kam zásilku doručit"
+                    autoComplete="street-address"
                   />
                 </label>
                 <div className="form-grid-2">
@@ -603,6 +642,7 @@ export function Checkout() {
                       value={form.shipping_city}
                       onChange={(e) => setForm({ ...form, shipping_city: e.target.value })}
                       placeholder="Město"
+                      autoComplete="address-level2"
                     />
                   </label>
                   <label>
@@ -613,6 +653,7 @@ export function Checkout() {
                       onChange={(e) => setForm({ ...form, shipping_zip: e.target.value })}
                       placeholder="PSČ"
                       inputMode="numeric"
+                      autoComplete="postal-code"
                     />
                   </label>
                 </div>
@@ -653,6 +694,19 @@ export function Checkout() {
             )}
           </div>
         )}
+
+        {/* Trust signály — šifrování, vrácení, faktura */}
+        <div className="trust-row">
+          <span>
+            <IconShield size={15} /> Šifrované spojení (TLS)
+          </span>
+          <span>
+            <IconCheck size={15} /> Zboží vrátíte do 14 dnů
+          </span>
+          <span>
+            <IconCheck size={15} /> Fakturu stáhnete u každé objednávky
+          </span>
+        </div>
 
         {/* 5. POZNÁMKA */}
         <label className="form glass-card" style={{ marginTop: 16 }}>

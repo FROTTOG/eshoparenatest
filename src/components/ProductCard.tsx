@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Product } from "../api";
-import { optimizedImage } from "../image";
+import { OptimizedImg } from "./OptimizedImg";
 import { useStore } from "../store";
 import { trackAddToCart } from "../analytics";
 import { IconCart, IconCheck } from "./Icons";
@@ -40,8 +40,8 @@ export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
         <div className="pcard-media">
           <Link to={`/produkt/${p.slug}`} className="pcard-img" aria-label={`Detail produktu ${p.name}`}>
             {p.compare_price && p.compare_price > p.price ? <span className="sale">Akce</span> : null}
-            <img
-              src={optimizedImage(p.image)}
+            <OptimizedImg
+              src={p.image}
               alt={p.name}
               loading={index < 2 ? "eager" : "lazy"}
               decoding="async"

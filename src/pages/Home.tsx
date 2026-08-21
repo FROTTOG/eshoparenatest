@@ -13,6 +13,7 @@ import {
 import { ProductCard } from "../components/ProductCard";
 import { czk, pickupFreeOver } from "../format";
 import { optimizedImage } from "../image";
+import { OptimizedImg } from "../components/OptimizedImg";
 import { useStore } from "../store";
 import { useSeo } from "../title";
 import { renderBlock, useSystemPage } from "./blocks";
@@ -186,7 +187,7 @@ export function Home() {
               </div>
               {s.image && (
                 <div className="alza-hero-img">
-                  <img src={s.image} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" />
+                  <OptimizedImg src={s.image} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" />
                 </div>
               )}
             </div>
@@ -239,7 +240,7 @@ export function Home() {
         {cats.slice(0, 4).map((c) => (
           <Link key={c.id} to={`/katalog/${c.slug}`} className="alza-tile">
             {c.image ? (
-              <img className="alza-tile-img" src={optimizedImage(c.image)} alt="" loading="lazy" decoding="async" width={84} height={84} />
+              <OptimizedImg src={c.image} alt="" loading="lazy" decoding="async" width={84} height={84} className="alza-tile-img" />
             ) : (
               <span className="alza-tile-icon forest">
                 <IconPin size={20} />

@@ -39,7 +39,7 @@ function absUrl(origin: string, path: string): string {
   return `${origin}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
-async function loadFeedProducts(db: D1Database): Promise<FeedProduct[]> {
+export async function loadFeedProducts(db: D1Database): Promise<FeedProduct[]> {
   const rows = await db
     .prepare(
       `SELECT p.id, p.name, p.slug, p.sku, p.description, p.short_description, p.price, p.compare_price,
@@ -174,6 +174,39 @@ export function registerFeeds(app: App) {
     const { origin, s, products } = await ctx(c);
     return xmlResponse(googleXml(origin, s.store_name || "KAVKA", products));
   });
+}
+
+/**
+ * OpenAI (ChatGPT Shopping) product feed — JSONL, jeden produkt na řádek.
+ * Formát odpovídá specifikaci OpenAI Commerce (2026): id, title, description,
+ * link, image_link, price ("123.00 CZK"), availability, brand, condition,
+ * mpn, product_category. Dodává se přes SFTP po schválení v ChatGPT merchant
+ * portálu — soubor zde slouží jako zdroj dat.
+ */
+export function openaiJsonl(origin: string, products: FeedProduct[], storeName: string): string {
+  const lines = products.map((p) => {
+    const row: Record<string, string | number | boolean> = {
+      id: p.sku || `p${p.id}`,
+      title: p.name,
+      description: stripHtml(p.description || p.short_description || p.name).slice(0, 2000),
+      link: `${origin}/produkt/${encodeURIComponent(p.slug)}`,
+      image_link: absUrl(origin, p.image),
+      price: `${(p.price).toFixed(2)} CZK`,
+      availability: p.stock > 0 ? "in_stock" : "out_of_stock",
+      brand: storeName,
+      condition: "new",
+      mpn: p.sku,
+      product_category: p.category_name ? `Home & Garden > ${p.category_name}` : "Home & Garden",
+      inventory_quantity: Math.max(0, p.stock),
+      enable_search: true,
+    };
+    if (p.compare_price && p.compare_price > p.price) {
+      row.sale_price = `${p.compare_price.toFixed(2)} CZK`;
+    }
+    if (p.weight) row.item_weight = `${p.weight} g`;
+    return JSON.stringify(row);
+  });
+  return lines.join("\n") + (lines.length ? "\n" : "");
 }
 
 export async function buildFeed(kind: string, origin: string, db: D1Database): Promise<string> {

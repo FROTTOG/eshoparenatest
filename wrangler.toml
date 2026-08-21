@@ -5,6 +5,10 @@ name = "kavka-shop"
 compatibility_date = "2025-10-14"
 pages_build_output_dir = "dist"
 
+# Worker běží blízko primární lokace D1 — nižší latence databázových dotazů.
+[placement]
+mode = "smart"
+
 [vars]
 STORE_NAME = "KAVKA"
 
@@ -19,3 +23,19 @@ database_id = "9a9facef-3957-42a1-a6c6-7a3241c2792e"
 [[r2_buckets]]
 binding = "MEDIA"
 bucket_name = "kavka-media"
+
+# Volitelné: Analytics Engine pro metriky API (latence, chybovost).
+# Po vytvoření datasetu v Cloudflare Dashboard sem doplňte název datasetu
+# a odkomentujte. Kód funguje i bez této vazby — metriky prostě neposílá.
+#
+# [[analytics_engine_datasets]]
+# binding = "METRICS"
+# dataset = "kavka-metrics"
+
+# Cron pro automatizace (opuštěné košíky, zálohy, hlídací pes).
+# Pozor: Cloudflare Pages přes Git integraci crony z wrangler.toml nečte —
+# nastavte je v dashboardu (Settings → Functions → Cron Triggers), viz README.
+# Při nasazení přes `wrangler pages deploy` je stačí odkomentovat.
+#
+# [[triggers]]
+# crons = ["*/15 * * * *"]
