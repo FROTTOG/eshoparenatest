@@ -38,6 +38,9 @@ export function Layout() {
     const el = headerRef.current;
     if (!el) return;
     const apply = () => {
+      // Skutečná výška hlavičky — na desktopu může menu zabrat dva řádky,
+      // proto ji promítneme do --header i --header-h (kotvy, sticky, hero).
+      document.documentElement.style.setProperty("--header", `${el.offsetHeight}px`);
       document.documentElement.style.setProperty("--header-h", `${el.offsetHeight}px`);
       // Kam sahá hlavička od vrchu okna (pod informační lištou), pro mobilní menu
       document.documentElement.style.setProperty("--header-offset", `${Math.max(0, el.getBoundingClientRect().top)}px`);
