@@ -312,3 +312,262 @@ export function IconPrinter(p: P) {
 export function IconWrap({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <span className={`icon-wrap ${className}`.trim()}>{children}</span>;
 }
+
+/* ============================================================
+   Doplňkové ikony — administrace, účet, štítky a filtry
+   ============================================================ */
+
+export function IconDashboard(p: P) {
+  return (
+    <I {...p}>
+      <rect x="3" y="3" width="7.5" height="8" rx="1.6" />
+      <rect x="13.5" y="3" width="7.5" height="5" rx="1.6" />
+      <rect x="13.5" y="11" width="7.5" height="10" rx="1.6" />
+      <rect x="3" y="14" width="7.5" height="7" rx="1.6" />
+    </I>
+  );
+}
+export function IconTagIcon(p: P) {
+  return (
+    <I {...p}>
+      <path d="M3 12.4V4.6A1.6 1.6 0 0 1 4.6 3h7.8a1.6 1.6 0 0 1 1.13.47l6.5 6.5a1.6 1.6 0 0 1 0 2.26l-7.8 7.8a1.6 1.6 0 0 1-2.26 0l-6.5-6.5A1.6 1.6 0 0 1 3 12.4Z" />
+      <circle cx="7.6" cy="7.6" r="1.25" fill="currentColor" stroke="none" />
+    </I>
+  );
+}
+export function IconWarehouse(p: P) {
+  return (
+    <I {...p}>
+      <path d="M3 20V9.5L12 4l9 5.5V20" />
+      <path d="M7 20v-6h10v6" />
+      <path d="M7 17h10" />
+    </I>
+  );
+}
+export function IconFolder(p: P) {
+  return (
+    <I {...p}>
+      <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l1.8 2.2h9A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5Z" />
+    </I>
+  );
+}
+export function IconReceipt(p: P) {
+  return (
+    <I {...p}>
+      <path d="M5 3h14v18l-2.3-1.5L14.4 21l-2.4-1.5L9.6 21l-2.3-1.5L5 21Z" />
+      <path d="M8.5 8h7M8.5 12h7M8.5 16h4" />
+    </I>
+  );
+}
+export function IconExport(p: P) {
+  return (
+    <I {...p}>
+      <path d="M12 3v11" />
+      <path d="M8.5 6.5 12 3l3.5 3.5" />
+      <path d="M4 15v3.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V15" />
+    </I>
+  );
+}
+export function IconUsers(p: P) {
+  return (
+    <I {...p}>
+      <circle cx="9.2" cy="8.4" r="3.1" />
+      <path d="M3 19c1.3-3 3.6-4.5 6.2-4.5S14.1 16 15.4 19" />
+      <path d="M16.4 6.2a3 3 0 0 1 0 5.8" />
+      <path d="M17.6 14.8c1.7.6 3 1.9 3.7 3.6" />
+    </I>
+  );
+}
+export function IconTicket(p: P) {
+  return (
+    <I {...p}>
+      <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h15A1.5 1.5 0 0 1 21 8.5v2a2 2 0 0 0 0 3.9v2a1.5 1.5 0 0 1-1.5 1.6h-15A1.5 1.5 0 0 1 3 16.4v-2a2 2 0 0 0 0-3.9Z" />
+      <path d="M14 7.4v9.2" strokeDasharray="2 2" />
+    </I>
+  );
+}
+export function IconChat(p: P) {
+  return (
+    <I {...p}>
+      <path d="M20 12a7.5 7.5 0 0 1-10.8 6.7L4 20l1.3-4.1A7.5 7.5 0 1 1 20 12Z" />
+    </I>
+  );
+}
+export function IconPen(p: P) {
+  return (
+    <I {...p}>
+      <path d="M4 20h4.2L19 9.2a2.1 2.1 0 0 0-3-3L5.2 17Z" />
+      <path d="M14.5 6.8 17.2 9.5" />
+    </I>
+  );
+}
+export function IconLayout(p: P) {
+  return (
+    <I {...p}>
+      <rect x="3" y="4" width="18" height="16" rx="2.2" />
+      <path d="M3 9h18M9 9v11" />
+    </I>
+  );
+}
+export function IconSlides(p: P) {
+  return (
+    <I {...p}>
+      <rect x="5.5" y="6" width="13" height="12" rx="2" />
+      <path d="M2.5 9.5v5M21.5 9.5v5" />
+    </I>
+  );
+}
+export function IconPalette(p: P) {
+  return (
+    <I {...p}>
+      <path d="M12 21a9 9 0 1 1 9-9c0 2-1.6 3-3.2 3H16a2 2 0 0 0-1.4 3.4c.4.5.1 1.6-1.1 1.6Z" />
+      <circle cx="7.8" cy="12.2" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="8.2" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="14.6" cy="8" r="1.1" fill="currentColor" stroke="none" />
+    </I>
+  );
+}
+export function IconFeed(p: P) {
+  return (
+    <I {...p}>
+      <path d="M5 19a1 1 0 1 0 0-.01" fill="currentColor" stroke="none" />
+      <circle cx="5.2" cy="18.8" r="1.4" fill="currentColor" stroke="none" />
+      <path d="M4.5 13.2A6.3 6.3 0 0 1 10.8 19.5" />
+      <path d="M4.5 7.6A11.9 11.9 0 0 1 16.4 19.5" />
+    </I>
+  );
+}
+export function IconGear(p: P) {
+  return (
+    <I {...p}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 14.5a1.5 1.5 0 0 0 .3 1.7l.1.1a1.8 1.8 0 1 1-2.6 2.6l-.1-.1a1.5 1.5 0 0 0-2.5 1v.3a1.8 1.8 0 1 1-3.6 0v-.2a1.5 1.5 0 0 0-2.6-1l-.1.1a1.8 1.8 0 1 1-2.6-2.6l.1-.1a1.5 1.5 0 0 0-1-2.5H4.5a1.8 1.8 0 0 1 0-3.6h.2a1.5 1.5 0 0 0 1-2.6l-.1-.1A1.8 1.8 0 1 1 8.2 4.9l.1.1a1.5 1.5 0 0 0 2.5-1V3.8a1.8 1.8 0 1 1 3.6 0V4a1.5 1.5 0 0 0 2.6 1l.1-.1a1.8 1.8 0 1 1 2.6 2.6l-.1.1a1.5 1.5 0 0 0 1 2.5h.3a1.8 1.8 0 0 1 0 3.6h-.2a1.5 1.5 0 0 0-1.3.8Z" />
+    </I>
+  );
+}
+export function IconLogout(p: P) {
+  return (
+    <I {...p}>
+      <path d="M15 4.5h2.5A2.5 2.5 0 0 1 20 7v10a2.5 2.5 0 0 1-2.5 2.5H15" />
+      <path d="M11 8.5 14.5 12 11 15.5" />
+      <path d="M14 12H4" />
+    </I>
+  );
+}
+export function IconMapPin(p: P) {
+  return (
+    <I {...p}>
+      <path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11Z" />
+      <circle cx="12" cy="10" r="2.6" />
+    </I>
+  );
+}
+export function IconFilter(p: P) {
+  return (
+    <I {...p}>
+      <path d="M3.5 5.5h17l-6.6 7.6V20l-3.8-2v-4.9Z" />
+    </I>
+  );
+}
+export function IconEye(p: P) {
+  return (
+    <I {...p}>
+      <path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="2.9" />
+    </I>
+  );
+}
+export function IconTrash(p: P) {
+  return (
+    <I {...p}>
+      <path d="M4.5 7h15" />
+      <path d="M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6a1.2 1.2 0 0 1 1.2 1.2V7" />
+      <path d="M6.5 7l.9 12.1A1.6 1.6 0 0 0 9 20.6h6a1.6 1.6 0 0 0 1.6-1.5L17.5 7" />
+      <path d="M10.5 11v6M13.5 11v6" />
+    </I>
+  );
+}
+export function IconPlus(p: P) {
+  return (
+    <I {...p}>
+      <path d="M12 5v14M5 12h14" />
+    </I>
+  );
+}
+export function IconSave(p: P) {
+  return (
+    <I {...p}>
+      <path d="M5 4.5h11L19.5 8v11.5A1 1 0 0 1 18.5 20h-13a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1Z" />
+      <path d="M8 4.5v5h7v-5" />
+      <rect x="8" y="13" width="8" height="7" rx="1" />
+    </I>
+  );
+}
+export function IconBell(p: P) {
+  return (
+    <I {...p}>
+      <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6Z" />
+      <path d="M10.3 19a2 2 0 0 0 3.4 0" />
+    </I>
+  );
+}
+export function IconKey(p: P) {
+  return (
+    <I {...p}>
+      <circle cx="8" cy="14" r="4" />
+      <path d="M11 11.2 20 2.5" />
+      <path d="M17.2 5.3 19.5 7.6M14.8 7.7 17 10" />
+    </I>
+  );
+}
+export function IconMegaphone(p: P) {
+  return (
+    <I {...p}>
+      <path d="M4 10.5v3a1.5 1.5 0 0 0 1.5 1.5H8l6 4.2V6.3L8 10.5H5.5A1.5 1.5 0 0 0 4 10.5Z" />
+      <path d="M17.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M7.5 15v4.5h2.8" />
+    </I>
+  );
+}
+export function IconGrid(p: P) {
+  return (
+    <I {...p}>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.6" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.6" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.6" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.6" />
+    </I>
+  );
+}
+export function IconSparkle(p: P) {
+  return (
+    <I {...p}>
+      <path d="M12 3.5 13.7 9l5.5 1.7-5.5 1.7L12 18l-1.7-5.6L4.8 10.7 10.3 9Z" />
+      <path d="M18.5 16.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z" />
+    </I>
+  );
+}
+export function IconInbox(p: P) {
+  return (
+    <I {...p}>
+      <path d="M3.5 13.5 6 5.4A1.6 1.6 0 0 1 7.6 4.3h8.8A1.6 1.6 0 0 1 18 5.4l2.5 8.1v4.4a1.6 1.6 0 0 1-1.6 1.6H5.1a1.6 1.6 0 0 1-1.6-1.6Z" />
+      <path d="M3.5 13.5h4.2l1.2 2.4h6.2l1.2-2.4h4.2" />
+    </I>
+  );
+}
+export function IconCopy(p: P) {
+  return (
+    <I {...p}>
+      <rect x="8.5" y="8.5" width="12" height="12" rx="2" />
+      <path d="M15.5 8.5v-2a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+    </I>
+  );
+}
+export function IconWrench(p: P) {
+  return (
+    <I {...p}>
+      <path d="M15.2 3.5a5 5 0 0 0-5.6 6.8L3.6 16.3a2 2 0 1 0 2.8 2.8l6-6a5 5 0 0 0 6.6-5.7l-2.9 2.9-2.6-.7-.7-2.6Z" />
+    </I>
+  );
+}
+

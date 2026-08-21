@@ -337,6 +337,76 @@ export async function notifyBackInStock(
   }
 }
 
+/**
+ * Odkaz na obnovu zapomenutého hesla. Odkaz platí 60 minut a dá se použít
+ * jen jednou (viz tabulka `password_resets`).
+ */
+export async function notifyPasswordReset(
+  db: D1Database,
+  to: string,
+  name: string,
+  resetUrl: string,
+  env?: MailEnv
+) {
+  const s = await loadSettings(db);
+  const store = s.store_name || "KAVKA";
+  const html = wrapMail(
+    store,
+    "Obnova hesla",
+    `<p>Dobrý den${name ? ` ${escapeHtml(name)}` : ""},</p>
+     <p>někdo (snad vy) požádal o obnovu hesla k účtu <b>${escapeHtml(to)}</b>. Nové heslo si nastavíte tímto odkazem:</p>
+     <p style="margin:22px 0">
+       <a href="${escapeHtml(resetUrl)}" style="background:#24352c;color:#fffdf8;text-decoration:none;padding:12px 22px;border-radius:999px;display:inline-block">Nastavit nové heslo</a>
+     </p>
+     <p style="font-size:13px;color:#6d655b">Odkaz platí 60 minut a lze ho použít jen jednou. Pokud jste o obnovu nežádali, nemusíte nic dělat — heslo zůstává beze změny.</p>
+     <p style="font-size:12px;color:#8a8177;word-break:break-all">${escapeHtml(resetUrl)}</p>`
+  );
+  return sendMail(db, { to, subject: `${store}: obnova hesla`, html, kind: "password_reset" }, env);
+}
+
+/** Dárkový poukaz zakoupený v e-shopu — kód a platnost pro obdarovaného. */
+export async function notifyGiftVoucher(
+  db: D1Database,
+  voucher: {
+    code: string;
+    amount: number;
+    to: string;
+    recipient_name?: string;
+    message?: string;
+    valid_to?: string | null;
+    order_number?: string;
+  },
+  env?: MailEnv
+) {
+  const s = await loadSettings(db);
+  const store = s.store_name || "KAVKA";
+  const origin = s.store_url || "";
+  const shopUrl = origin ? `${origin}/katalog` : "/katalog";
+  const html = wrapMail(
+    store,
+    `Dárkový poukaz na ${voucher.amount} Kč`,
+    `<p>${voucher.recipient_name ? `Pro: <b>${escapeHtml(voucher.recipient_name)}</b>` : "Dobrý den,"}</p>
+     ${voucher.message ? `<p style="font-style:italic;color:#4a453e">„${escapeHtml(voucher.message)}“</p>` : ""}
+     <p>Tady je váš dárkový poukaz do e-shopu ${escapeHtml(store)}. Kód zadáte v košíku do políčka pro slevový kód.</p>
+     <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0">
+       <tr><td align="center" style="border:2px dashed #c4a574;border-radius:14px;padding:20px">
+         <div style="font-size:12px;letter-spacing:.18em;color:#7a7268">HODNOTA POUKAZU</div>
+         <div style="font-size:30px;font-weight:700;margin:4px 0 12px">${voucher.amount} Kč</div>
+         <div style="font-size:12px;letter-spacing:.18em;color:#7a7268">KÓD</div>
+         <div style="font-size:24px;letter-spacing:.14em;font-family:monospace">${escapeHtml(voucher.code)}</div>
+       </td></tr>
+     </table>
+     ${voucher.valid_to ? `<p style="font-size:13px;color:#6d655b">Platnost do: <b>${escapeHtml(voucher.valid_to)}</b></p>` : ""}
+     ${voucher.order_number ? `<p style="font-size:13px;color:#6d655b">Objednávka č. ${escapeHtml(voucher.order_number)}</p>` : ""}
+     <p><a href="${escapeHtml(shopUrl)}">Vybrat zboží v e-shopu</a></p>`
+  );
+  return sendMail(
+    db,
+    { to: voucher.to, subject: `${store}: dárkový poukaz na ${voucher.amount} Kč`, html, kind: "gift_voucher", meta: voucher.code },
+    env
+  );
+}
+
 export async function notifyAbandonedCart(
   db: D1Database,
   to: string,

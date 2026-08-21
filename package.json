@@ -15,7 +15,8 @@
     "db:migrate": "wrangler d1 migrations apply kavka-shop --remote",
     "typecheck": "tsc --noEmit && tsc -p functions/tsconfig.json --noEmit",
     "smoke": "tsx scripts/smoke.tsx",
-    "smoke:admin": "tsx scripts/smoke-admin.tsx"
+    "smoke:admin": "tsx scripts/smoke-admin.tsx",
+    "smoke:features": "tsx scripts/smoke-features.tsx"
   },
   "dependencies": {
     "hono": "^4.13.0",

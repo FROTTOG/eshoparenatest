@@ -153,6 +153,53 @@ export const GROWTH_SQL = [
   // Opuštěné košíky — kdy naposledy odešla která fáze e-mailu.
   "ALTER TABLE carts ADD COLUMN abandoned_stage INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE carts ADD COLUMN abandoned_at TEXT",
+  // --- Migrace 0007: štítky, filtry, doporučené produkty, poukazy, obnova hesla ---
+  // Štítky produktů (čárkou oddělený seznam) a produkt typu „dárkový poukaz“.
+  "ALTER TABLE products ADD COLUMN tags TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE products ADD COLUMN is_gift_card INTEGER NOT NULL DEFAULT 0",
+  // Ručně vybrané doporučené produkty („mohlo by se hodit“).
+  `CREATE TABLE IF NOT EXISTS product_related (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL,
+    related_product_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(product_id, related_product_id)
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_product_related ON product_related(product_id, sort_order)",
+  // Kupón se po vypršení platnosti může smazat sám.
+  "ALTER TABLE coupons ADD COLUMN auto_delete INTEGER NOT NULL DEFAULT 0",
+  // Dárkové poukazy zakoupené zákazníkem v e-shopu.
+  `CREATE TABLE IF NOT EXISTS gift_vouchers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    amount INTEGER NOT NULL,
+    order_id INTEGER,
+    order_number TEXT NOT NULL DEFAULT '',
+    user_id INTEGER,
+    buyer_email TEXT NOT NULL DEFAULT '',
+    recipient_email TEXT NOT NULL DEFAULT '',
+    recipient_name TEXT NOT NULL DEFAULT '',
+    message TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    sent_at TEXT,
+    valid_to TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_gift_vouchers_order ON gift_vouchers(order_id)",
+  "CREATE INDEX IF NOT EXISTS idx_gift_vouchers_user ON gift_vouchers(user_id)",
+  // Obnova zapomenutého hesla přes odkaz v e-mailu.
+  `CREATE TABLE IF NOT EXISTS password_resets (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    email TEXT NOT NULL DEFAULT '',
+    expires_at INTEGER NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id)",
+  // Doprava „e-mailem“ — nabídne se jen u košíku s dárkovými poukazy.
+  `INSERT OR IGNORE INTO shipping_methods (code, name, description, price, free_over, kind, active, sort_order, eta)
+   VALUES ('email', 'E-mailem', 'Dárkový poukaz pošleme e-mailem hned po zaplacení.', 0, NULL, 'digital', 1, 0, 'ihned')`,
 ];
 
 /**
@@ -570,6 +617,24 @@ const SETTINGS: Record<string, string> = {
   abandoned_enabled: "1",
   // Dynamické OG obrázky pro sdílení na sociálních sítích (0 = jen fotka produktu).
   og_dynamic: "1",
+  // Oznamovací lišta nad hlavičkou (administrace → Lišta a dlaždice).
+  // `announce_items` je JSON pole [{ text, to, bold }]; prázdné = výchozí text.
+  announce_enabled: "1",
+  announce_items: "",
+  announce_bg: "",
+  announce_fg: "",
+  announce_rotate: "0",
+  // Dlaždice rychlých odkazů na úvodní stránce.
+  // `home_tiles_items` je JSON pole [{ icon, title, subtitle, to, color }].
+  home_tiles_enabled: "1",
+  home_tiles_show_categories: "1",
+  home_tiles_items: "",
+  home_tiles_title: "",
+  // Filtry v katalogu — JSON pole [{ title, tags: [] }] nad štítky produktů.
+  catalog_filters: "",
+  // Dárkové poukazy — prodej poukazu jako produktu, doručení e-mailem.
+  gift_enabled: "1",
+  gift_valid_months: "12",
 };
 
 type ProductSeed = {

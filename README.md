@@ -28,14 +28,20 @@
 - **PWA**: instalace do mobilu, **offline režim** (service worker), **Web Push upozornění** hlídacího psa
 - **dvoufázové ověření (2FA/TOTP)** pro administrátory, ochrana přihlášení proti hádání hesla (rate limiting)
 - historie objednávek, sledování podle čísla + e-mailu
-- hodnocení koupeného zboží
+- hodnocení koupeného zboží — přehledný souhrn s průměrem a rozpadem po hvězdách
+- **filtrování katalogu podle štítků** (skupiny filtrů si sestaví správce)
+- **dárkové poukazy** — koupí se jako zboží, kód přijde e-mailem a je i v účtu
+- **obnova zapomenutého hesla** odkazem v e-mailu
 
 **Správce** (`/admin`)
 
 - přehled tržeb, nové objednávky, nízký sklad
 - produkty, kategorie, sklady a pohyby
 - objednávky (stav + označení platby; storno vrací sklad)
-- zákazníci, kupóny, schvalování hodnocení
+- zákazníci (založení, úprava účtu i hesla, smazání), kupóny s časovou platností a automatickým úklidem,
+  dárkové poukazy, schvalování hodnocení
+- štítky produktů, skupiny filtrů katalogu a ručně vybrané doporučené produkty
+- oznamovací lišta nad hlavičkou a dlaždice na úvodní stránce (obojí s živým náhledem)
 - doprava, platby, výdejní místa na mapě
 - **faktury** — vystavují se automaticky ke každé objednávce (číselná řada, VS, DPH, tisk/PDF)
 - **exporty do účetnictví** — iDoklad (CSV), Fakturoid (CSV), POHODA (XML dataPack), objednávky a faktury v CSV
@@ -138,6 +144,68 @@ Zákazník si fakturu stáhne přímo v detailu objednávky (tlačítko *Faktura
 | Fakturoid | CSV s anglickými sloupci | Fakturoid → Faktury → Import |
 | POHODA | XML dataPack (Stormware `version_2`) | POHODA → Soubor → Datová komunikace → XML import |
 | Faktury / Objednávky | CSV | Excel, Google Sheets, účetní |
+
+### Štítky produktů a filtry v katalogu
+
+U každého produktu vyplníte **štítky** (např. `len`, `ruční práce`, `dárek do 1000`). V administraci
+→ **Filtry a štítky** z nich pak sestavíte skupiny filtrů, které zákazník uvidí nad katalogem
+(např. skupina „Materiál“ se štítky len / keramika / dřevo). Bez nastavených skupin katalog nabídne
+prostě všechny použité štítky.
+
+- štítky se dají hromadně přejmenovat i smazat napříč produkty,
+- filtrovaný katalog má adresu `?tags=len,dřevo` (produkt stačí, když má alespoň jeden ze štítků),
+- štítky jsou i ve sloupci `tags` při CSV importu/exportu produktů.
+
+### Doporučené produkty („Mohlo by se hodit“)
+
+V detailu produktu v administraci vyberete konkrétní zboží, které se má u produktu nabízet.
+Když nic nevyberete, doplní se automaticky produkty ze stejné kategorie jako dřív.
+
+### Dárkové poukazy, které si zákazník koupí sám
+
+V administraci → **Kupóny a poukazy** → záložka *Poukazy*:
+
+1. tlačítkem **Vytvořit produkt** založíte v katalogu „Dárkový poukaz 1 000 Kč“,
+2. zákazník ho koupí jako běžné zboží — u košíku se samotnými poukazy se nabídne doprava **E-mailem** zdarma
+   a políčka pro obdarovaného (e-mail, jméno, vzkaz),
+3. jakmile je objednávka **zaplacená**, odejde e-mail s kódem; poukaz se objeví i v účtu zákazníka
+   (sekce *Dárkové poukazy*) a v detailu objednávky,
+4. kód funguje v košíku jako slevový kupón na jedno použití, výchozí platnost 12 měsíců (`gift_valid_months`).
+
+Poukaz jde vystavit i ručně (např. jako omluvu) — vyplníte hodnotu a e-mail, kód odejde hned.
+Tlačítko **Poslat znovu** e-mail zopakuje.
+
+### Kupóny s časovou platností a automatickým úklidem
+
+Kupón má **platnost od–do včetně času** (`datetime-local`). Se zapnutou volbou
+**„Po vypršení automaticky smazat“** kupón po uplynutí platnosti sám zmizí z databáze — úklid se spustí
+při otevření seznamu kupónů a při pokusu o uplatnění v košíku, takže není potřeba žádný cron.
+
+### Obnova hesla e-mailem
+
+Na přihlašovací stránce je odkaz **Zapomněli jste heslo?**. Zákazník dostane e-mail s jednorázovým odkazem
+(platí 60 minut), po nastavení nového hesla se rovnou přihlásí a všechna stará přihlášení se zruší.
+Správce může odkaz poslat i z administrace → **Zákazníci** → *Reset hesla*.
+
+> Aby e-maily skutečně odešly, musí být nastavený Resend (`resend_api_key` + ověřená doména v `mail_from`).
+> Bez něj se zpráva jen zaloguje do sekce **E-maily**.
+
+### Správa zákaznických účtů
+
+Administrace → **Zákazníci** umí účet **založit, upravit i smazat**: jméno, e-mail, telefon, heslo, role
+(zákazník / správce) a cenová skupina (běžný / velkoobchod). Změna hesla odhlásí uživatele ze všech zařízení,
+smazání účtu zachová jeho objednávky (jen se odpojí od účtu).
+
+### Oznamovací lišta a dlaždice na úvodu
+
+Administrace → **Lišta a dlaždice**:
+
+- **oznamovací lišta** nad hlavičkou — libovolný počet zpráv, vlastní odkaz, barvy pozadí i textu,
+  střídání zpráv po pěti vteřinách a možnost lištu úplně vypnout. Text v `*hvězdičkách*` se zvýrazní tučně.
+- **dlaždice rychlých odkazů** na úvodní stránce — nadpis, popisek, odkaz, ikona a barva u každé dlaždice,
+  řazení šipkami, volitelné doplnění o kategorie z katalogu, případně vypnutí celé sekce.
+
+Obojí má v administraci živý náhled.
 
 ---
 
@@ -349,8 +417,14 @@ Bez vazby `DB` web ukáže hlášku, že databáze není připojená. To není r
 - **Sklad** — tlačítka +1 / +5 / −1, vždy s důvodem. Objednávka kusy sama odečte, storno vrátí.
 - **Objednávky** — stavy: Nová → Zaplacená → Zpracovává se → Odeslaná → Doručená. Platbu „Zaplacená“ klikněte, až uvidíte peníze na účtu.
 - **Výdejní místa** — přidejte reálný Z-BOX / pobočku / Balíkovnu (název, adresa, GPS). Mapa na pokladně ukáže špendlík.
-- **Kupóny** — procenta nebo částka, minimum, limit použití.
+- **Kupóny a poukazy** — procenta nebo částka, minimum, limit použití, platnost od–do s časem a automatické smazání po vypršení. Druhá záložka spravuje dárkové poukazy.
+- **Zákazníci** — založení, úprava (včetně hesla a role) i smazání účtu, odeslání odkazu na nové heslo.
+- **Filtry a štítky** — štítky produktů a skupiny filtrů, které zákazník uvidí v katalogu.
+- **Lišta a dlaždice** — oznamovací pruh nad hlavičkou a dlaždice rychlých odkazů na úvodu.
 - **Hodnocení** — pokud v nastavení není `reviews_auto_approve = 1`, schvalujete ručně.
+
+Každé uložení v administraci potvrdí zelené hlášení („Úprava uložena“) a tlačítko se na chvíli přepne
+na **Uloženo ✓**, takže je hned vidět, že se změna propsala.
 
 GPS souřadnice místa: otevřete [https://www.openstreetmap.org](https://www.openstreetmap.org), klikněte pravým na budovu, „Show address“ — nahoře v adrese jsou čísla `lat` a `lng`.
 

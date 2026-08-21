@@ -129,6 +129,8 @@ export type CartItemRow = {
   sku: string;
   /** Cena bez DPH — vyplněná jen ve velkoobchodním režimu. */
   price_net?: number;
+  /** 1 = dárkový poukaz (doručuje se e-mailem, ne dopravcem). */
+  is_gift_card?: number;
 };
 
 export async function loadCart(db: D1Database, cartId: string, ctx: PriceCtx = RETAIL_CTX) {
@@ -141,7 +143,8 @@ export async function loadCart(db: D1Database, cartId: string, ctx: PriceCtx = R
     (
       await db
         .prepare(
-          `SELECT ci.id, ci.product_id, ci.quantity, p.name, p.slug, p.price, p.price_b2b, p.image, p.stock, p.sku
+          `SELECT ci.id, ci.product_id, ci.quantity, p.name, p.slug, p.price, p.price_b2b, p.image, p.stock, p.sku,
+                  COALESCE(p.is_gift_card, 0) AS is_gift_card
            FROM cart_items ci JOIN products p ON p.id = ci.product_id
            WHERE ci.cart_id = ?`
         )
@@ -166,6 +169,9 @@ export async function loadCart(db: D1Database, cartId: string, ctx: PriceCtx = R
     coupon_error: cart?.coupon_code && !disc.ok ? disc.error : null,
     discount,
     count: items.reduce((s, i) => s + i.quantity, 0),
+    /** Košík obsahuje jen dárkové poukazy — pokladna nabídne doručení e-mailem. */
+    digital_only: items.length > 0 && items.every((i) => Number(i.is_gift_card) === 1),
+    has_gift_card: items.some((i) => Number(i.is_gift_card) === 1),
     /** Velkoobchodní režim — front-end podle toho zobrazuje ceny bez DPH. */
     b2b: ctx.b2b,
     vat_rate: ctx.vatRate,

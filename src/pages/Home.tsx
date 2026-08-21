@@ -3,13 +3,20 @@ import { Link } from "react-router-dom";
 import { api, type Category, type Product } from "../api";
 import {
   IconArrow,
+  IconCard,
+  IconClock,
   IconGift,
+  IconHeart,
   IconLeaf,
   IconLocker,
   IconPin,
   IconShield,
+  IconShop,
+  IconSpark,
+  IconStar,
   IconTruck,
 } from "../components/Icons";
+import { readHomeTiles, type TileIcon } from "../settings";
 import { ProductCard } from "../components/ProductCard";
 import { czk, pickupFreeOver } from "../format";
 import { optimizedImage } from "../image";
@@ -29,6 +36,37 @@ export type HeroSlide = {
   image?: string;
   accent?: boolean;
 };
+
+/** Ikona dlaždice podle klíče uloženého v administraci. */
+function tileIcon(name: TileIcon) {
+  const size = 21;
+  switch (name) {
+    case "gift":
+      return <IconGift size={size} />;
+    case "leaf":
+      return <IconLeaf size={size} />;
+    case "locker":
+      return <IconLocker size={size} />;
+    case "truck":
+      return <IconTruck size={size} />;
+    case "shield":
+      return <IconShield size={size} />;
+    case "clock":
+      return <IconClock size={size} />;
+    case "heart":
+      return <IconHeart size={size} />;
+    case "pin":
+      return <IconPin size={size} />;
+    case "shop":
+      return <IconShop size={size} />;
+    case "star":
+      return <IconStar size={size} />;
+    case "card":
+      return <IconCard size={size} />;
+    default:
+      return <IconSpark size={size} />;
+  }
+}
 
 export function Home() {
   const { settings, shipping } = useStore();
@@ -60,17 +98,29 @@ export function Home() {
   const [reload, setReload] = useState(0);
   const [hero, setHero] = useState(0);
 
-  const tiles = useMemo(
-    () => [
-      { icon: <IconGift size={21} />, cls: "accent", name: text("home_tile_1", "Dárkové poukazy"), sub: "Pro každou příležitost", to: "/katalog" },
-      { icon: <IconLeaf size={21} />, cls: "forest", name: text("home_tile_2", "Z ateliéru"), sub: "Ruční výroba", to: "/o-nas" },
-      { icon: <IconLocker size={21} />, cls: "gold", name: text("home_tile_3", "Výdejní místa"), sub: "Z-BOX, Zásilkovna", to: "/doprava-a-platba" },
-      { icon: <IconTruck size={21} />, cls: "accent", name: text("home_tile_4", "Doprava zdarma"), sub: freeOver ? `od ${czk(freeOver)}` : "po celé ČR", to: "/doprava-a-platba" },
-    ],
+  // Dlaždice rychlých odkazů. Když je administrace nenastaví (sekce
+  // „Lišta a dlaždice“), použije se výchozí čtveřice jako dosud.
+  const tileCfg = readHomeTiles(settings);
+  const tiles = useMemo(() => {
+    if (tileCfg.items.length) {
+      return tileCfg.items.map((t) => ({
+        icon: tileIcon(t.icon),
+        cls: t.color,
+        name: t.title,
+        sub: t.subtitle,
+        to: t.to,
+        image: t.image,
+      }));
+    }
+    return [
+      { icon: <IconGift size={21} />, cls: "accent", name: text("home_tile_1", "Dárkové poukazy"), sub: "Pro každou příležitost", to: "/katalog", image: undefined },
+      { icon: <IconLeaf size={21} />, cls: "forest", name: text("home_tile_2", "Z ateliéru"), sub: "Ruční výroba", to: "/o-nas", image: undefined },
+      { icon: <IconLocker size={21} />, cls: "gold", name: text("home_tile_3", "Výdejní místa"), sub: "Z-BOX, Zásilkovna", to: "/doprava-a-platba", image: undefined },
+      { icon: <IconTruck size={21} />, cls: "accent", name: text("home_tile_4", "Doprava zdarma"), sub: freeOver ? `od ${czk(freeOver)}` : "po celé ČR", to: "/doprava-a-platba", image: undefined },
+    ];
     // text() čte settings — závislost na settings kvůli případné změně
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [freeOver, settings]
-  );
+  }, [freeOver, settings]);
 
   const heroSlides = useMemo(() => {
     // Vlastní slidy definované v administraci (sekce Carousel) mají přednost.
@@ -263,33 +313,43 @@ export function Home() {
         )}
       </section>
 
-      {/* Dlaždice zkratek */}
-      <section className="home-tiles" aria-label="Rychlé odkazy">
-        {tiles.map((t) => (
-          <Link key={t.name} to={t.to} className="home-tile">
-            <span className={`home-tile-icon ${t.cls}`}>{t.icon}</span>
-            <span>
-              <b>{t.name}</b>
-              <small>{t.sub}</small>
-            </span>
-          </Link>
-        ))}
-        {cats.slice(0, 4).map((c) => (
-          <Link key={c.id} to={`/katalog/${c.slug}`} className="home-tile">
-            {c.image ? (
-              <OptimizedImg src={c.image} alt="" loading="lazy" decoding="async" width={84} height={84} className="home-tile-img" />
-            ) : (
-              <span className="home-tile-icon forest">
-                <IconPin size={20} />
-              </span>
-            )}
-            <span>
-              <b>{c.name}</b>
-              <small>{c.description || "Kolekce z ateliéru"}</small>
-            </span>
-          </Link>
-        ))}
-      </section>
+      {/* Dlaždice zkratek — obsah i zapnutí řídí administrace */}
+      {tileCfg.enabled && (tiles.length > 0 || (tileCfg.showCategories && cats.length > 0)) && (
+        <>
+          {tileCfg.title && <h2 className="home-tiles-title">{tileCfg.title}</h2>}
+          <section className="home-tiles" aria-label={tileCfg.title || "Rychlé odkazy"}>
+            {tiles.map((t, i) => (
+              <Link key={`${t.name}-${i}`} to={t.to} className="home-tile">
+                {t.image ? (
+                  <OptimizedImg src={t.image} alt="" loading="lazy" decoding="async" width={84} height={84} className="home-tile-img" />
+                ) : (
+                  <span className={`home-tile-icon ${t.cls}`}>{t.icon}</span>
+                )}
+                <span>
+                  <b>{t.name}</b>
+                  <small>{t.sub}</small>
+                </span>
+              </Link>
+            ))}
+            {tileCfg.showCategories &&
+              cats.slice(0, 4).map((c) => (
+                <Link key={c.id} to={`/katalog/${c.slug}`} className="home-tile">
+                  {c.image ? (
+                    <OptimizedImg src={c.image} alt="" loading="lazy" decoding="async" width={84} height={84} className="home-tile-img" />
+                  ) : (
+                    <span className="home-tile-icon forest">
+                      <IconPin size={20} />
+                    </span>
+                  )}
+                  <span>
+                    <b>{c.name}</b>
+                    <small>{c.description || "Kolekce z ateliéru"}</small>
+                  </span>
+                </Link>
+              ))}
+          </section>
+        </>
+      )}
 
       {loadError && (
         <div className="load-error" role="alert" style={{ marginBottom: 18 }}>
