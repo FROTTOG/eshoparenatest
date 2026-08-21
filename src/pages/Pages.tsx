@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError, type Page } from "../api";
 import { useStore } from "../store";
+import { SaveButton, useSaver } from "../components/SaveButton";
 import {
   BlockFields,
   demoBlocks,
@@ -127,6 +129,10 @@ export function PageBuilder() {
   const [busy, setBusy] = useState(false);
   const [toolQ, setToolQ] = useState("");
   const [, setHistTick] = useState(0);
+  // Živý náhled rozpracované stránky (i neuložené změny).
+  const [livePreview, setLivePreview] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const saver = useSaver();
 
   // Historie pro zpět / znovu (strukturální změny bloků)
   const undoRef = useRef<Block[][]>([]);
@@ -266,7 +272,7 @@ export function PageBuilder() {
 
   async function save() {
     setBusy(true);
-    try {
+    await saver.run(async () => {
       await api(`/admin/pages/${cur.id}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -283,12 +289,8 @@ export function PageBuilder() {
           page_max_width: cur.page_max_width,
         }),
       });
-      toast("Stránka uložena.");
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Uložení selhalo.", "err");
-    } finally {
-      setBusy(false);
-    }
+    }, "Stránka uložena.");
+    setBusy(false);
   }
 
   // Aktualizace obsluh (refs → vždy čerstvé funkce z aktuálního renderu).
@@ -328,8 +330,18 @@ export function PageBuilder() {
           <div className="pb-top-actions">
             <button className="chip" title="Zpět (Ctrl+Z)" disabled={!undoRef.current.length} onClick={undo}>↶</button>
             <button className="chip" title="Znovu (Ctrl+Shift+Z)" disabled={!redoRef.current.length} onClick={redo}>↷</button>
-            <Link className="chip" to={systemPagePath(page.slug)} target="_blank">👁 Náhled</Link>
-            <button className="btn-dark btn-sm" disabled={busy} onClick={() => void save()}>{busy ? "Ukládám…" : "Uložit"}</button>
+            <button
+              className="chip chip-primary"
+              type="button"
+              title="Ukáže stránku i s neuloženými změnami"
+              onClick={() => setLivePreview(true)}
+            >
+              👁 Živý náhled
+            </button>
+            <Link className="chip" to={systemPagePath(page.slug)} target="_blank" title="Otevře veřejnou (naposledy uloženou) verzi">
+              ↗ Uložená verze
+            </Link>
+            <SaveButton state={saver.state} error={saver.error} className="btn-dark btn-sm" onClick={() => void save()} savedLabel="Uloženo" />
           </div>
         </div>
       </div>
@@ -514,6 +526,47 @@ export function PageBuilder() {
           )}
         </aside>
       </div>
+
+      {/* Živý náhled — vykreslí aktuální (i neuložené) bloky přes celou obrazovku */}
+      {livePreview &&
+        createPortal(
+          <div className="pb-live" role="dialog" aria-modal="true" aria-label="Živý náhled stránky">
+            <div className="pb-live-bar">
+              <b>Živý náhled — {page.title || "stránka"}</b>
+              <span className="pb-live-note">Zobrazuje i neuložené změny</span>
+              <span className="pb-live-devices">
+                {(["desktop", "tablet", "mobile"] as const).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className={previewWidth === d ? "on" : ""}
+                    onClick={() => setPreviewWidth(d)}
+                  >
+                    {d === "desktop" ? "🖥 Počítač" : d === "tablet" ? "▭ Tablet" : "▯ Mobil"}
+                  </button>
+                ))}
+              </span>
+              <button type="button" className="btn-dark btn-sm" onClick={() => void save()}>
+                Uložit
+              </button>
+              <button type="button" className="chip" onClick={() => setLivePreview(false)}>
+                ✕ Zavřít
+              </button>
+            </div>
+            <div className="pb-live-scroll">
+              <div className={`pb-live-frame ${previewWidth}`}>
+                <div className="pb-public-page">
+                  {blocks.length ? (
+                    blocks.map((b) => <Fragment key={b.id}>{renderBlock(b)}</Fragment>)
+                  ) : (
+                    <p className="pb-hint">Stránka zatím nemá žádné bloky.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

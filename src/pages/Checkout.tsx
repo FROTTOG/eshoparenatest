@@ -16,6 +16,7 @@ import {
   IconSearch,
   IconShield,
   IconShop,
+  IconGift,
   IconTruck,
   IconWrap,
 } from "../components/Icons";
@@ -28,6 +29,7 @@ function shipIcon(kind: string) {
   if (kind === "pickup_zasilkovna") return <IconPin />;
   if (kind === "pickup_balikovna") return <IconParcel />;
   if (kind === "store") return <IconShop />;
+  if (kind === "digital") return <IconGift />;
   return <IconTruck />;
 }
 
@@ -79,13 +81,13 @@ export function Checkout() {
     // Souhlasy a poznámka
     note: "",
     agree_terms: false,
+    gift_recipient_email: "",
+    gift_recipient_name: "",
+    gift_message: "",
   });
 
   useEffect(() => {
-    void api<ShippingMethod[]>("/shipping").then((rows) => {
-      setShipping(rows);
-      if (rows[0]) setShip(rows[0].code);
-    });
+    void api<ShippingMethod[]>("/shipping").then(setShipping);
     void api<PaymentMethod[]>("/payments").then(setPayments);
   }, []);
 
@@ -116,7 +118,22 @@ export function Checkout() {
     }
   }, [user]);
 
-  const selectedShip = shipping.find((s) => s.code === ship);
+  // Košík jen s dárkovými poukazy se doručuje e-mailem — fyzickou dopravu
+  // pak nenabízíme (a naopak digitální dopravu skryjeme u běžného zboží).
+  const digitalOnly = !!cart?.digital_only;
+  const shippingOptions = useMemo(
+    () => shipping.filter((s) => (digitalOnly ? s.kind === "digital" : s.kind !== "digital")),
+    [shipping, digitalOnly]
+  );
+  useEffect(() => {
+    if (!shippingOptions.length) return;
+    if (!shippingOptions.some((s) => s.code === ship)) {
+      setShip(shippingOptions[0].code);
+      setPoint(null);
+    }
+  }, [shippingOptions, ship]);
+
+  const selectedShip = shippingOptions.find((s) => s.code === ship);
   const pickupType =
     selectedShip?.kind === "pickup_zbox"
       ? "zbox"
@@ -251,6 +268,9 @@ export function Checkout() {
           company_name: form.company_name,
           ico: form.ico,
           dic: form.dic,
+          gift_recipient_email: form.gift_recipient_email,
+          gift_recipient_name: form.gift_recipient_name,
+          gift_message: form.gift_message,
           different_shipping: form.different_shipping,
           shipping_recipient: form.different_shipping ? form.shipping_recipient : billingName,
           street: form.different_shipping ? form.shipping_street : form.billing_street,
@@ -540,9 +560,48 @@ export function Checkout() {
         {/* 3. ZPŮSOB DOPRAVY */}
         <div className="checkout-section-head">
           <h3 className="serif">3. Kam to poslat</h3>
-          <p>Vyberte dopravu. U výdejních míst pak ještě konkrétní místo na mapě.</p>
+          <p>
+            {digitalOnly
+              ? "V košíku máte jen dárkový poukaz — pošleme ho e-mailem hned po zaplacení."
+              : "Vyberte dopravu. U výdejních míst pak ještě konkrétní místo na mapě."}
+          </p>
         </div>
-        {shipping.map((s) => (
+        {digitalOnly && (
+          <div className="gift-recipient">
+            <b>
+              <IconGift size={16} /> Komu poukaz poslat
+            </b>
+            <p>Nechte prázdné a poukaz přijde na váš e-mail. Nebo ho pošleme rovnou obdarovanému.</p>
+            <div className="gift-recipient-fields">
+              <label>
+                E-mail obdarovaného
+                <input
+                  type="email"
+                  value={form.gift_recipient_email}
+                  onChange={(e) => setForm({ ...form, gift_recipient_email: e.target.value })}
+                  placeholder="nepovinné"
+                />
+              </label>
+              <label>
+                Jméno obdarovaného
+                <input
+                  value={form.gift_recipient_name}
+                  onChange={(e) => setForm({ ...form, gift_recipient_name: e.target.value })}
+                  placeholder="nepovinné"
+                />
+              </label>
+              <label className="full">
+                Vzkaz v e-mailu
+                <input
+                  value={form.gift_message}
+                  onChange={(e) => setForm({ ...form, gift_message: e.target.value })}
+                  placeholder="Všechno nejlepší!"
+                />
+              </label>
+            </div>
+          </div>
+        )}
+        {shippingOptions.map((s) => (
           <label key={s.code} className={`choice ${ship === s.code ? "active" : ""}`}>
             <input
               type="radio"

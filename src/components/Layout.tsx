@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "../api";
 import { useStore } from "../store";
@@ -10,6 +10,7 @@ import { SearchBox } from "./SearchBox";
 import { Logo } from "./Ui";
 import { BottomNav } from "./BottomNav";
 import { czk, pickupFreeOver } from "../format";
+import { readAnnounce, splitBold } from "../settings";
 
 const NAV_LINKS = [
   { to: "/", label: "Domů", end: true },
@@ -152,6 +153,26 @@ export function Layout() {
 
   const freeOver = pickupFreeOver(shipping);
 
+  // Oznamovací lišta — obsah z administrace, jinak výchozí sdělení e-shopu.
+  const announce = readAnnounce(settings);
+  const announceItems = useMemo(() => {
+    if (announce.items.length) return announce.items;
+    return [
+      { text: freeOver ? `Doprava zdarma od *${czk(freeOver)}*` : "Doprava po celé ČR" },
+      { text: "Sleva 10 % na první nákup pro registrované — kód *KAVKA10*" },
+    ];
+  }, [announce.items, freeOver]);
+  const [announceIdx, setAnnounceIdx] = useState(0);
+  useEffect(() => {
+    if (!announce.rotate || announceItems.length < 2) return;
+    const t = window.setInterval(() => setAnnounceIdx((i) => (i + 1) % announceItems.length), 5000);
+    return () => window.clearInterval(t);
+  }, [announce.rotate, announceItems.length]);
+  const visibleAnnounce = announce.rotate && announceItems.length > 1 ? [announceItems[announceIdx % announceItems.length]] : announceItems;
+  const announceStyle: CSSProperties = {};
+  if (announce.bg) announceStyle.background = announce.bg;
+  if (announce.fg) announceStyle.color = announce.fg;
+
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const ico = settings.store_ico || "19200456";
   const dic = settings.store_dic || "CZ19200456";
@@ -170,21 +191,35 @@ export function Layout() {
       {/* Pruh postupu čtení stránky */}
       <div className="scroll-progress" aria-hidden="true" style={{ transform: `scaleX(${progress})` }} />
 
-      {/* Informační lišta nad hlavičkou */}
-      <div className="announce" role="note">
-        <span className="announce-dot" aria-hidden="true" />
-        <span>
-          {freeOver ? (
-            <>
-              Doprava zdarma od <b>{czk(freeOver)}</b>
-            </>
-          ) : (
-            <>Doprava po celé ČR</>
-          )}
-          <span className="announce-sep" aria-hidden="true">·</span>
-          Sleva 10 % na první nákup pro registrované — kód <b>KAVKA10</b>
-        </span>
-      </div>
+      {/* Informační lišta nad hlavičkou — obsah, barvy i zapnutí řídí
+          administrace (Lišta a dlaždice). Prázdný seznam = výchozí text. */}
+      {announce.enabled && (
+        <div
+          className={`announce${announce.rotate && announceItems.length > 1 ? " announce-rotating" : ""}`}
+          role="note"
+          style={announceStyle}
+        >
+          <span className="announce-dot" aria-hidden="true" />
+          <span className="announce-body">
+            {visibleAnnounce.map((item, i) => (
+              <span key={i} className="announce-item">
+                {i > 0 && (
+                  <span className="announce-sep" aria-hidden="true">
+                    ·
+                  </span>
+                )}
+                {item.to ? (
+                  <Link to={item.to}>
+                    {splitBold(item.text).map((part, j) => (part.bold ? <b key={j}>{part.text}</b> : <span key={j}>{part.text}</span>))}
+                  </Link>
+                ) : (
+                  splitBold(item.text).map((part, j) => (part.bold ? <b key={j}>{part.text}</b> : <span key={j}>{part.text}</span>))
+                )}
+              </span>
+            ))}
+          </span>
+        </div>
+      )}
 
       <header ref={headerRef} className={`header${scrolled ? " scrolled" : ""}`}>
         <div className="header-in">
@@ -244,9 +279,6 @@ export function Layout() {
                   {cart?.count}
                 </span>
               )}
-            </Link>
-            <Link to="/katalog" className="btn btn-sm desktop-only" style={{ marginLeft: 4 }}>
-              Nakoupit
             </Link>
           </div>
         </div>

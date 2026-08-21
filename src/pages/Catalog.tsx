@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { api, ApiError, type Category, type Product } from "../api";
+import { api, ApiError, type Category, type Product, type TagCount } from "../api";
+import { IconFilter } from "../components/Icons";
+import { readFilterGroups } from "../settings";
 import { ProductCard } from "../components/ProductCard";
 import { useStore } from "../store";
 import { usePageTitle } from "../title";
@@ -16,9 +18,12 @@ export function Catalog() {
   const inStock = sp.get("in_stock") === "1";
   const priceMin = sp.get("price_min") || "";
   const priceMax = sp.get("price_max") || "";
+  const activeTags = (sp.get("tags") || "").split(",").map((t) => t.trim()).filter(Boolean);
   const page = Math.max(1, Number(sp.get("page") || 1));
   const [pmin, setPmin] = useState(priceMin);
   const [pmax, setPmax] = useState(priceMax);
+  const [allTags, setAllTags] = useState<TagCount[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -37,6 +42,9 @@ export function Catalog() {
     void api<Category[]>("/categories", { signal: controller.signal })
       .then(setCats)
       .catch(() => undefined);
+    void api<TagCount[]>("/tags", { signal: controller.signal })
+      .then(setAllTags)
+      .catch(() => undefined);
     return () => controller.abort();
   }, []);
 
@@ -48,6 +56,7 @@ export function Catalog() {
     if (inStock) qs.set("in_stock", "1");
     if (priceMin) qs.set("price_min", priceMin);
     if (priceMax) qs.set("price_max", priceMax);
+    if (activeTags.length) qs.set("tags", activeTags.join(","));
     setLoading(true);
     setError("");
     void api<{ items: Product[]; total: number }>(`/products?${qs}`, { signal: controller.signal })
@@ -64,7 +73,7 @@ export function Catalog() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [q, slug, sort, inStock, priceMin, priceMax, page, reload]);
+  }, [q, slug, sort, inStock, priceMin, priceMax, activeTags.join(","), page, reload]);
 
   function patch(next: Record<string, string | null>, resetPage = true) {
     const n = new URLSearchParams(sp);
@@ -83,6 +92,7 @@ export function Catalog() {
     if (inStock) n.set("in_stock", "1");
     if (priceMin) n.set("price_min", priceMin);
     if (priceMax) n.set("price_max", priceMax);
+    if (activeTags.length) n.set("tags", activeTags.join(","));
     const qs = n.toString();
     const path = nextSlug ? `/katalog/${nextSlug}` : "/katalog";
     return qs ? `${path}?${qs}` : path;
@@ -104,6 +114,32 @@ export function Catalog() {
     setPmax("");
     patch({ price_min: null, price_max: null });
   }
+
+  /** Přepne štítek ve filtru (víc štítků = zboží s alespoň jedním z nich). */
+  function toggleTag(tag: string) {
+    const key = tag.toLowerCase();
+    const next = activeTags.some((t) => t.toLowerCase() === key)
+      ? activeTags.filter((t) => t.toLowerCase() !== key)
+      : [...activeTags, tag];
+    patch({ tags: next.length ? next.join(",") : null });
+  }
+
+  function clearFilters() {
+    setPmin("");
+    setPmax("");
+    patch({ tags: null, price_min: null, price_max: null, in_stock: null });
+  }
+
+  const tagActive = (tag: string) => activeTags.some((t) => t.toLowerCase() === tag.toLowerCase());
+  // Skupiny filtrů nastavené v administraci; jinak prostě všechny štítky.
+  const groups = readFilterGroups(settings);
+  const knownTags = new Set(allTags.map((t) => t.tag.toLowerCase()));
+  const filterGroups = groups.length
+    ? groups.map((g) => ({ title: g.title, tags: g.tags.filter((t) => knownTags.has(t.toLowerCase())) })).filter((g) => g.tags.length)
+    : allTags.length
+      ? [{ title: "Štítky", tags: allTags.slice(0, 18).map((t) => t.tag) }]
+      : [];
+  const activeCount = activeTags.length + (priceMin ? 1 : 0) + (priceMax ? 1 : 0) + (inStock ? 1 : 0);
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -212,7 +248,60 @@ export function Catalog() {
             </button>
           )}
         </form>
+
+        {/* Filtry podle štítků — skupiny se nastavují v administraci */}
+        {filterGroups.length > 0 && (
+          <div className={`tag-filters${filtersOpen ? " open" : ""}`}>
+            <button type="button" className="tag-filters-toggle" onClick={() => setFiltersOpen((v) => !v)} aria-expanded={filtersOpen}>
+              <IconFilter size={16} />
+              Filtry
+              {activeCount > 0 && <span className="tag-filters-badge">{activeCount}</span>}
+              <span className="tag-filters-caret" aria-hidden="true">
+                {filtersOpen ? "▲" : "▼"}
+              </span>
+            </button>
+            <div className="tag-filters-panel">
+              {filterGroups.map((g) => (
+                <div key={g.title} className="tag-filter-group">
+                  <span className="tag-filter-title">{g.title}</span>
+                  <div className="tag-filter-chips">
+                    {g.tags.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        className={`chip tag-chip${tagActive(t) ? " on" : ""}`}
+                        onClick={() => toggleTag(t)}
+                        aria-pressed={tagActive(t)}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {activeCount > 0 && (
+                <button type="button" className="linkish tag-filters-clear" onClick={clearFilters}>
+                  Zrušit všechny filtry
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Přehled aktivních filtrů */}
+      {activeTags.length > 0 && (
+        <div className="active-filters" aria-label="Aktivní filtry">
+          {activeTags.map((t) => (
+            <button key={t} type="button" className="active-filter" onClick={() => toggleTag(t)}>
+              {t} <span aria-hidden="true">✕</span>
+            </button>
+          ))}
+          <button type="button" className="linkish" onClick={clearFilters}>
+            Zrušit vše
+          </button>
+        </div>
+      )}
       {error ? (
         <div className="empty" role="alert">
           <h2 className="serif" style={{ color: "var(--ink)" }}>Katalog si dává pauzu</h2>

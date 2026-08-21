@@ -6,6 +6,8 @@
  * CSV je oddělené středníkem s BOM, aby se otevřelo v českém Excelu.
  */
 
+import { normalizeTags } from "./features";
+
 export type BulkAction =
   | "price_percent"
   | "price_set"
@@ -34,6 +36,7 @@ export const CSV_COLUMNS = [
   "active",
   "featured",
   "image",
+  "tags",
   "short_description",
   "description",
 ] as const;
@@ -139,6 +142,7 @@ export async function importProductsCsv(db: D1Database, text: string, adminId: n
         if (rec.active !== undefined && rec.active !== "") put("active", /^(1|ano|true|yes)$/i.test(rec.active) ? 1 : 0);
         if (rec.featured !== undefined && rec.featured !== "") put("featured", /^(1|ano|true|yes)$/i.test(rec.featured) ? 1 : 0);
         if (rec.image) put("image", rec.image);
+        if (rec.tags !== undefined) put("tags", normalizeTags(rec.tags));
         if (rec.short_description) put("short_description", rec.short_description);
         if (rec.description) put("description", rec.description);
         if (catId != null) put("category_id", catId);
@@ -169,8 +173,8 @@ export async function importProductsCsv(db: D1Database, text: string, adminId: n
         const stock = Math.max(0, Math.round(Number(rec.stock) || 0));
         const res = await db
           .prepare(
-            `INSERT INTO products (name, slug, sku, description, short_description, price, price_b2b, compare_price, stock, low_stock, category_id, image, weight, active, featured)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            `INSERT INTO products (name, slug, sku, description, short_description, price, price_b2b, compare_price, stock, low_stock, category_id, image, weight, active, featured, tags)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
           .bind(
             name,
@@ -187,7 +191,8 @@ export async function importProductsCsv(db: D1Database, text: string, adminId: n
             rec.image || "",
             Math.round(Number(rec.weight) || 0),
             rec.active && !/^(1|ano|true|yes)$/i.test(rec.active) ? 0 : 1,
-            /^(1|ano|true|yes)$/i.test(rec.featured || "") ? 1 : 0
+            /^(1|ano|true|yes)$/i.test(rec.featured || "") ? 1 : 0,
+            normalizeTags(rec.tags || "")
           )
           .run();
         const newId = Number(res.meta.last_row_id);

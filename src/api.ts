@@ -73,6 +73,33 @@ export type Product = {
   can_review?: boolean;
   /** Zákazník už produkt hodnotil. */
   has_review?: boolean;
+  /** Štítky produktu (filtry v katalogu). */
+  tags?: string[] | string;
+  /** Ručně vybrané doporučené produkty („mohlo by se hodit“). */
+  related?: Product[];
+  related_ids?: number[];
+  /** Rozpad hodnocení po hvězdách: { "5": 12, "4": 3, ... } */
+  rating_breakdown?: Record<string, number>;
+  /** 1 = dárkový poukaz (doručuje se e-mailem). */
+  is_gift_card?: number;
+};
+
+/** Štítek produktu s počtem výskytů (pro filtry v katalogu). */
+export type TagCount = { tag: string; count: number };
+
+/** Skupina filtrů v katalogu (nastavuje se v administraci). */
+export type FilterGroup = { title: string; tags: string[] };
+
+/** Dárkový poukaz zakoupený zákazníkem. */
+export type GiftVoucher = {
+  id: number;
+  code: string;
+  amount: number;
+  order_number: string;
+  status: string;
+  valid_to: string | null;
+  created_at: string;
+  used_count?: number;
 };
 
 export type Review = {
@@ -103,6 +130,7 @@ export type CartItem = {
   image: string;
   stock: number;
   sku: string;
+  is_gift_card?: number;
 };
 
 export type Cart = {
@@ -118,6 +146,9 @@ export type Cart = {
   vat_rate?: number;
   subtotal_net?: number;
   vat_amount?: number;
+  /** Košík obsahuje jen dárkové poukazy — nabídne se doručení e-mailem. */
+  digital_only?: boolean;
+  has_gift_card?: boolean;
 };
 
 export type Post = {
@@ -227,6 +258,8 @@ export type Order = {
   tracking_carrier?: string;
   tracking_url?: string;
   items: { id: number; product_id: number; name: string; sku: string; price: number; quantity: number }[];
+  /** Dárkové poukazy zakoupené v této objednávce (kód až po zaplacení). */
+  vouchers?: { id: number; code: string; amount: number; status: string; valid_to: string | null }[];
 };
 
 export type Settings = Record<string, string>;

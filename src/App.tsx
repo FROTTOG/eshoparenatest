@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { Account } from "./pages/Account";
-import { Login, Register } from "./pages/Auth";
+import { ForgotPassword, Login, Register, ResetPassword } from "./pages/Auth";
 import { CartPage } from "./pages/Cart";
 import { Catalog } from "./pages/Catalog";
 import { Checkout } from "./pages/Checkout";
@@ -54,6 +54,8 @@ export function App() {
         <Route path="pokladna" element={<Checkout />} />
         <Route path="prihlaseni" element={<Login />} />
         <Route path="registrace" element={<Register />} />
+        <Route path="zapomenute-heslo" element={<ForgotPassword />} />
+        <Route path="obnova-hesla" element={<ResetPassword />} />
         <Route path="ucet/*" element={<Account />} />
         <Route path="objednavka/:number" element={<OrderPage />} />
         <Route path="sledovani" element={<Track />} />

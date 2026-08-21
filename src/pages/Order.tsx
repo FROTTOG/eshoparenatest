@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError, type Order, type Product, type Settings } from "../api";
+import { IconGift } from "../components/Icons";
 import { PayQr } from "../components/PayQr";
 import { ProductCard } from "../components/ProductCard";
 import { czk, dateCs, statusLabel } from "../format";
@@ -142,6 +143,33 @@ export function OrderPage() {
               <div>{czk(it.price * it.quantity)}</div>
             </div>
           ))}
+
+          {/* Dárkové poukazy z objednávky */}
+          {(order.vouchers || []).length > 0 && (
+            <div className="order-vouchers">
+              <b>
+                <IconGift size={17} /> Dárkové poukazy z této objednávky
+              </b>
+              <div className="voucher-grid" style={{ marginTop: 10 }}>
+                {(order.vouchers || []).map((v) => (
+                  <div key={v.id} className="voucher-card">
+                    <div className="voucher-top">
+                      <span className="voucher-amount">{czk(v.amount)}</span>
+                      <span className={`voucher-state ${v.status}`}>{v.status === "sent" ? "Aktivní" : "Čeká na zaplacení"}</span>
+                    </div>
+                    {v.code ? (
+                      <div className="voucher-code" role="text">
+                        <code>{v.code}</code>
+                      </div>
+                    ) : (
+                      <p className="voucher-hint">Kód pošleme e-mailem hned po připsání platby.</p>
+                    )}
+                    <small>{v.valid_to ? `Platnost do ${dateCs(v.valid_to)}` : "Bez omezení platnosti"}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="order-details-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 24 }}>
             <div className="glass-card" style={{ padding: 16, borderRadius: 16, border: "1px solid var(--line)" }}>

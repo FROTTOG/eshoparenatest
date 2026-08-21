@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useStore } from "../store";
@@ -103,6 +103,9 @@ export function Login() {
         <button className="btn-dark" type="submit">
           Vstoupit
         </button>
+        <p className="auth-forgot">
+          <Link to="/zapomenute-heslo">Zapomněli jste heslo?</Link>
+        </p>
       </form>
       <p>
         Nemáte účet? <Link to={next ? `/registrace?next=${encodeURIComponent(next)}` : "/registrace"}>Registrace</Link>
@@ -166,6 +169,156 @@ export function Register() {
       <p>
         Už u nás jste? <Link to={next ? `/prihlaseni?next=${encodeURIComponent(next)}` : "/prihlaseni"}>Přihlášení</Link>
       </p>
+    </div>
+  );
+}
+
+/* ============================================================
+   Zapomenuté heslo — odeslání odkazu na e-mail
+   ============================================================ */
+
+export function ForgotPassword() {
+  usePageTitle("Zapomenuté heslo — KAVKA");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setErr("");
+    setBusy(true);
+    try {
+      const r = await api<{ message?: string }>("/auth/forgot", { method: "POST", body: JSON.stringify({ email }) });
+      setMsg(r.message || "Pokud u nás účet existuje, poslali jsme na něj odkaz pro nastavení nového hesla.");
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Požadavek se nepodařilo odeslat.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="auth-wrap">
+      <h1>Zapomenuté heslo</h1>
+      <p style={{ color: "var(--muted)" }}>
+        Zadejte e-mail, kterým se přihlašujete. Pošleme vám odkaz pro nastavení nového hesla — platí 60 minut.
+      </p>
+      {msg ? (
+        <div className="ok" role="status" style={{ marginTop: 14 }}>
+          {msg}
+        </div>
+      ) : (
+        <form className="form" onSubmit={onSubmit}>
+          <label>
+            E-mail
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
+          </label>
+          {err && <div className="err" role="alert">{err}</div>}
+          <button className="btn-dark" type="submit" disabled={busy}>
+            {busy ? "Odesílám…" : "Poslat odkaz na e-mail"}
+          </button>
+        </form>
+      )}
+      <p style={{ marginTop: 16 }}>
+        <Link to="/prihlaseni">← Zpět k přihlášení</Link>
+      </p>
+    </div>
+  );
+}
+
+/* ============================================================
+   Nastavení nového hesla podle odkazu z e-mailu
+   ============================================================ */
+
+export function ResetPassword() {
+  usePageTitle("Nové heslo — KAVKA");
+  const { refresh } = useStore();
+  const nav = useNavigate();
+  const loc = useLocation();
+  const token = new URLSearchParams(loc.search).get("token") || "";
+  const [state, setState] = useState<"check" | "ok" | "bad">("check");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [again, setAgain] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    if (!token) {
+      setState("bad");
+      return;
+    }
+    void api<{ email: string }>(`/auth/reset?token=${encodeURIComponent(token)}`)
+      .then((r) => {
+        setEmail(r.email);
+        setState("ok");
+      })
+      .catch(() => setState("bad"));
+  }, [token]);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setErr("");
+    if (password !== again) {
+      setErr("Hesla se neshodují.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await api<{ need_login?: boolean }>("/auth/reset", { method: "POST", body: JSON.stringify({ token, password }) });
+      await refresh();
+      nav(r.need_login ? "/prihlaseni" : "/ucet");
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Heslo se nepodařilo změnit.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (state === "check") {
+    return (
+      <div className="auth-wrap">
+        <h1>Nové heslo</h1>
+        <p style={{ color: "var(--muted)" }}>Ověřuji odkaz…</p>
+      </div>
+    );
+  }
+
+  if (state === "bad") {
+    return (
+      <div className="auth-wrap">
+        <h1>Odkaz už neplatí</h1>
+        <p style={{ color: "var(--muted)" }}>
+          Odkaz pro obnovu hesla je jednorázový a platí 60 minut. Požádejte prosím o nový.
+        </p>
+        <Link className="btn" to="/zapomenute-heslo">
+          Poslat nový odkaz
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="auth-wrap">
+      <h1>Nové heslo</h1>
+      <p style={{ color: "var(--muted)" }}>
+        Nastavujete nové heslo k účtu <b>{email}</b>. Po uložení vás rovnou přihlásíme.
+      </p>
+      <form className="form" onSubmit={onSubmit}>
+        <label>
+          Nové heslo (min. 8 znaků)
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" />
+        </label>
+        <label>
+          Heslo znovu
+          <input type="password" value={again} onChange={(e) => setAgain(e.target.value)} required minLength={8} autoComplete="new-password" />
+        </label>
+        {err && <div className="err" role="alert">{err}</div>}
+        <button className="btn-dark" type="submit" disabled={busy}>
+          {busy ? "Ukládám…" : "Uložit heslo a přihlásit"}
+        </button>
+      </form>
     </div>
   );
 }

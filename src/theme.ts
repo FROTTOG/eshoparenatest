@@ -81,6 +81,10 @@ export function applyTheme(s: Settings): void {
 
   for (const v of THEME_VARS) {
     st.setProperty(v.css, toHex(t[v.key], v.def));
+    // Kopie barev e-shopu pod vlastním názvem. Administrace má svou pevnou
+    // (vždy čitelnou) paletu, ale náhledy bloků a produktů v ní musí ukázat
+    // skutečné barvy obchodu — proto si je berou z těchto proměnných.
+    st.setProperty(`--shop${v.css.slice(1)}`, toHex(t[v.key], v.def));
   }
 
   // Zaoblení rohů (slider) — px

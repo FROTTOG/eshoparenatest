@@ -1,14 +1,23 @@
 import type { App } from "./helpers";
 import { requireAdmin, slugify } from "./helpers";
 import { loadOrder } from "./public";
-import { notifyBackInStock, notifyOrderStatus, processAbandonedCarts, resolveMailConfig, sendTestMail } from "./mail";
+import { notifyBackInStock, notifyOrderStatus, notifyPasswordReset, processAbandonedCarts, resolveMailConfig, sendTestMail } from "./mail";
 import { bumpCache } from "./cache";
 import { pushToSubscriptions } from "./push";
-import { generateTotpSecret, verifyPassword, verifyTotp } from "./crypto";
+import { generateTotpSecret, hashPassword, randomId, verifyPassword, verifyTotp } from "./crypto";
 import { CARRIERS, createShipment, type CarrierCode } from "./shipping";
 import { bulkEditProducts, importProductsCsv, productsCsv, type BulkAction } from "./bulk";
 import { batchPrintHtml, type PrintWhat } from "./print";
 import { seedPosts } from "./schema";
+import {
+  listTags,
+  loadRelatedIds,
+  normalizeTags,
+  purgeExpiredCoupons,
+  saveRelated,
+  sendVouchersForOrder,
+  voucherCode,
+} from "./features";
 import {
   cancelInvoiceForOrder,
   ensureInvoiceForOrder,
@@ -79,7 +88,20 @@ export function registerAdmin(app: App) {
     if (!p) return c.json({ error: "Nenalezeno." }, 404);
     const images = (await c.env.DB.prepare("SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order, id").bind((p as { id: number }).id).all()).results || [];
     const moves = (await c.env.DB.prepare("SELECT * FROM stock_movements WHERE product_id = ? ORDER BY id DESC LIMIT 30").bind((p as { id: number }).id).all()).results || [];
-    return c.json({ ...p, images, movements: moves });
+    const relatedIds = await loadRelatedIds(c.env.DB, (p as { id: number }).id);
+    const related =
+      relatedIds.length > 0
+        ? (
+            await c.env.DB.prepare(
+              `SELECT id, name, sku, image, price FROM products WHERE id IN (${relatedIds.map(() => "?").join(",")})`
+            )
+              .bind(...relatedIds)
+              .all<{ id: number; name: string; sku: string; image: string; price: number }>()
+          ).results || []
+        : [];
+    // Zachováme pořadí uložené v administraci.
+    const relatedSorted = relatedIds.map((rid) => related.find((r) => r.id === rid)).filter(Boolean);
+    return c.json({ ...p, images, movements: moves, related_ids: relatedIds, related: relatedSorted });
   });
 
   app.post("/admin/products", async (c) => {
@@ -90,8 +112,8 @@ export function registerAdmin(app: App) {
     const sku = String(b.sku || `KAV-${Date.now().toString(36).toUpperCase()}`);
     try {
       const res = await c.env.DB.prepare(
-        `INSERT INTO products (name, slug, sku, description, short_description, price, price_b2b, compare_price, stock, low_stock, category_id, image, weight, active, featured)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO products (name, slug, sku, description, short_description, price, price_b2b, compare_price, stock, low_stock, category_id, image, weight, active, featured, tags, is_gift_card)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
         .bind(
           name,
@@ -108,10 +130,13 @@ export function registerAdmin(app: App) {
           String(b.image || ""),
           Number(b.weight || 0),
           b.active === false || b.active === 0 ? 0 : 1,
-          b.featured ? 1 : 0
+          b.featured ? 1 : 0,
+          normalizeTags(b.tags),
+          b.is_gift_card ? 1 : 0
         )
         .run();
       const id = Number(res.meta.last_row_id);
+      if (Array.isArray(b.related_ids)) await saveRelated(c.env.DB, id, (b.related_ids as number[]).map(Number));
       if (b.image) {
         await c.env.DB.prepare("INSERT INTO product_images (product_id, url, sort_order) VALUES (?, ?, 0)").bind(id, String(b.image)).run();
       }
@@ -136,7 +161,7 @@ export function registerAdmin(app: App) {
     const slug = slugify(String(b.slug || name));
     await c.env.DB.prepare(
       `UPDATE products SET name=?, slug=?, sku=?, description=?, short_description=?, price=?, price_b2b=?, compare_price=?,
-       low_stock=?, category_id=?, image=?, weight=?, active=?, featured=?, updated_at=datetime('now') WHERE id=?`
+       low_stock=?, category_id=?, image=?, weight=?, active=?, featured=?, tags=?, is_gift_card=?, updated_at=datetime('now') WHERE id=?`
     )
       .bind(
         name,
@@ -153,9 +178,12 @@ export function registerAdmin(app: App) {
         Number(b.weight || 0),
         b.active === false || b.active === 0 ? 0 : 1,
         b.featured ? 1 : 0,
+        normalizeTags(b.tags),
+        b.is_gift_card ? 1 : 0,
         id
       )
       .run();
+    if (Array.isArray(b.related_ids)) await saveRelated(c.env.DB, id, (b.related_ids as number[]).map(Number));
     await bumpCache(c.env.DB);
     return c.json({ ok: true });
   });
@@ -163,9 +191,57 @@ export function registerAdmin(app: App) {
   app.delete("/admin/products/:id", async (c) => {
     const id = Number(c.req.param("id"));
     await c.env.DB.prepare("DELETE FROM product_images WHERE product_id = ?").bind(id).run();
+    await c.env.DB.prepare("DELETE FROM product_related WHERE product_id = ? OR related_product_id = ?").bind(id, id).run();
     await c.env.DB.prepare("DELETE FROM products WHERE id = ?").bind(id).run();
     await bumpCache(c.env.DB);
     return c.json({ ok: true });
+  });
+
+  /** Štítky u všech produktů (i skrytých) — našeptávač v administraci. */
+  app.get("/admin/tags", async (c) => {
+    const rows = (await c.env.DB.prepare("SELECT tags FROM products WHERE tags != ''").all<{ tags: string }>()).results || [];
+    const map = new Map<string, { tag: string; count: number }>();
+    for (const r of rows) {
+      for (const raw of String(r.tags || "").split(",")) {
+        const tag = raw.trim();
+        if (!tag) continue;
+        const key = tag.toLowerCase();
+        const cur = map.get(key);
+        if (cur) cur.count += 1;
+        else map.set(key, { tag, count: 1 });
+      }
+    }
+    return c.json([...map.values()].sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, "cs")));
+  });
+
+  /** Hromadné přejmenování nebo smazání štítku napříč produkty. */
+  app.post("/admin/tags", async (c) => {
+    const b = await c.req.json<{ from?: string; to?: string }>();
+    const from = String(b.from || "").trim().toLowerCase();
+    const to = String(b.to || "").trim();
+    if (!from) return c.json({ error: "Chybí štítek." }, 400);
+    const rows = (await c.env.DB.prepare("SELECT id, tags FROM products WHERE tags != ''").all<{ id: number; tags: string }>()).results || [];
+    let changed = 0;
+    for (const r of rows) {
+      const list = String(r.tags || "").split(",").map((x) => x.trim()).filter(Boolean);
+      if (!list.some((t) => t.toLowerCase() === from)) continue;
+      const next = to
+        ? list.map((t) => (t.toLowerCase() === from ? to : t))
+        : list.filter((t) => t.toLowerCase() !== from);
+      await c.env.DB.prepare("UPDATE products SET tags = ? WHERE id = ?").bind(normalizeTags(next), r.id).run();
+      changed++;
+    }
+    await bumpCache(c.env.DB);
+    return c.json({ ok: true, changed });
+  });
+
+  /** Doporučené produkty („mohlo by se hodit“) k jednomu produktu. */
+  app.put("/admin/products/:id/related", async (c) => {
+    const id = Number(c.req.param("id"));
+    const b = await c.req.json<{ ids?: number[] }>();
+    await saveRelated(c.env.DB, id, (b.ids || []).map(Number));
+    await bumpCache(c.env.DB);
+    return c.json({ ok: true, ids: await loadRelatedIds(c.env.DB, id) });
   });
 
   app.post("/admin/products/:id/stock", async (c) => {
@@ -310,6 +386,15 @@ export function registerAdmin(app: App) {
       id
     ).run();
 
+    // Zaplaceno → dárkové poukazy z objednávky odejdou zákazníkovi e-mailem.
+    if (b.payment_status === "paid") {
+      try {
+        await sendVouchersForOrder(c.env.DB, id, c.env);
+      } catch (err) {
+        console.error("Voucher send error:", err);
+      }
+    }
+
     // Automatické faktury reagují na změnu stavu objednávky.
     try {
       const s = await loadSettings(c.env.DB);
@@ -331,8 +416,16 @@ export function registerAdmin(app: App) {
   });
 
   app.get("/admin/coupons", async (c) => {
+    // Kupóny s „po vypršení smazat“ zmizí samy, jakmile se seznam otevře.
+    const purged = await purgeExpiredCoupons(c.env.DB);
     const rows = await c.env.DB.prepare("SELECT * FROM coupons ORDER BY id DESC").all();
-    return c.json(rows.results || []);
+    return c.json({ items: rows.results || [], purged });
+  });
+
+  /** Ruční úklid vypršených kupónů (tlačítko v administraci). */
+  app.post("/admin/coupons/purge", async (c) => {
+    const purged = await purgeExpiredCoupons(c.env.DB);
+    return c.json({ ok: true, purged });
   });
 
   app.post("/admin/coupons", async (c) => {
@@ -341,7 +434,8 @@ export function registerAdmin(app: App) {
     if (!code) return c.json({ error: "Zadejte kód." }, 400);
     try {
       const res = await c.env.DB.prepare(
-        "INSERT INTO coupons (code, type, value, min_order, max_uses, used_count, valid_from, valid_to, active, description) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)"
+        `INSERT INTO coupons (code, type, value, min_order, max_uses, used_count, valid_from, valid_to, active, description, requires_login, single_use, auto_delete)
+         VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
       )
         .bind(
           code,
@@ -352,7 +446,10 @@ export function registerAdmin(app: App) {
           b.valid_from || null,
           b.valid_to || null,
           b.active === 0 || b.active === false ? 0 : 1,
-          String(b.description || "")
+          String(b.description || ""),
+          b.requires_login ? 1 : 0,
+          b.single_use ? 1 : 0,
+          b.auto_delete ? 1 : 0
         )
         .run();
       return c.json({ id: res.meta.last_row_id });
@@ -364,7 +461,8 @@ export function registerAdmin(app: App) {
   app.put("/admin/coupons/:id", async (c) => {
     const b = await c.req.json<Record<string, unknown>>();
     await c.env.DB.prepare(
-      "UPDATE coupons SET code=?, type=?, value=?, min_order=?, max_uses=?, valid_from=?, valid_to=?, active=?, description=? WHERE id=?"
+      `UPDATE coupons SET code=?, type=?, value=?, min_order=?, max_uses=?, valid_from=?, valid_to=?, active=?, description=?,
+       requires_login=?, single_use=?, auto_delete=? WHERE id=?`
     )
       .bind(
         String(b.code || "").trim().toUpperCase(),
@@ -376,10 +474,111 @@ export function registerAdmin(app: App) {
         b.valid_to || null,
         b.active === 0 || b.active === false ? 0 : 1,
         String(b.description || ""),
+        b.requires_login ? 1 : 0,
+        b.single_use ? 1 : 0,
+        b.auto_delete ? 1 : 0,
         Number(c.req.param("id"))
       )
       .run();
     return c.json({ ok: true });
+  });
+
+  /* ---------------------------------------------------------------
+     Dárkové poukazy — přehled zakoupených poukazů a znovuodeslání
+     --------------------------------------------------------------- */
+
+  app.get("/admin/vouchers", async (c) => {
+    const rows =
+      (
+        await c.env.DB.prepare(
+          `SELECT gv.*, COALESCE(cp.used_count, 0) AS used_count, cp.active AS coupon_active
+           FROM gift_vouchers gv LEFT JOIN coupons cp ON cp.code = gv.code
+           ORDER BY gv.id DESC LIMIT 300`
+        ).all()
+      ).results || [];
+    return c.json(rows);
+  });
+
+  /** Odešle (nebo znovu odešle) poukazy k objednávce e-mailem. */
+  app.post("/admin/vouchers/send", async (c) => {
+    const b = await c.req.json<{ order_id?: number; voucher_id?: number }>();
+    if (b.voucher_id) {
+      await c.env.DB.prepare("UPDATE gift_vouchers SET status = 'pending' WHERE id = ?").bind(Number(b.voucher_id)).run();
+      const row = await c.env.DB.prepare("SELECT order_id FROM gift_vouchers WHERE id = ?").bind(Number(b.voucher_id)).first<{ order_id: number }>();
+      const sent = row?.order_id ? await sendVouchersForOrder(c.env.DB, row.order_id, c.env) : 0;
+      return c.json({ ok: true, sent });
+    }
+    if (!b.order_id) return c.json({ error: "Chybí objednávka." }, 400);
+    const sent = await sendVouchersForOrder(c.env.DB, Number(b.order_id), c.env);
+    return c.json({ ok: true, sent });
+  });
+
+  app.delete("/admin/vouchers/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    const row = await c.env.DB.prepare("SELECT code FROM gift_vouchers WHERE id = ?").bind(id).first<{ code: string }>();
+    if (row?.code) await c.env.DB.prepare("DELETE FROM coupons WHERE code = ?").bind(row.code).run();
+    await c.env.DB.prepare("DELETE FROM gift_vouchers WHERE id = ?").bind(id).run();
+    return c.json({ ok: true });
+  });
+
+  /**
+   * Rychlé založení produktu „dárkový poukaz“ na zadanou hodnotu. Zákazník ho
+   * pak koupí jako běžné zboží a kód mu po zaplacení přijde e-mailem.
+   */
+  app.post("/admin/vouchers/product", async (c) => {
+    const b = await c.req.json<{ amount?: number }>();
+    const amount = Math.max(1, Math.round(Number(b.amount || 500)));
+    const name = `Dárkový poukaz ${amount} Kč`;
+    const slug = slugify(`darkovy-poukaz-${amount}`);
+    const sku = `POUKAZ-${amount}`;
+    try {
+      const res = await c.env.DB.prepare(
+        `INSERT INTO products (name, slug, sku, description, short_description, price, price_b2b, compare_price, stock, low_stock, category_id, image, weight, active, featured, tags, is_gift_card)
+         VALUES (?, ?, ?, ?, ?, ?, 0, NULL, 9999, 0, NULL, '', 0, 1, 0, 'dárkový poukaz', 1)`
+      )
+        .bind(
+          name,
+          slug,
+          sku,
+          `Dárkový poukaz v hodnotě ${amount} Kč. Kód pošleme e-mailem hned po zaplacení objednávky, platnost 12 měsíců. Uplatníte ho v košíku jako slevový kód.`,
+          `Poukaz na ${amount} Kč — přijde e-mailem`,
+          amount
+        )
+        .run();
+      await bumpCache(c.env.DB);
+      return c.json({ id: Number(res.meta.last_row_id), name });
+    } catch {
+      return c.json({ error: "Poukaz na tuto hodnotu už existuje (stejné SKU nebo adresa)." }, 409);
+    }
+  });
+
+  /** Ručně vystavený dárkový poukaz (např. jako kompenzace) — rovnou odeslaný. */
+  app.post("/admin/vouchers", async (c) => {
+    const b = await c.req.json<{ amount?: number; email?: string; recipient_name?: string; message?: string; months?: number }>();
+    const amount = Math.max(1, Math.round(Number(b.amount || 0)));
+    const email = String(b.email || "").trim();
+    if (!amount) return c.json({ error: "Zadejte hodnotu poukazu." }, 400);
+    if (!email.includes("@")) return c.json({ error: "Zadejte e-mail příjemce." }, 400);
+    const months = Math.max(1, Number(b.months || 12));
+    const code = voucherCode();
+    await c.env.DB.prepare(
+      `INSERT INTO coupons (code, type, value, min_order, max_uses, used_count, valid_to, active, description, requires_login, single_use, auto_delete)
+       VALUES (?, 'fixed', ?, 0, 1, 0, datetime('now', ?), 1, 'Dárkový poukaz vystavený v administraci', 0, 0, 0)`
+    )
+      .bind(code, amount, `+${months} months`)
+      .run();
+    const res = await c.env.DB.prepare(
+      `INSERT INTO gift_vouchers (code, amount, order_id, order_number, buyer_email, recipient_email, recipient_name, message, status, valid_to)
+       VALUES (?, ?, NULL, '', ?, ?, ?, ?, 'pending', datetime('now', ?))`
+    )
+      .bind(code, amount, email, email, String(b.recipient_name || ""), String(b.message || ""), `+${months} months`)
+      .run();
+    const id = Number(res.meta.last_row_id);
+    // Poukaz bez objednávky dostane záporné „order_id“, aby ho šlo odeslat
+    // stejnou cestou jako poukazy z e-shopu.
+    await c.env.DB.prepare("UPDATE gift_vouchers SET order_id = ? WHERE id = ?").bind(-id, id).run();
+    const sent = await sendVouchersForOrder(c.env.DB, -id, c.env);
+    return c.json({ ok: true, code, sent });
   });
 
   app.delete("/admin/coupons/:id", async (c) => {
@@ -1177,9 +1376,42 @@ export function registerAdmin(app: App) {
      --------------------------------------------------------------- */
   app.patch("/admin/customers/:id", async (c) => {
     const id = Number(c.req.param("id"));
-    const b = await c.req.json<{ customer_group?: string; role?: string; company_name?: string; ico?: string }>();
+    const b = await c.req.json<{
+      name?: string;
+      email?: string;
+      phone?: string;
+      password?: string;
+      customer_group?: string;
+      role?: string;
+      company_name?: string;
+      ico?: string;
+    }>();
     const fields: string[] = [];
     const values: (string | number)[] = [];
+
+    if (b.name != null) {
+      const name = String(b.name).trim();
+      if (name.length < 2) return c.json({ error: "Zadejte jméno zákazníka." }, 400);
+      fields.push("name = ?");
+      values.push(name);
+    }
+    if (b.email != null) {
+      const email = String(b.email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.json({ error: "Zadejte platný e-mail." }, 400);
+      const taken = await c.env.DB.prepare("SELECT id FROM users WHERE email = ? AND id != ?").bind(email, id).first();
+      if (taken) return c.json({ error: "Tento e-mail už používá jiný účet." }, 409);
+      fields.push("email = ?");
+      values.push(email);
+    }
+    if (b.phone != null) {
+      fields.push("phone = ?");
+      values.push(String(b.phone).trim());
+    }
+    if (b.password) {
+      if (String(b.password).length < 8) return c.json({ error: "Heslo musí mít alespoň 8 znaků." }, 400);
+      fields.push("password_hash = ?");
+      values.push(await hashPassword(String(b.password)));
+    }
     if (b.customer_group != null) {
       fields.push("customer_group = ?");
       values.push(b.customer_group === "b2b" ? "b2b" : "retail");
@@ -1201,8 +1433,59 @@ export function registerAdmin(app: App) {
     }
     if (!fields.length) return c.json({ error: "Není co uložit." }, 400);
     await c.env.DB.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).bind(...values, id).run();
-    const user = await c.env.DB.prepare("SELECT id, email, name, role, customer_group, company_name, ico FROM users WHERE id = ?").bind(id).first();
+    // Změna hesla odhlásí uživatele ze všech zařízení.
+    if (b.password) await c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(id).run();
+    const user = await c.env.DB
+      .prepare("SELECT id, email, name, phone, role, customer_group, company_name, ico FROM users WHERE id = ?")
+      .bind(id)
+      .first();
     return c.json({ ok: true, user });
+  });
+
+  /** Založení účtu zákazníka přímo z administrace. */
+  app.post("/admin/customers", async (c) => {
+    const b = await c.req.json<{ name?: string; email?: string; phone?: string; password?: string; role?: string; customer_group?: string }>();
+    const email = String(b.email || "").trim().toLowerCase();
+    const name = String(b.name || "").trim();
+    const password = String(b.password || "");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.json({ error: "Zadejte platný e-mail." }, 400);
+    if (name.length < 2) return c.json({ error: "Zadejte jméno zákazníka." }, 400);
+    if (password.length < 8) return c.json({ error: "Heslo musí mít alespoň 8 znaků." }, 400);
+    const exists = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
+    if (exists) return c.json({ error: "Tento e-mail už je registrovaný." }, 409);
+    const hash = await hashPassword(password);
+    const res = await c.env.DB
+      .prepare("INSERT INTO users (email, password_hash, name, phone, role, customer_group) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(email, hash, name, String(b.phone || ""), b.role === "admin" ? "admin" : "customer", b.customer_group === "b2b" ? "b2b" : "retail")
+      .run();
+    return c.json({ ok: true, id: Number(res.meta.last_row_id) });
+  });
+
+  /** Smazání účtu. Objednávky zůstávají (jen se odpojí od účtu). */
+  app.delete("/admin/customers/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    if (c.get("user")!.id === id) return c.json({ error: "Vlastní účet smazat nelze." }, 400);
+    await c.env.DB.prepare("UPDATE orders SET user_id = NULL WHERE user_id = ?").bind(id).run();
+    await c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(id).run();
+    await c.env.DB.prepare("DELETE FROM addresses WHERE user_id = ?").bind(id).run();
+    await c.env.DB.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
+    return c.json({ ok: true });
+  });
+
+  /** Pošle zákazníkovi odkaz pro nastavení nového hesla. */
+  app.post("/admin/customers/:id/reset", async (c) => {
+    const id = Number(c.req.param("id"));
+    const user = await c.env.DB.prepare("SELECT id, email, name FROM users WHERE id = ?").bind(id).first<{ id: number; email: string; name: string }>();
+    if (!user) return c.json({ error: "Účet nenalezen." }, 404);
+    const token = `${randomId()}${randomId()}`;
+    await c.env.DB.prepare("UPDATE password_resets SET used = 1 WHERE user_id = ? AND used = 0").bind(id).run();
+    await c.env.DB
+      .prepare("INSERT INTO password_resets (id, user_id, email, expires_at) VALUES (?, ?, ?, ?)")
+      .bind(token, id, user.email, Date.now() + 60 * 60 * 1000)
+      .run();
+    const origin = new URL(c.req.url).origin;
+    const status = await notifyPasswordReset(c.env.DB, user.email, user.name, `${origin}/obnova-hesla?token=${encodeURIComponent(token)}`, c.env);
+    return c.json({ ok: true, mail: status });
   });
 
   /* ---------------------------------------------------------------

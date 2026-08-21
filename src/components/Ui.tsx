@@ -25,14 +25,40 @@ export function Logo() {
   );
 }
 
-export function Stars({ value, count }: { value?: number | null; count?: number }) {
-  const v = value || 0;
-  const full = Math.round(v);
+export function Stars({
+  value,
+  count,
+  size = 15,
+}: {
+  value?: number | null;
+  count?: number;
+  size?: number;
+}) {
+  const v = Math.max(0, Math.min(5, Number(value) || 0));
   return (
-    <span className="stars" title={v ? `${v} / 5` : "Zatím bez hodnocení"} aria-label={v ? `Hodnocení ${v} z 5` : "Bez hodnocení"}>
-      {"★★★★★".slice(0, full)}
-      <span style={{ opacity: 0.25 }}>{"★★★★★".slice(full)}</span>
-      {count != null && <span style={{ marginLeft: 8, color: "var(--muted)", letterSpacing: 0, fontSize: 13 }}>({count})</span>}
+    <span
+      className="stars"
+      title={v ? `${v} / 5` : "Zatím bez hodnocení"}
+      aria-label={v ? `Hodnocení ${v} z 5` : "Bez hodnocení"}
+      role="img"
+    >
+      {[1, 2, 3, 4, 5].map((i) => {
+        // Poměr vyplnění hvězdy (umožní i „půl hvězdy“ u průměru 4,5).
+        const fill = Math.max(0, Math.min(1, v - (i - 1)));
+        return (
+          <span key={i} className="star" style={{ width: size, height: size }}>
+            <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" className="star-bg">
+              <path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.45L12 17.45 6.2 20.5l1.1-6.45-4.7-4.6 6.5-.95z" />
+            </svg>
+            <span className="star-fill" style={{ width: `${fill * 100}%` }}>
+              <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+                <path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.45L12 17.45 6.2 20.5l1.1-6.45-4.7-4.6 6.5-.95z" />
+              </svg>
+            </span>
+          </span>
+        );
+      })}
+      {count != null && <span className="stars-count">({count})</span>}
     </span>
   );
 }

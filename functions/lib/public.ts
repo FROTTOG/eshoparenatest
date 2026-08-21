@@ -16,7 +16,16 @@ import {
 import { hashPassword, orderNumber, randomId, verifyPassword, verifyTotp } from "./crypto";
 import { ensureInvoiceForOrder, invoiceHtml, loadSettings, markInvoicePaid } from "./invoices";
 import { registerFeeds } from "./feeds";
-import { notifyAbandonedCart, notifyOrderCreated, notifyOrderStatus } from "./mail";
+import { notifyAbandonedCart, notifyOrderCreated, notifyOrderStatus, notifyPasswordReset } from "./mail";
+import {
+  createVouchersForOrder,
+  listTags,
+  loadRelatedProducts,
+  loadUserVouchers,
+  parseTags,
+  purgeExpiredCoupons,
+  sendVouchersForOrder,
+} from "./features";
 import { cachedJson, bumpCache } from "./cache";
 import { comgateCreate, comgateStatus, type ComgateSettings } from "./payments";
 import { pushToSubscriptions } from "./push";
@@ -101,6 +110,25 @@ async function loadPublicSettings(db: D1Database): Promise<Record<string, string
       "b2b_enabled",
       "b2b_note",
       "b2b_discount",
+      // Úvodní carousel — slidy z administrace (dřív se veřejně neposílaly,
+      // takže se úpravy carouselu na webu vůbec neprojevily).
+      "hero_slides",
+      // Oznamovací lišta nad hlavičkou
+      "announce_enabled",
+      "announce_items",
+      "announce_bg",
+      "announce_fg",
+      "announce_rotate",
+      // Dlaždice rychlých odkazů na úvodní stránce
+      "home_tiles_enabled",
+      "home_tiles_show_categories",
+      "home_tiles_items",
+      "home_tiles_title",
+      // Filtry katalogu nad štítky produktů
+      "catalog_filters",
+      // Dárkové poukazy
+      "gift_enabled",
+      "gift_valid_months",
     ];
     const pub: Record<string, string> = {};
     for (const k of publicKeys) if (all[k] != null) pub[k] = all[k];
@@ -248,6 +276,12 @@ export function registerPublic(app: App) {
     const sort = c.req.query("sort") || "featured";
     const featured = c.req.query("featured");
     const inStock = c.req.query("in_stock");
+    // Štítky: `tags=len,ruční` → produkt musí mít alespoň jeden ze štítků.
+    const tags = (c.req.query("tags") || c.req.query("tag") || "")
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 12);
     const priceMin = Math.max(0, Number(c.req.query("price_min") || 0));
     const priceMax = Math.max(0, Number(c.req.query("price_max") || 0));
     const ids = (c.req.query("ids") || "")
@@ -288,6 +322,11 @@ export function registerPublic(app: App) {
       if (ids.length) {
         where += ` AND p.id IN (${ids.map(() => "?").join(",")})`;
         binds.push(...ids);
+      }
+      if (tags.length) {
+        // Štítky jsou uložené jako „a,b,c“ — hledáme celé slovo mezi čárkami.
+        where += ` AND (${tags.map(() => "(',' || LOWER(REPLACE(p.tags, ', ', ',')) || ',') LIKE ?").join(" OR ")})`;
+        binds.push(...tags.map((t) => `%,${t},%`));
       }
 
       let order = "p.featured DESC, p.id DESC";
@@ -354,6 +393,17 @@ export function registerPublic(app: App) {
     )
       .bind((p as { id: number }).id)
       .first();
+    // Rozpad hodnocení po hvězdách — pro přehledný graf na detailu produktu.
+    const breakdownRows =
+      (
+        await c.env.DB.prepare(
+          "SELECT rating, COUNT(*) AS c FROM reviews WHERE product_id = ? AND approved = 1 GROUP BY rating"
+        )
+          .bind((p as { id: number }).id)
+          .all<{ rating: number; c: number }>()
+      ).results || [];
+    const breakdown: Record<string, number> = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+    for (const r of breakdownRows) breakdown[String(r.rating)] = r.c;
     // Hodnotit může jen zákazník, který produkt má v historii objednávek.
     const user = c.get("user");
     let canReview = false;
@@ -373,17 +423,34 @@ export function registerPublic(app: App) {
     }
     const ctx = await priceContext(c.env.DB, user);
     const priced = applyPricing(p as { price: number; price_b2b?: number }, ctx);
+    // Ručně vybrané doporučené produkty („mohlo by se hodit“) mají přednost
+    // před automatickým výběrem ze stejné kategorie.
+    let related: Record<string, unknown>[] = [];
+    try {
+      related = (await loadRelatedProducts(c.env.DB, (p as { id: number }).id, 4)) as Record<string, unknown>[];
+      if (ctx.b2b) related = applyPricingAll(related as unknown as { price: number }[], ctx) as unknown as Record<string, unknown>[];
+    } catch {
+      related = [];
+    }
     return c.json({
       ...priced,
       images: images.map((i) => i.url),
+      tags: parseTags((p as { tags?: string }).tags),
+      related,
       reviews,
       rating: (agg as { rating: number | null })?.rating,
       review_count: (agg as { review_count: number })?.review_count || 0,
+      rating_breakdown: breakdown,
       can_review: canReview,
       has_review: hasReview,
       b2b: ctx.b2b,
       vat_rate: ctx.vatRate,
     });
+  });
+
+  /** Štítky použité u aktivních produktů — pro filtry v katalogu. */
+  app.get("/tags", async (c) => {
+    return cachedJson(c.env.DB, c.req.url, "/api/tags", 120, () => listTags(c.env.DB));
   });
 
   app.get("/shipping", async (c) => {
@@ -570,6 +637,117 @@ export function registerPublic(app: App) {
     });
   });
 
+  /* ---------------------------------------------------------------
+     Zapomenuté heslo — odkaz na obnovu e-mailem
+     --------------------------------------------------------------- */
+
+  /**
+   * Požadavek na obnovu hesla. Odpověď je vždy stejná (i pro neexistující
+   * e-mail), aby se nedalo zjišťovat, kdo má u nás účet.
+   */
+  app.post("/auth/forgot", async (c) => {
+    const body = await c.req.json<{ email?: string }>();
+    const email = (body.email || "").trim().toLowerCase();
+    const ok = { ok: true, message: "Pokud u nás účet existuje, poslali jsme na něj odkaz pro nastavení nového hesla." };
+    if (!validEmail(email)) return c.json({ error: "Zadejte platný e-mail." }, 400);
+
+    // Ochrana proti zahlcení: max. 5 požadavků na e-mail za 15 minut.
+    const fails = await c.env.DB
+      .prepare("SELECT COUNT(*) AS c FROM login_attempts WHERE key = ? AND created_at > datetime('now', '-15 minutes')")
+      .bind(`reset:${email}`)
+      .first<{ c: number }>();
+    if ((fails?.c || 0) >= 5) return c.json({ error: "Příliš mnoho požadavků. Zkuste to prosím za 15 minut." }, 429);
+    await c.env.DB.prepare("INSERT INTO login_attempts (key) VALUES (?)").bind(`reset:${email}`).run();
+
+    const user = await c.env.DB.prepare("SELECT id, email, name FROM users WHERE email = ?").bind(email).first<{
+      id: number;
+      email: string;
+      name: string;
+    }>();
+    if (!user) return c.json(ok);
+
+    const token = `${randomId()}${randomId()}`;
+    const expires = Date.now() + 60 * 60 * 1000;
+    await c.env.DB.prepare("UPDATE password_resets SET used = 1 WHERE user_id = ? AND used = 0").bind(user.id).run();
+    await c.env.DB
+      .prepare("INSERT INTO password_resets (id, user_id, email, expires_at) VALUES (?, ?, ?, ?)")
+      .bind(token, user.id, user.email, expires)
+      .run();
+
+    const origin = new URL(c.req.url).origin;
+    const url = `${origin}/obnova-hesla?token=${encodeURIComponent(token)}`;
+    try {
+      await notifyPasswordReset(c.env.DB, user.email, user.name, url, c.env);
+    } catch (err) {
+      console.error("Password reset mail error:", err);
+    }
+    return c.json(ok);
+  });
+
+  /** Ověří platnost odkazu (aby formulář rovnou řekl, že odkaz vypršel). */
+  app.get("/auth/reset", async (c) => {
+    const token = (c.req.query("token") || "").trim();
+    const row = await c.env.DB
+      .prepare("SELECT email FROM password_resets WHERE id = ? AND used = 0 AND expires_at > ?")
+      .bind(token, Date.now())
+      .first<{ email: string }>();
+    if (!row) return c.json({ error: "Odkaz je neplatný nebo mu vypršela platnost." }, 400);
+    return c.json({ ok: true, email: row.email });
+  });
+
+  /** Nastaví nové heslo a rovnou zákazníka přihlásí. */
+  app.post("/auth/reset", async (c) => {
+    const body = await c.req.json<{ token?: string; password?: string }>();
+    const token = (body.token || "").trim();
+    const password = body.password || "";
+    if (password.length < 8) return c.json({ error: "Heslo musí mít alespoň 8 znaků." }, 400);
+    const row = await c.env.DB
+      .prepare("SELECT * FROM password_resets WHERE id = ? AND used = 0 AND expires_at > ?")
+      .bind(token, Date.now())
+      .first<{ id: string; user_id: number; email: string }>();
+    if (!row) return c.json({ error: "Odkaz je neplatný nebo mu vypršela platnost. Požádejte o nový." }, 400);
+
+    const hash = await hashPassword(password);
+    await c.env.DB.prepare("UPDATE users SET password_hash = ? WHERE id = ?").bind(hash, row.user_id).run();
+    await c.env.DB.prepare("UPDATE password_resets SET used = 1 WHERE id = ?").bind(row.id).run();
+    // Bezpečnost: staré přihlášení jinde zneplatníme.
+    await c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(row.user_id).run();
+    await c.env.DB.prepare("DELETE FROM login_attempts WHERE key = ?").bind(`email:${row.email}`).run();
+
+    const user = await c.env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(row.user_id).first<{
+      id: number;
+      email: string;
+      name: string;
+      phone: string;
+      role: "customer" | "admin";
+      totp_secret: string;
+      customer_group?: string;
+    }>();
+    if (!user) return c.json({ error: "Účet nenalezen." }, 404);
+    // Účet s dvoufázovým ověřením nepřihlašujeme rovnou — projde přes /prihlaseni.
+    if (user.role === "admin" && user.totp_secret) {
+      return c.json({ ok: true, need_login: true });
+    }
+    const sid = randomId();
+    const exp = Date.now() + SESSION_DAYS * 86400 * 1000;
+    await c.env.DB.prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)").bind(sid, user.id, exp).run();
+    const cartId = await mergeCarts(c.env.DB, c.get("cartId"), user.id);
+    const secure = isSecure(c);
+    c.header("Set-Cookie", setCookie("sid", sid, SESSION_DAYS, secure));
+    c.header("Set-Cookie", setCookie("cid", cartId, CART_DAYS, secure), { append: true });
+    return c.json({
+      ok: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        customer_group: user.customer_group === "b2b" ? "b2b" : "retail",
+      },
+    });
+  });
+
   app.post("/auth/logout", async (c) => {
     const sid = c.req.header("Cookie") ? undefined : undefined;
     void sid;
@@ -637,6 +815,9 @@ export function registerPublic(app: App) {
   app.post("/cart/coupon", async (c) => {
     const body = await c.req.json<{ code?: string }>();
     const code = (body.code || "").trim();
+    // Kupóny s nastaveným automatickým smazáním po vypršení uklidíme dřív,
+    // než se je zákazník pokusí uplatnit.
+    await purgeExpiredCoupons(c.env.DB);
     const cart = await loadCart(c.env.DB, c.get("cartId"), await priceContext(c.env.DB, c.get("user")));
     const coupon = await getCoupon(c.env.DB, code);
     if (!coupon) return c.json({ error: "Kupón neexistuje." }, 404);
@@ -809,6 +990,10 @@ export function registerPublic(app: App) {
       };
       note?: string;
       agree_terms?: boolean | number;
+      /** Dárkový poukaz — komu ho poslat (nepovinné, jinak jde na e-mail objednávky). */
+      gift_recipient_email?: string;
+      gift_recipient_name?: string;
+      gift_message?: string;
     }>();
 
     const user = c.get("user");
@@ -874,6 +1059,11 @@ export function registerPublic(app: App) {
       kind: string;
     }>();
     if (!shipping) return c.json({ error: "Vyberte způsob dopravy." }, 400);
+    // Doručení e-mailem je jen pro košík se samotnými dárkovými poukazy.
+    const digitalOnly = cart.items.length > 0 && cart.items.every((i) => Number((i as { is_gift_card?: number }).is_gift_card) === 1);
+    if (shipping.kind === "digital" && !digitalOnly) {
+      return c.json({ error: "Doručení e-mailem lze zvolit jen u objednávky se samotnými dárkovými poukazy." }, 400);
+    }
 
     const payment = await c.env.DB.prepare("SELECT * FROM payment_methods WHERE code = ? AND active = 1").bind(body.payment_code || "").first<{
       code: string;
@@ -1074,6 +1264,26 @@ export function registerPublic(app: App) {
     const origin = new URL(c.req.url).origin;
     await c.env.DB.prepare("UPDATE settings SET value = ? WHERE key = 'store_url' AND (value IS NULL OR value = '')").bind(origin).run();
 
+    // Dárkové poukazy — ke každé zakoupené položce typu „poukaz“ vznikne kód.
+    // Zákazníkovi ho pošleme až po zaplacení (u dobírky až expedice ho pošle
+    // administrace tlačítkem „Odeslat poukazy“).
+    try {
+      const created = await createVouchersForOrder(
+        c.env.DB,
+        { id: orderId, number, email, user_id: user?.id ?? null },
+        {
+          recipient_email: (body.gift_recipient_email || "").trim(),
+          recipient_name: (body.gift_recipient_name || "").trim(),
+          message: (body.gift_message || "").trim(),
+        }
+      );
+      if (created && payment.code === "card") {
+        /* poukaz odejde po potvrzení platby z brány */
+      }
+    } catch (err) {
+      console.error("Gift voucher error:", err);
+    }
+
     const order = await loadOrder(c.env.DB, orderId);
     try {
       if (order) {
@@ -1230,7 +1440,25 @@ export function registerPublic(app: App) {
     const guest = oidCookie && oidCookie === order.number;
     const admin = user?.role === "admin";
     if (!owns && !guest && !admin) return c.json({ error: "Objednávka nenalezena." }, 404);
-    return c.json({ order });
+    // Dárkové poukazy z objednávky — kód ukazujeme až po zaplacení (stav „sent“).
+    let vouchers: Record<string, unknown>[] = [];
+    try {
+      const rows =
+        (
+          await c.env.DB.prepare(
+            "SELECT id, code, amount, status, valid_to FROM gift_vouchers WHERE order_id = ? ORDER BY id"
+          )
+            .bind(Number(order.id))
+            .all()
+        ).results || [];
+      vouchers = rows.map((r) => {
+        const row = r as Record<string, unknown>;
+        return { ...row, code: row.status === "sent" ? row.code : "" };
+      });
+    } catch {
+      vouchers = [];
+    }
+    return c.json({ order: { ...order, vouchers } });
   });
 
   // Faktura k objednávce — pro zákazníka (HTML k tisku / uložení do PDF)
@@ -1273,6 +1501,13 @@ export function registerPublic(app: App) {
     if (!user) return c.json({ error: "Nejste přihlášeni." }, 401);
     const addresses = (await c.env.DB.prepare("SELECT * FROM addresses WHERE user_id = ? ORDER BY is_default DESC, id").bind(user.id).all()).results || [];
     return c.json({ user, addresses });
+  });
+
+  /** Dárkové poukazy zákazníka — kód se ukáže až po zaplacení objednávky. */
+  app.get("/account/vouchers", async (c) => {
+    const user = c.get("user");
+    if (!user) return c.json({ error: "Nejste přihlášeni." }, 401);
+    return c.json(await loadUserVouchers(c.env.DB, user.id, user.email));
   });
 
   app.patch("/account", async (c) => {
@@ -1551,6 +1786,12 @@ export async function markOrderPaid(
     }
   } catch (err) {
     console.error("invoice after card payment:", err);
+  }
+  // Zaplaceno → dárkové poukazy z objednávky můžou odejít e-mailem.
+  try {
+    await sendVouchersForOrder(db, id, env);
+  } catch (err) {
+    console.error("vouchers after payment:", err);
   }
   try {
     const order = await loadOrder(db, id);

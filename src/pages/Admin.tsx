@@ -1,9 +1,48 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type Order, type Page, type Product } from "../api";
 import QRCode from "qrcode";
-import { IconClose, IconMenu } from "../components/Icons";
+import {
+  IconAdmin,
+  IconBell,
+  IconCard,
+  IconChat,
+  IconCheck,
+  IconClose,
+  IconCopy,
+  IconDashboard,
+  IconExport,
+  IconFeed,
+  IconFilter,
+  IconFolder,
+  IconGear,
+  IconGift,
+  IconGrid,
+  IconInbox,
+  IconKey,
+  IconLayout,
+  IconMail,
+  IconMapPin,
+  IconMegaphone,
+  IconMenu,
+  IconPalette,
+  IconPen,
+  IconPlus,
+  IconReceipt,
+  IconShop,
+  IconSlides,
+  IconStar,
+  IconTagIcon,
+  IconTicket,
+  IconTrash,
+  IconTruck,
+  IconUsers,
+  IconWarehouse,
+  IconWrench,
+} from "../components/Icons";
 import { InfoButton } from "../components/InfoButton";
+import { SaveButton, useSaver } from "../components/SaveButton";
+import { TILE_COLORS, TILE_ICONS, emptyTile, readAnnounce, readFilterGroups, readHomeTiles, type AnnounceItem, type HomeTile } from "../settings";
 import { Logo } from "../components/Ui";
 import { czk, dateCs, statusLabel } from "../format";
 import { optimizedImage } from "../image";
@@ -11,8 +50,61 @@ import { useStore } from "../store";
 import { ANIM_LABELS, applyTheme, BTN_ANIMS, readTheme, THEME_VARS, themeDefaults, toHex } from "../theme";
 import { Pages, PageBuilder } from "./Pages";
 
+/** Položky menu administrace — seskupené a s ikonami. */
+const ADMIN_NAV: { title: string; links: { to: string; label: string; icon: ReactNode; end?: boolean }[] }[] = [
+  {
+    title: "Provoz",
+    links: [
+      { to: "/admin", label: "Přehled", icon: <IconDashboard size={17} />, end: true },
+      { to: "/admin/objednavky", label: "Objednávky", icon: <IconInbox size={17} /> },
+      { to: "/admin/faktury", label: "Faktury", icon: <IconReceipt size={17} /> },
+      { to: "/admin/exporty", label: "Exporty", icon: <IconExport size={17} /> },
+      { to: "/admin/zakaznici", label: "Zákazníci", icon: <IconUsers size={17} /> },
+      { to: "/admin/reklamace", label: "Reklamace", icon: <IconWrench size={17} /> },
+    ],
+  },
+  {
+    title: "Sortiment",
+    links: [
+      { to: "/admin/produkty", label: "Produkty", icon: <IconTagIcon size={17} /> },
+      { to: "/admin/sklad", label: "Sklad", icon: <IconWarehouse size={17} /> },
+      { to: "/admin/kategorie", label: "Kategorie", icon: <IconFolder size={17} /> },
+      { to: "/admin/filtry", label: "Filtry a štítky", icon: <IconFilter size={17} /> },
+      { to: "/admin/hodnoceni", label: "Hodnocení", icon: <IconStar size={17} /> },
+    ],
+  },
+  {
+    title: "Prodej",
+    links: [
+      { to: "/admin/kupony", label: "Kupóny a poukazy", icon: <IconTicket size={17} /> },
+      { to: "/admin/doprava", label: "Doprava", icon: <IconTruck size={17} /> },
+      { to: "/admin/vydejni-mista", label: "Výdejní místa", icon: <IconMapPin size={17} /> },
+      { to: "/admin/platby", label: "Platby", icon: <IconCard size={17} /> },
+    ],
+  },
+  {
+    title: "Obsah a vzhled",
+    links: [
+      { to: "/admin/stranky", label: "Stránky (editor)", icon: <IconLayout size={17} /> },
+      { to: "/admin/magazin", label: "Magazín (blog)", icon: <IconPen size={17} /> },
+      { to: "/admin/carousel", label: "Carousel", icon: <IconSlides size={17} /> },
+      { to: "/admin/lista-a-dlazdice", label: "Lišta a dlaždice", icon: <IconMegaphone size={17} /> },
+      { to: "/admin/navbar", label: "Menu a logo", icon: <IconGrid size={17} /> },
+      { to: "/admin/vzhled", label: "Vzhled", icon: <IconPalette size={17} /> },
+    ],
+  },
+  {
+    title: "Systém",
+    links: [
+      { to: "/admin/feedy", label: "Feedy a měření", icon: <IconFeed size={17} /> },
+      { to: "/admin/emaily", label: "E-maily", icon: <IconMail size={17} /> },
+      { to: "/admin/nastaveni", label: "Nastavení", icon: <IconGear size={17} /> },
+    ],
+  },
+];
+
 export function Admin() {
-  const { user } = useStore();
+  const { user, ready } = useStore();
   const loc = useLocation();
   const [menu, setMenu] = useState(false);
 
@@ -27,6 +119,9 @@ export function Admin() {
     };
   }, [menu]);
 
+  // Než se načte přihlášení, nepřesměrováváme — obnovení stránky
+  // v administraci by jinak vždy skočilo na přihlašovací formulář.
+  if (!ready) return <div className="wrap empty">Otevíráme administraci…</div>;
   if (!user) return <Navigate to="/prihlaseni" replace />;
   if (user.role !== "admin") return <Navigate to="/ucet" replace />;
 
@@ -45,29 +140,25 @@ export function Admin() {
       <aside>
         <Logo />
         <nav onClick={() => setMenu(false)}>
-          <NavLink to="/admin" end>Přehled</NavLink>
-          <NavLink to="/admin/produkty">Produkty</NavLink>
-          <NavLink to="/admin/sklad">Sklad</NavLink>
-          <NavLink to="/admin/kategorie">Kategorie</NavLink>
-          <NavLink to="/admin/objednavky">Objednávky</NavLink>
-          <NavLink to="/admin/faktury">Faktury</NavLink>
-          <NavLink to="/admin/exporty">Exporty</NavLink>
-          <NavLink to="/admin/zakaznici">Zákazníci</NavLink>
-          <NavLink to="/admin/kupony">Kupóny / Dárkové poukazy</NavLink>
-          <NavLink to="/admin/reklamace">Reklamace</NavLink>
-          <NavLink to="/admin/hodnoceni">Hodnocení</NavLink>
-          <NavLink to="/admin/doprava">Doprava</NavLink>
-          <NavLink to="/admin/vydejni-mista">Výdejní místa</NavLink>
-          <NavLink to="/admin/platby">Platby</NavLink>
-          <NavLink to="/admin/magazin">Magazín (blog)</NavLink>
-          <NavLink to="/admin/stranky">Stránky (editor)</NavLink>
-          <NavLink to="/admin/navbar">Menu a logo</NavLink>
-          <NavLink to="/admin/carousel">Carousel</NavLink>
-          <NavLink to="/admin/vzhled">Vzhled</NavLink>
-          <NavLink to="/admin/feedy">Feedy a měření</NavLink>
-          <NavLink to="/admin/emaily">E-maily</NavLink>
-          <NavLink to="/admin/nastaveni">Nastavení</NavLink>
-          <NavLink to="/">← E-shop</NavLink>
+          {ADMIN_NAV.map((group) => (
+            <div key={group.title} className="admin-nav-group">
+              <span className="admin-nav-title">{group.title}</span>
+              {group.links.map((l) => (
+                <NavLink key={l.to} to={l.to} end={l.end}>
+                  <span className="admin-nav-icon">{l.icon}</span>
+                  <span className="admin-nav-label">{l.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          ))}
+          <div className="admin-nav-group">
+            <NavLink to="/" className="admin-nav-back">
+              <span className="admin-nav-icon">
+                <IconShop size={17} />
+              </span>
+              <span className="admin-nav-label">Zpět do e-shopu</span>
+            </NavLink>
+          </div>
         </nav>
       </aside>
       <main>
@@ -96,6 +187,8 @@ export function Admin() {
           <Route path="stranky/:id" element={<PageBuilder />} />
           <Route path="navbar" element={<NavbarSettings />} />
           <Route path="carousel" element={<CarouselSettings />} />
+          <Route path="lista-a-dlazdice" element={<StripAndTiles />} />
+          <Route path="filtry" element={<FiltersAndTags />} />
           <Route path="vzhled" element={<AppearanceSettings />} />
           <Route path="nastaveni" element={<SettingsPage />} />
           <Route path="feedy" element={<FeedsPage />} />
@@ -308,7 +401,7 @@ function Products() {
             />
           </label>
           <span className="bulk-hint" style={{ margin: 0 }}>
-            Sloupce: id / sku / slug pro spárování, dál jen to, co chcete měnit (price, price_b2b, stock, category_slug, active…).
+            Sloupce: id / sku / slug pro spárování, dál jen to, co chcete měnit (price, price_b2b, stock, category_slug, tags, active…).
           </span>
         </div>
         {importInfo && <p className="bulk-hint">{importInfo}</p>}
@@ -350,25 +443,62 @@ function ProductForm() {
   const { id } = useParams();
   const nav = useNavigate();
   const { toast } = useStore();
+  const saver = useSaver();
   const [cats, setCats] = useState<{ id: number; name: string }[]>([]);
+  const [allTags, setAllTags] = useState<{ tag: string; count: number }[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [related, setRelated] = useState<{ id: number; name: string; sku: string; image: string; price: number }[]>([]);
+  const [relQuery, setRelQuery] = useState("");
+  const [relResults, setRelResults] = useState<Product[]>([]);
   const [form, setForm] = useState({
     name: "", slug: "", sku: "", description: "", short_description: "",
     price: 0, price_b2b: 0, compare_price: "" as number | "", stock: 0, low_stock: 5,
-    category_id: "" as number | "", image: "", weight: 0, active: 1, featured: 0,
+    category_id: "" as number | "", image: "", weight: 0, active: 1, featured: 0, is_gift_card: 0,
   });
 
   useEffect(() => {
     void api<{ id: number; name: string }[]>("/admin/categories").then(setCats);
+    void api<{ tag: string; count: number }[]>("/admin/tags").then(setAllTags).catch(() => setAllTags([]));
     if (id) {
-      void api<Product & { compare_price: number | null }>(`/admin/products/${id}`).then((p) => {
+      void api<Product & { compare_price: number | null; related?: typeof related }>(`/admin/products/${id}`).then((p) => {
         setForm({
           name: p.name, slug: p.slug, sku: p.sku, description: p.description, short_description: p.short_description,
           price: p.price, price_b2b: p.price_b2b ?? 0, compare_price: p.compare_price ?? "", stock: p.stock, low_stock: p.low_stock,
           category_id: p.category_id ?? "", image: p.image, weight: p.weight, active: p.active, featured: p.featured,
+          is_gift_card: p.is_gift_card ?? 0,
         });
+        setTags(typeof p.tags === "string" ? p.tags.split(",").map((t) => t.trim()).filter(Boolean) : Array.isArray(p.tags) ? p.tags : []);
+        setRelated(p.related || []);
       });
     }
   }, [id]);
+
+  // Našeptávač produktů pro sekci „Mohlo by se hodit“.
+  useEffect(() => {
+    const q = relQuery.trim();
+    if (q.length < 2) {
+      setRelResults([]);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      void api<Product[]>(`/admin/products?q=${encodeURIComponent(q)}`)
+        .then((r) => setRelResults(r.filter((x) => String(x.id) !== id).slice(0, 8)))
+        .catch(() => setRelResults([]));
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [relQuery, id]);
+
+  function addTag(raw: string) {
+    const tag = raw.trim().replace(/,/g, "");
+    if (!tag) return;
+    if (tags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+      setTagInput("");
+      return;
+    }
+    setTags([...tags, tag]);
+    setTagInput("");
+  }
 
   async function toWebp(file: File): Promise<File> {
     if (file.type === "image/webp") return file;
@@ -399,23 +529,27 @@ function ProductForm() {
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    const payload = { ...form, compare_price: form.compare_price === "" ? null : Number(form.compare_price), category_id: form.category_id === "" ? null : Number(form.category_id) };
-    try {
+    const payload = {
+      ...form,
+      compare_price: form.compare_price === "" ? null : Number(form.compare_price),
+      category_id: form.category_id === "" ? null : Number(form.category_id),
+      tags: tags.join(","),
+      related_ids: related.map((r) => r.id),
+    };
+    await saver.run(async () => {
       if (id) {
         await api(`/admin/products/${id}`, { method: "PUT", body: JSON.stringify(payload) });
-        toast("Uloženo.");
       } else {
         const r = await api<{ id: number }>("/admin/products", { method: "POST", body: JSON.stringify(payload) });
         nav(`/admin/produkty/${r.id}`);
       }
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Chyba", "err");
-    }
+    }, id ? "Produkt uložen." : "Produkt vytvořen.");
   }
 
   async function remove() {
     if (!id || !confirm("Opravdu smazat produkt?")) return;
     await api(`/admin/products/${id}`, { method: "DELETE" });
+    toast("Produkt smazán.");
     nav("/admin/produkty");
   }
 
@@ -423,9 +557,13 @@ function ProductForm() {
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  const suggestions = allTags.filter((t) => !tags.some((x) => x.toLowerCase() === t.tag.toLowerCase())).slice(0, 12);
+
   return (
     <>
-      <h1>{id ? "Upravit produkt" : "Nový produkt"}</h1>
+      <h1>
+        <IconTagIcon size={26} /> {id ? "Upravit produkt" : "Nový produkt"}
+      </h1>
       <form className="admin-form" onSubmit={save}>
         <label>Název<input value={form.name} onChange={(e) => set("name", e.target.value)} required /></label>
         <label>Slug<input value={form.slug} onChange={(e) => set("slug", e.target.value)} placeholder="doplní se samo" /></label>
@@ -450,11 +588,126 @@ function ProductForm() {
         <label>Nahrát do R2<input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} /></label>
         <label className="full">Krátký popis<textarea value={form.short_description} onChange={(e) => set("short_description", e.target.value)} /></label>
         <label className="full">Popis<textarea rows={6} value={form.description} onChange={(e) => set("description", e.target.value)} /></label>
-        <label><input type="checkbox" checked={!!form.active} onChange={(e) => set("active", e.target.checked ? 1 : 0)} /> Aktivní</label>
-        <label><input type="checkbox" checked={!!form.featured} onChange={(e) => set("featured", e.target.checked ? 1 : 0)} /> Na úvod</label>
-        <div className="full row-actions">
-          <button className="btn-dark" type="submit">Uložit</button>
-          {id && <button className="btn-line" type="button" onClick={() => void remove()}>Smazat</button>}
+
+        {/* Štítky produktu — filtry v katalogu */}
+        <div className="full admin-subcard">
+          <h3 className="admin-form-title">
+            <IconFilter size={17} /> Štítky produktu
+          </h3>
+          <p className="admin-hint">
+            Štítky slouží k filtrování v katalogu (např. „len“, „ruční práce“, „dárek do 1000“). Skupiny filtrů, které
+            zákazník uvidí, sestavíte v sekci <Link to="/admin/filtry">Filtry a štítky</Link>.
+          </p>
+          <div className="tag-editor">
+            {tags.map((t) => (
+              <span key={t} className="tag-chip on">
+                {t}
+                <button type="button" onClick={() => setTags(tags.filter((x) => x !== t))} aria-label={`Odebrat štítek ${t}`}>
+                  ✕
+                </button>
+              </span>
+            ))}
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  addTag(tagInput);
+                }
+                if (e.key === "Backspace" && !tagInput && tags.length) setTags(tags.slice(0, -1));
+              }}
+              placeholder="Napište štítek a stiskněte Enter"
+            />
+          </div>
+          {suggestions.length > 0 && (
+            <div className="tag-suggest">
+              <span>Používané štítky:</span>
+              {suggestions.map((t) => (
+                <button key={t.tag} type="button" className="chip" onClick={() => addTag(t.tag)}>
+                  + {t.tag} <small>{t.count}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Doporučené produkty */}
+        <div className="full admin-subcard">
+          <h3 className="admin-form-title">
+            <IconGrid size={17} /> Doporučujeme k tomuto produktu
+          </h3>
+          <p className="admin-hint">
+            Vybrané produkty se u zboží zobrazí v sekci <b>„Mohlo by se hodit“</b>. Když nic nevyberete, doplní se
+            automaticky zboží ze stejné kategorie.
+          </p>
+          {related.length > 0 && (
+            <div className="related-list">
+              {related.map((r, i) => (
+                <div key={r.id} className="related-item">
+                  {r.image ? <img src={optimizedImage(r.image)} alt="" width={40} height={40} /> : <span className="related-ph" />}
+                  <span>
+                    <b>{r.name}</b>
+                    <small>{r.sku} · {czk(r.price)}</small>
+                  </span>
+                  <span className="row-actions">
+                    <button type="button" className="chip" disabled={i === 0} onClick={() => {
+                      const next = related.slice();
+                      [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                      setRelated(next);
+                    }}>↑</button>
+                    <button type="button" className="chip" disabled={i === related.length - 1} onClick={() => {
+                      const next = related.slice();
+                      [next[i + 1], next[i]] = [next[i], next[i + 1]];
+                      setRelated(next);
+                    }}>↓</button>
+                    <button type="button" className="chip danger" onClick={() => setRelated(related.filter((x) => x.id !== r.id))}>
+                      <IconTrash size={14} />
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <input
+            value={relQuery}
+            onChange={(e) => setRelQuery(e.target.value)}
+            placeholder="Hledat produkt podle názvu nebo SKU…"
+            style={{ marginTop: 10 }}
+          />
+          {relResults.length > 0 && (
+            <div className="related-results">
+              {relResults.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className="related-result"
+                  disabled={related.some((x) => x.id === r.id)}
+                  onClick={() => {
+                    setRelated([...related, { id: r.id, name: r.name, sku: r.sku, image: r.image, price: r.price }]);
+                    setRelQuery("");
+                    setRelResults([]);
+                  }}
+                >
+                  <IconPlus size={14} /> {r.name} <small>{r.sku}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <label className="admin-check"><input type="checkbox" checked={!!form.active} onChange={(e) => set("active", e.target.checked ? 1 : 0)} /> <span><b>Aktivní</b><small>Zobrazuje se v e-shopu.</small></span></label>
+        <label className="admin-check"><input type="checkbox" checked={!!form.featured} onChange={(e) => set("featured", e.target.checked ? 1 : 0)} /> <span><b>Na úvod</b><small>Objeví se mezi doporučenými.</small></span></label>
+        <label className="admin-check"><input type="checkbox" checked={!!form.is_gift_card} onChange={(e) => set("is_gift_card", e.target.checked ? 1 : 0)} /> <span><b>Dárkový poukaz</b><small>Po zaplacení pošleme zákazníkovi kód e-mailem.</small></span></label>
+        <div className="full">
+          <SaveButton state={saver.state} error={saver.error} type="submit">
+            {id ? "Uložit produkt" : "Vytvořit produkt"}
+          </SaveButton>
+          {id && (
+            <button className="btn-line btn-sm" type="button" style={{ marginTop: 8 }} onClick={() => void remove()}>
+              <IconTrash size={15} /> Smazat produkt
+            </button>
+          )}
         </div>
       </form>
     </>
@@ -1007,25 +1260,57 @@ function Exports() {
   );
 }
 
+type CustomerRow = {
+  id: number;
+  email: string;
+  name: string;
+  phone: string;
+  role: string;
+  customer_group?: string;
+  company_name?: string;
+  ico?: string;
+  orders: number;
+  spent: number;
+  created_at: string;
+};
+
 function Customers() {
-  const { toast } = useStore();
-  type Row = {
-    id: number; email: string; name: string; phone: string; role: string;
-    customer_group?: string; company_name?: string; ico?: string;
-    orders: number; spent: number; created_at: string;
-  };
-  const [rows, setRows] = useState<Row[]>([]);
+  const { toast, user: me } = useStore();
+  const [rows, setRows] = useState<CustomerRow[]>([]);
   const [q, setQ] = useState("");
-  const load = () => void api<Row[]>("/admin/customers").then(setRows);
+  const [edit, setEdit] = useState<CustomerRow | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const load = () => void api<CustomerRow[]>("/admin/customers").then(setRows);
   useEffect(() => { load(); }, []);
 
-  async function setGroup(u: Row, group: string) {
+  async function setGroup(u: CustomerRow, group: string) {
     try {
       await api(`/admin/customers/${u.id}`, { method: "PATCH", body: JSON.stringify({ customer_group: group }) });
       setRows((prev) => prev.map((r) => (r.id === u.id ? { ...r, customer_group: group } : r)));
       toast(group === "b2b" ? `${u.email} vidí velkoobchodní ceny.` : `${u.email} má běžné ceny.`);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Změnu se nepodařilo uložit.", "err");
+    }
+  }
+
+  async function remove(u: CustomerRow) {
+    if (!confirm(`Opravdu smazat účet ${u.email}? Objednávky zůstanou zachované.`)) return;
+    try {
+      await api(`/admin/customers/${u.id}`, { method: "DELETE" });
+      toast("Účet smazán.");
+      load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Účet se nepodařilo smazat.", "err");
+    }
+  }
+
+  async function sendReset(u: CustomerRow) {
+    try {
+      await api(`/admin/customers/${u.id}/reset`, { method: "POST" });
+      toast(`Odkaz pro nastavení hesla odeslán na ${u.email}.`);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "E-mail se nepodařilo odeslat.", "err");
     }
   }
 
@@ -1037,17 +1322,34 @@ function Customers() {
   return (
     <>
       <div className="toolbar">
-        <h1>Zákazníci</h1>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hledat jméno, e-mail, IČO" />
+        <h1>
+          <IconUsers size={26} /> Zákazníci
+        </h1>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hledat jméno, e-mail, IČO" />
+          <button type="button" className="btn btn-sm" onClick={() => { setCreating(true); setEdit(null); }}>
+            <IconPlus size={15} /> Nový zákazník
+          </button>
+        </div>
       </div>
-      <p style={{ color: "var(--muted)" }}>
-        Velkoobchodní skupina: <b>{b2bCount}</b> z {rows.length}. Zákazník ve skupině „Velkoobchod (B2B)“ vidí po přihlášení
-        velkoobchodní ceny bez DPH — ceník nastavíte u produktu (pole „Velkoobchodní cena bez DPH“) nebo plošně
-        v <Link to="/admin/nastaveni">Nastavení → b2b_discount</Link>.
+      <p className="admin-lead">
+        Kliknutím na <b>Upravit</b> změníte jméno, e-mail, telefon, roli i heslo. Velkoobchodní skupina: <b>{b2bCount}</b> z {rows.length}.
+        Ceník nastavíte u produktu nebo plošně v <Link to="/admin/nastaveni">Nastavení → b2b_discount</Link>.
       </p>
+
+      {(edit || creating) && (
+        <CustomerEditor
+          row={edit}
+          onClose={() => { setEdit(null); setCreating(false); }}
+          onSaved={() => { setEdit(null); setCreating(false); load(); }}
+        />
+      )}
+
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Jméno</th><th>E-mail</th><th>Skupina</th><th>Role</th><th>Obj.</th><th>Útrata</th></tr></thead>
+          <thead>
+            <tr><th>Jméno</th><th>E-mail</th><th>Skupina</th><th>Role</th><th>Obj.</th><th>Útrata</th><th></th></tr>
+          </thead>
           <tbody>
             {filtered.map((u) => (
               <tr key={u.id}>
@@ -1062,11 +1364,29 @@ function Customers() {
                     <option value="b2b">Velkoobchod (B2B)</option>
                   </select>
                 </td>
-                <td data-label="Role">{u.role}</td>
+                <td data-label="Role">
+                  <span className={`tag ${u.role === "admin" ? "paid" : ""}`}>{u.role === "admin" ? "správce" : "zákazník"}</span>
+                </td>
                 <td data-label="Objednávek">{u.orders}</td>
                 <td data-label="Útrata">{czk(u.spent)}</td>
+                <td>
+                  <div className="row-actions">
+                    <button type="button" className="chip" onClick={() => { setEdit(u); setCreating(false); }}>
+                      <IconPen size={14} /> Upravit
+                    </button>
+                    <button type="button" className="chip" onClick={() => void sendReset(u)} title="Pošle odkaz na nastavení nového hesla">
+                      <IconKey size={14} /> Reset hesla
+                    </button>
+                    {me?.id !== u.id && (
+                      <button type="button" className="chip danger" onClick={() => void remove(u)}>
+                        <IconTrash size={14} /> Smazat
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
+            {!filtered.length && <tr><td colSpan={7} style={{ color: "var(--muted)" }}>Nikdo takový tu není.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1074,49 +1394,534 @@ function Customers() {
   );
 }
 
+/** Formulář pro úpravu (nebo založení) zákaznického účtu. */
+function CustomerEditor({ row, onClose, onSaved }: { row: CustomerRow | null; onClose: () => void; onSaved: () => void }) {
+  const saver = useSaver();
+  const [form, setForm] = useState({
+    name: row?.name || "",
+    email: row?.email || "",
+    phone: row?.phone || "",
+    password: "",
+    role: row?.role === "admin" ? "admin" : "customer",
+    customer_group: row?.customer_group === "b2b" ? "b2b" : "retail",
+    company_name: row?.company_name || "",
+    ico: row?.ico || "",
+  });
+
+  useEffect(() => {
+    setForm({
+      name: row?.name || "",
+      email: row?.email || "",
+      phone: row?.phone || "",
+      password: "",
+      role: row?.role === "admin" ? "admin" : "customer",
+      customer_group: row?.customer_group === "b2b" ? "b2b" : "retail",
+      company_name: row?.company_name || "",
+      ico: row?.ico || "",
+    });
+  }, [row?.id]);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const ok = await saver.run(async () => {
+      if (row) {
+        const payload: Record<string, unknown> = { ...form };
+        if (!form.password) delete payload.password;
+        await api(`/admin/customers/${row.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      } else {
+        await api("/admin/customers", { method: "POST", body: JSON.stringify(form) });
+      }
+    }, row ? "Účet zákazníka uložen." : "Zákazník založen.");
+    if (ok) onSaved();
+  }
+
+  return (
+    <form className="admin-form admin-card" onSubmit={submit}>
+      <h2 className="admin-form-title">
+        {row ? <IconPen size={18} /> : <IconPlus size={18} />} {row ? `Upravit účet ${row.email}` : "Nový zákazník"}
+      </h2>
+      <label>Jméno a příjmení<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label>
+      <label>E-mail<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></label>
+      <label>Telefon<input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+      <label>
+        {row ? "Nové heslo (prázdné = beze změny)" : "Heslo (min. 8 znaků)"}
+        <input type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required={!row} />
+      </label>
+      <label>
+        Role
+        <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+          <option value="customer">Zákazník</option>
+          <option value="admin">Správce (přístup do administrace)</option>
+        </select>
+      </label>
+      <label>
+        Cenová skupina
+        <select value={form.customer_group} onChange={(e) => setForm({ ...form, customer_group: e.target.value })}>
+          <option value="retail">Běžný zákazník</option>
+          <option value="b2b">Velkoobchod (B2B)</option>
+        </select>
+      </label>
+      <label>Firma<input value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} /></label>
+      <label>IČO<input value={form.ico} onChange={(e) => setForm({ ...form, ico: e.target.value })} /></label>
+      <div className="full">
+        <SaveButton state={saver.state} error={saver.error} type="submit">
+          {row ? "Uložit účet" : "Založit účet"}
+        </SaveButton>
+        <button type="button" className="btn-line btn-sm" style={{ marginTop: 8 }} onClick={onClose}>
+          Zavřít
+        </button>
+      </div>
+    </form>
+  );
+}
+
+type CouponRow = {
+  id: number;
+  code: string;
+  type: string;
+  value: number;
+  min_order: number;
+  max_uses: number | null;
+  used_count: number;
+  active: number;
+  description: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  auto_delete: number;
+  requires_login?: number;
+  single_use?: number;
+};
+
+type VoucherRow = {
+  id: number;
+  code: string;
+  amount: number;
+  order_number: string;
+  buyer_email: string;
+  recipient_email: string;
+  status: string;
+  valid_to: string | null;
+  created_at: string;
+  used_count: number;
+};
+
+const emptyCoupon = () => ({
+  code: "",
+  type: "percent",
+  value: 10,
+  min_order: 0,
+  max_uses: 100 as number | null,
+  description: "",
+  valid_from: "",
+  valid_to: "",
+  auto_delete: 0,
+  active: 1,
+  requires_login: 0,
+  single_use: 0,
+});
+
+/** Hodnota pro <input type="datetime-local"> z hodnoty uložené v databázi. */
+function toLocalInput(v: string | null | undefined): string {
+  if (!v) return "";
+  const s = String(v).replace(" ", "T");
+  return s.slice(0, 16);
+}
+
+/** Zpět do formátu, kterému rozumí SQLite (YYYY-MM-DD HH:MM:SS). */
+function fromLocalInput(v: string): string | null {
+  if (!v) return null;
+  return `${v.replace("T", " ")}:00`.slice(0, 19);
+}
+
 function Coupons() {
   const { toast } = useStore();
-  const [rows, setRows] = useState<{ id: number; code: string; type: string; value: number; min_order: number; max_uses: number | null; used_count: number; active: number; description: string }[]>([]);
-  const [form, setForm] = useState({ code: "", type: "percent", value: 10, min_order: 0, max_uses: 100, description: "" });
-  const load = () => void api<typeof rows>("/admin/coupons").then(setRows);
+  const saver = useSaver();
+  const [rows, setRows] = useState<CouponRow[]>([]);
+  const [vouchers, setVouchers] = useState<VoucherRow[]>([]);
+  const [form, setForm] = useState(emptyCoupon());
+  const [editId, setEditId] = useState<number | null>(null);
+  const [tab, setTab] = useState<"coupons" | "vouchers">("coupons");
+  const [giftAmount, setGiftAmount] = useState(500);
+  const [manual, setManual] = useState({ amount: 500, email: "", recipient_name: "", message: "", months: 12 });
+
+  const load = () => {
+    void api<{ items: CouponRow[]; purged: number }>("/admin/coupons").then((r) => {
+      setRows(r.items || []);
+      if (r.purged) toast(`Automaticky smazáno ${r.purged} kupónů po vypršení platnosti.`);
+    });
+    void api<VoucherRow[]>("/admin/vouchers").then(setVouchers).catch(() => setVouchers([]));
+  };
   useEffect(() => { load(); }, []);
+
+  function edit(c: CouponRow) {
+    setEditId(c.id);
+    setForm({
+      code: c.code,
+      type: c.type,
+      value: c.value,
+      min_order: c.min_order,
+      max_uses: c.max_uses,
+      description: c.description,
+      valid_from: toLocalInput(c.valid_from),
+      valid_to: toLocalInput(c.valid_to),
+      auto_delete: c.auto_delete ? 1 : 0,
+      active: c.active ? 1 : 0,
+      requires_login: c.requires_login ? 1 : 0,
+      single_use: c.single_use ? 1 : 0,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function reset() {
+    setEditId(null);
+    setForm(emptyCoupon());
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const payload = {
+      ...form,
+      valid_from: fromLocalInput(form.valid_from),
+      valid_to: fromLocalInput(form.valid_to),
+    };
+    const okDone = await saver.run(
+      async () => {
+        if (editId) await api(`/admin/coupons/${editId}`, { method: "PUT", body: JSON.stringify(payload) });
+        else await api("/admin/coupons", { method: "POST", body: JSON.stringify(payload) });
+      },
+      editId ? "Kupón upraven." : "Kupón přidán."
+    );
+    if (okDone) {
+      reset();
+      load();
+    }
+  }
+
+  async function remove(c: CouponRow) {
+    if (!confirm(`Opravdu smazat kupón ${c.code}?`)) return;
+    await api(`/admin/coupons/${c.id}`, { method: "DELETE" });
+    toast("Kupón smazán.");
+    load();
+  }
+
+  async function purge() {
+    const r = await api<{ purged: number }>("/admin/coupons/purge", { method: "POST" });
+    toast(r.purged ? `Smazáno ${r.purged} vypršelých kupónů.` : "Žádný kupón k smazání — všechny jsou platné.");
+    load();
+  }
+
+  async function createGiftProduct() {
+    try {
+      const r = await api<{ name: string }>("/admin/vouchers/product", { method: "POST", body: JSON.stringify({ amount: giftAmount }) });
+      toast(`Produkt „${r.name}“ je v katalogu. Zákazník ho koupí jako běžné zboží.`);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Poukaz se nepodařilo založit.", "err");
+    }
+  }
+
+  async function issueManual(e: FormEvent) {
+    e.preventDefault();
+    try {
+      const r = await api<{ code: string; sent: number }>("/admin/vouchers", { method: "POST", body: JSON.stringify(manual) });
+      toast(r.sent ? `Poukaz ${r.code} odeslán na ${manual.email}.` : `Poukaz ${r.code} vytvořen (e-mail se nepodařilo odeslat).`, r.sent ? "ok" : "err");
+      setManual({ amount: 500, email: "", recipient_name: "", message: "", months: 12 });
+      load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Poukaz se nepodařilo vystavit.", "err");
+    }
+  }
+
+  async function resend(v: VoucherRow) {
+    try {
+      const r = await api<{ sent: number }>("/admin/vouchers/send", { method: "POST", body: JSON.stringify({ voucher_id: v.id }) });
+      toast(r.sent ? "Poukaz odeslán e-mailem." : "E-mail se nepodařilo odeslat — zkontrolujte nastavení Resend.", r.sent ? "ok" : "err");
+      load();
+    } catch {
+      toast("Odeslání selhalo.", "err");
+    }
+  }
+
+  const expired = (c: CouponRow) => !!c.valid_to && new Date(String(c.valid_to).replace(" ", "T")) < new Date();
+
   return (
     <>
-      <h1>Kupóny / Dárkové poukazy</h1>
-      <p style={{ color: "var(--muted)" }}>Dárkový poukaz = kupón na 1 použití (max_uses = 1). Použijte tlačítko níže pro rychlé vygenerování.</p>
-      <div style={{ marginBottom: 12 }}>
-        <button className="btn-line btn-sm" onClick={() => { const code = "DAREK-" + Math.random().toString(36).slice(2,7).toUpperCase(); setForm({ code, type: "fixed", value: 500, min_order: 0, max_uses: 1, description: "Dárkový poukaz na jedno použití" }); toast("Kód vygenerován: " + code); }}>🎁 Vygenerovat dárkový poukaz (1 použití)</button>
-        <button className="btn-line btn-sm" style={{ marginLeft: 8 }} onClick={() => setForm(f => ({ ...f, max_uses: 1, description: "Dárkový poukaz na jedno použití" }))}>Nastavit na 1 použití</button>
+      <div className="toolbar">
+        <h1>
+          <IconTicket size={26} /> Kupóny a dárkové poukazy
+        </h1>
+        <div className="admin-tabs">
+          <button type="button" className={`chip ${tab === "coupons" ? "on" : ""}`} onClick={() => setTab("coupons")}>
+            <IconTicket size={15} /> Kupóny ({rows.length})
+          </button>
+          <button type="button" className={`chip ${tab === "vouchers" ? "on" : ""}`} onClick={() => setTab("vouchers")}>
+            <IconGift size={15} /> Poukazy ({vouchers.length})
+          </button>
+        </div>
       </div>
-      <form className="admin-form" onSubmit={(e) => { e.preventDefault(); void api("/admin/coupons", { method: "POST", body: JSON.stringify(form) }).then(load); }}>
-        <label>Kód<input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required /></label>
-        <label>Typ
-          <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-            <option value="percent">Procenta</option>
-            <option value="fixed">Kč</option>
-          </select>
-        </label>
-        <label>Hodnota<input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: Number(e.target.value) })} /></label>
-        <label>Min. objednávka<input type="number" value={form.min_order} onChange={(e) => setForm({ ...form, min_order: Number(e.target.value) })} /></label>
-        <label>Max. použití<input type="number" value={form.max_uses} onChange={(e) => setForm({ ...form, max_uses: Number(e.target.value) })} /></label>
-        <label>Popis<input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
-        <button className="btn-dark">Přidat</button>
-      </form>
-      <div className="table-wrap">
-        <table>
-          <thead><tr><th>Kód</th><th>Sleva</th><th>Použito</th><th></th></tr></thead>
-          <tbody>
-            {rows.map((c) => (
-              <tr key={c.id}>
-                <td><b>{c.code}</b><br /><small>{c.description}</small></td>
-                <td>{c.type === "percent" ? `${c.value} %` : czk(c.value)} {c.min_order ? `od ${czk(c.min_order)}` : ""}</td>
-                <td>{c.used_count}{c.max_uses != null ? ` / ${c.max_uses}` : ""}</td>
-                <td><button className="linkish" onClick={() => void api(`/admin/coupons/${c.id}`, { method: "DELETE" }).then(load)}>Smazat</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+      {tab === "coupons" ? (
+        <>
+          <p className="admin-lead">
+            Kupón může mít platnost <b>od–do včetně času</b>. Když zapnete „Po vypršení automaticky smazat“, kupón po
+            uplynutí platnosti sám zmizí ze seznamu (úklid proběhne při otevření této stránky nebo při pokusu o uplatnění).
+          </p>
+
+          <form className="admin-form admin-card" onSubmit={submit}>
+            <h2 className="admin-form-title">
+              {editId ? <IconPen size={18} /> : <IconPlus size={18} />} {editId ? `Upravit kupón ${form.code}` : "Nový kupón"}
+            </h2>
+            <label>
+              Kód
+              <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} required placeholder="LETO25" />
+            </label>
+            <label>
+              Typ slevy
+              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                <option value="percent">Procenta (%)</option>
+                <option value="fixed">Pevná částka (Kč)</option>
+              </select>
+            </label>
+            <label>
+              Hodnota
+              <input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: Number(e.target.value) })} />
+            </label>
+            <label>
+              Minimální objednávka (Kč)
+              <input type="number" value={form.min_order} onChange={(e) => setForm({ ...form, min_order: Number(e.target.value) })} />
+            </label>
+            <label>
+              Max. počet použití
+              <input
+                type="number"
+                value={form.max_uses ?? ""}
+                onChange={(e) => setForm({ ...form, max_uses: e.target.value === "" ? null : Number(e.target.value) })}
+                placeholder="prázdné = bez omezení"
+              />
+            </label>
+            <label>
+              Platí od (datum a čas)
+              <input type="datetime-local" value={form.valid_from} onChange={(e) => setForm({ ...form, valid_from: e.target.value })} />
+            </label>
+            <label>
+              Platí do (datum a čas)
+              <input type="datetime-local" value={form.valid_to} onChange={(e) => setForm({ ...form, valid_to: e.target.value })} />
+            </label>
+            <label className="full">
+              Popis (uvidí ho zákazník v košíku)
+              <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </label>
+            <label className="admin-check">
+              <input type="checkbox" checked={!!form.auto_delete} onChange={(e) => setForm({ ...form, auto_delete: e.target.checked ? 1 : 0 })} />
+              <span>
+                <b>Po vypršení automaticky smazat</b>
+                <small>Kupón se po datu „platí do“ sám odstraní z databáze.</small>
+              </span>
+            </label>
+            <label className="admin-check">
+              <input type="checkbox" checked={!!form.active} onChange={(e) => setForm({ ...form, active: e.target.checked ? 1 : 0 })} />
+              <span>
+                <b>Aktivní</b>
+                <small>Vypnutý kupón nejde uplatnit, ale zůstává v seznamu.</small>
+              </span>
+            </label>
+            <label className="admin-check">
+              <input type="checkbox" checked={!!form.requires_login} onChange={(e) => setForm({ ...form, requires_login: e.target.checked ? 1 : 0 })} />
+              <span>
+                <b>Jen pro přihlášené</b>
+                <small>Host kupón neuplatní.</small>
+              </span>
+            </label>
+            <label className="admin-check">
+              <input type="checkbox" checked={!!form.single_use} onChange={(e) => setForm({ ...form, single_use: e.target.checked ? 1 : 0 })} />
+              <span>
+                <b>Jen jednou na zákazníka</b>
+                <small>Typicky sleva na první nákup.</small>
+              </span>
+            </label>
+            <div className="full">
+              <SaveButton state={saver.state} error={saver.error} type="submit" savedLabel={editId ? "Upraveno" : "Přidáno"}>
+                {editId ? "Uložit změny" : "Přidat kupón"}
+              </SaveButton>
+              {editId && (
+                <button type="button" className="btn-line btn-sm" style={{ marginTop: 8 }} onClick={reset}>
+                  Zrušit úpravu
+                </button>
+              )}
+            </div>
+          </form>
+
+          <div className="row-actions" style={{ margin: "16px 0" }}>
+            <button type="button" className="btn-line btn-sm" onClick={() => void purge()}>
+              <IconTrash size={15} /> Uklidit vypršelé kupóny
+            </button>
+          </div>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kód</th>
+                  <th>Sleva</th>
+                  <th>Platnost</th>
+                  <th>Použito</th>
+                  <th>Stav</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((c) => (
+                  <tr key={c.id}>
+                    <td data-label="Kód">
+                      <b>{c.code}</b>
+                      {c.description ? <><br /><small>{c.description}</small></> : null}
+                    </td>
+                    <td data-label="Sleva">
+                      {c.type === "percent" ? `${c.value} %` : czk(c.value)}
+                      {c.min_order ? <><br /><small>od {czk(c.min_order)}</small></> : null}
+                    </td>
+                    <td data-label="Platnost">
+                      {c.valid_from ? <>od {dateCs(c.valid_from)}<br /></> : null}
+                      {c.valid_to ? <>do {dateCs(c.valid_to)}</> : <small>bez omezení</small>}
+                      {c.auto_delete ? <><br /><small className="admin-flag">⏱ smaže se sám</small></> : null}
+                    </td>
+                    <td data-label="Použito">{c.used_count}{c.max_uses != null ? ` / ${c.max_uses}` : ""}</td>
+                    <td data-label="Stav">
+                      <span className={`tag ${expired(c) ? "cancelled" : c.active ? "paid" : ""}`}>
+                        {expired(c) ? "vypršel" : c.active ? "aktivní" : "vypnutý"}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <button type="button" className="chip" onClick={() => edit(c)}>
+                          <IconPen size={14} /> Upravit
+                        </button>
+                        <button type="button" className="chip danger" onClick={() => void remove(c)}>
+                          <IconTrash size={14} /> Smazat
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {!rows.length && <tr><td colSpan={6} style={{ color: "var(--muted)" }}>Zatím žádný kupón.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="admin-lead">
+            Dárkový poukaz je <b>produkt v katalogu</b>. Zákazník ho koupí jako běžné zboží, po zaplacení mu na e-mail
+            dorazí kód a poukaz uvidí i ve svém účtu v sekci „Dárkové poukazy“. Kód funguje v košíku jako slevový kupón.
+          </p>
+
+          <div className="admin-split">
+            <div className="admin-card">
+              <h2 className="admin-form-title">
+                <IconPlus size={18} /> Poukaz do katalogu
+              </h2>
+              <p className="admin-hint">Založí produkt „Dárkový poukaz“ na zvolenou hodnotu, který si zákazníci koupí sami.</p>
+              <div className="row-actions">
+                <input type="number" value={giftAmount} min={100} step={100} onChange={(e) => setGiftAmount(Number(e.target.value))} style={{ width: 120 }} />
+                <span>Kč</span>
+                <button type="button" className="btn-dark btn-sm" onClick={() => void createGiftProduct()}>
+                  <IconGift size={15} /> Vytvořit produkt
+                </button>
+              </div>
+              <div className="row-actions" style={{ marginTop: 10 }}>
+                {[500, 1000, 2000].map((a) => (
+                  <button key={a} type="button" className="chip" onClick={() => setGiftAmount(a)}>
+                    {a} Kč
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form className="admin-card" onSubmit={issueManual}>
+              <h2 className="admin-form-title">
+                <IconMail size={18} /> Vystavit poukaz ručně
+              </h2>
+              <p className="admin-hint">Například jako omluvu nebo dárek. Kód odejde e-mailem hned po uložení.</p>
+              <div className="admin-form" style={{ padding: 0, border: 0, background: "transparent" }}>
+                <label>
+                  Hodnota (Kč)
+                  <input type="number" value={manual.amount} onChange={(e) => setManual({ ...manual, amount: Number(e.target.value) })} required />
+                </label>
+                <label>
+                  Platnost (měsíců)
+                  <input type="number" value={manual.months} onChange={(e) => setManual({ ...manual, months: Number(e.target.value) })} />
+                </label>
+                <label className="full">
+                  E-mail příjemce
+                  <input type="email" value={manual.email} onChange={(e) => setManual({ ...manual, email: e.target.value })} required />
+                </label>
+                <label className="full">
+                  Jméno příjemce
+                  <input value={manual.recipient_name} onChange={(e) => setManual({ ...manual, recipient_name: e.target.value })} />
+                </label>
+                <label className="full">
+                  Vzkaz v e-mailu
+                  <textarea rows={2} value={manual.message} onChange={(e) => setManual({ ...manual, message: e.target.value })} />
+                </label>
+                <div className="full">
+                  <button className="btn-dark" type="submit">
+                    <IconGift size={16} /> Vystavit a odeslat
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <div className="table-wrap" style={{ marginTop: 18 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Kód</th>
+                  <th>Hodnota</th>
+                  <th>Objednávka</th>
+                  <th>Příjemce</th>
+                  <th>Stav</th>
+                  <th>Platnost</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {vouchers.map((v) => (
+                  <tr key={v.id}>
+                    <td data-label="Kód"><code>{v.code}</code></td>
+                    <td data-label="Hodnota">{czk(v.amount)}</td>
+                    <td data-label="Objednávka">{v.order_number || "—"}</td>
+                    <td data-label="Příjemce">{v.recipient_email || v.buyer_email}</td>
+                    <td data-label="Stav">
+                      <span className={`tag ${v.used_count > 0 ? "cancelled" : v.status === "sent" ? "paid" : "new"}`}>
+                        {v.used_count > 0 ? "uplatněno" : v.status === "sent" ? "odesláno" : "čeká na platbu"}
+                      </span>
+                    </td>
+                    <td data-label="Platnost">{v.valid_to ? dateCs(v.valid_to) : "—"}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button type="button" className="chip" onClick={() => void resend(v)}>
+                          <IconMail size={14} /> Poslat znovu
+                        </button>
+                        <button
+                          type="button"
+                          className="chip danger"
+                          onClick={() => {
+                            if (!confirm("Smazat poukaz i jeho slevový kód?")) return;
+                            void api(`/admin/vouchers/${v.id}`, { method: "DELETE" }).then(() => { toast("Poukaz smazán."); load(); });
+                          }}
+                        >
+                          <IconTrash size={14} /> Smazat
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {!vouchers.length && <tr><td colSpan={7} style={{ color: "var(--muted)" }}>Zatím nikdo poukaz nekoupil.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </>
   );
 }
@@ -1253,6 +2058,7 @@ function ClaimsAdmin() {
 }
 
 function NavbarSettings() {
+  const saver = useSaver();
   const { toast, refresh } = useStore();
   const [items, setItems] = useState<{ label: string; to: string; end: boolean }[]>([
     { label: "Domů", to: "/", end: true },
@@ -1298,12 +2104,13 @@ function NavbarSettings() {
   }
 
   async function save() {
-    await api("/admin/settings", {
-      method: "PUT",
-      body: JSON.stringify({ navbar_items: JSON.stringify(items), logo_title: logoTitle, logo_subtext: logoSub, logo_svg: logoSvg }),
-    });
-    toast("Navbar a logo uloženy.");
-    void refresh();
+    await saver.run(async () => {
+      await api("/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({ navbar_items: JSON.stringify(items), logo_title: logoTitle, logo_subtext: logoSub, logo_svg: logoSvg }),
+      });
+      await refresh();
+    }, "Menu a logo uloženy.");
   }
 
   async function patchPage(p: Page, body: Record<string, unknown>) {
@@ -1358,7 +2165,11 @@ function NavbarSettings() {
         </div>
       </div>
 
-      <button className="btn-dark" onClick={() => void save()}>Uložit navbar a logo</button>
+      <div className="admin-sticky-save">
+        <SaveButton state={saver.state} error={saver.error} onClick={() => void save()}>
+          Uložit menu a logo
+        </SaveButton>
+      </div>
 
       <h2 style={{ marginTop: 28, fontSize: 22 }}>Stránky v menu</h2>
       <p style={{ color: "var(--muted)" }}>
@@ -1386,10 +2197,13 @@ function NavbarSettings() {
 
 function CarouselSettings() {
   const { toast, refresh } = useStore();
+  const saver = useSaver();
   type Slide = { kicker: string; title: string; text: string; cta: string; to: string; image: string; accent: boolean };
-  const empty = (): Slide => ({ kicker: "", title: "", text: "", cta: "", to: "/katalog", image: "", accent: false });
+  const empty = (): Slide => ({ kicker: "", title: "", text: "", cta: "Zobrazit", to: "/katalog", image: "", accent: false });
   const [slides, setSlides] = useState<Slide[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [open, setOpen] = useState<number | null>(0);
+  const [preview, setPreview] = useState(0);
 
   useEffect(() => {
     void api<Record<string, string>>("/admin/settings").then((s) => {
@@ -1433,6 +2247,17 @@ function CarouselSettings() {
       next.splice(to, 0, it);
       return next;
     });
+    setOpen(i + dir);
+    setPreview(i + dir);
+  }
+
+  function duplicate(i: number) {
+    setSlides((prev) => {
+      const next = prev.slice();
+      next.splice(i + 1, 0, { ...prev[i] });
+      return next;
+    });
+    toast("Slide zduplikován.");
   }
 
   async function toWebp(file: File): Promise<File> {
@@ -1467,81 +2292,164 @@ function CarouselSettings() {
   }
 
   async function save() {
-    await api("/admin/settings", {
-      method: "PUT",
-      body: JSON.stringify({
-        hero_slides: JSON.stringify(slides.filter((s) => s.title || s.text || s.image)),
-      }),
-    });
-    toast("Carousel uložen. Na hlavní stránce se projeví ihned.");
-    void refresh();
+    await saver.run(async () => {
+      await api("/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          hero_slides: JSON.stringify(slides.filter((s) => s.title || s.text || s.image)),
+        }),
+      });
+      await refresh();
+    }, "Carousel uložen — na úvodní stránce se projeví ihned.");
   }
 
   if (!loaded) return <p>Načítám…</p>;
 
+  const shown = slides.length ? slides[Math.min(preview, slides.length - 1)] : null;
+
   return (
     <>
-      <h1>Carousel na hlavní stránce</h1>
-      <p style={{ color: "var(--muted)", marginBottom: 20 }}>
-        Zde přidáváte, upravujete a mažete slidy úvodního carouselu. Když seznam necháte prázdný, zobrazí se výchozí
-        obsah (hlavní nadpis z nastavení a doporučené produkty). Pořadí měňte šipkami.
+      <div className="toolbar">
+        <h1>
+          <IconSlides size={26} /> Carousel na úvodní stránce
+        </h1>
+        <div className="row-actions">
+          <a className="btn-line btn-sm" href="/" target="_blank" rel="noreferrer">
+            Otevřít web
+          </a>
+        </div>
+      </div>
+      <p className="admin-lead">
+        Slidy se ukládají do nastavení a na úvodní stránce se objeví ihned po uložení. Když seznam necháte prázdný,
+        zobrazí se výchozí obsah (hlavní nadpis z nastavení a doporučený produkt). Náhled dole ukazuje <b>rozpracovanou
+        podobu</b>, ještě než ji uložíte.
       </p>
 
+      {/* Živý náhled slidu */}
+      {shown && (
+        <div className="admin-preview">
+          <span className="admin-preview-label">Živý náhled (neuložené změny)</span>
+          <div className={`carousel-preview${shown.accent ? " accent" : ""}`}>
+            <div className="carousel-preview-copy">
+              {shown.kicker && <span className="kicker">{shown.kicker}</span>}
+              <h3>{shown.title || "Nadpis slidu"}</h3>
+              <p>{shown.text || "Krátký popis, který se ukáže pod nadpisem."}</p>
+              <span className="carousel-preview-cta">{shown.cta || "Zobrazit"} →</span>
+            </div>
+            {shown.image ? (
+              <div className="carousel-preview-img">
+                <img src={shown.image} alt="" />
+              </div>
+            ) : (
+              <div className="carousel-preview-img empty">bez obrázku</div>
+            )}
+          </div>
+          {slides.length > 1 && (
+            <div className="carousel-preview-dots">
+              {slides.map((_, i) => (
+                <button key={i} type="button" className={i === preview ? "on" : ""} onClick={() => setPreview(i)} aria-label={`Náhled slidu ${i + 1}`} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {slides.map((s, i) => (
-        <div className="admin-form" style={{ gridTemplateColumns: "1fr" }} key={i}>
-          <div className="row-actions" style={{ justifyContent: "space-between", alignItems: "center" }}>
-            <b style={{ fontSize: 14 }}>Slide {i + 1}</b>
+        <div className={`slide-editor${open === i ? " open" : ""}`} key={i}>
+          <div className="slide-editor-head">
+            <button
+              type="button"
+              className="slide-editor-toggle"
+              onClick={() => { setOpen(open === i ? null : i); setPreview(i); }}
+              aria-expanded={open === i}
+            >
+              <span className="slide-editor-num">{i + 1}</span>
+              <span className="slide-editor-name">
+                <b>{s.title || "Nový slide"}</b>
+                <small>{s.kicker || s.to}</small>
+              </span>
+              {s.image && <img className="slide-editor-thumb" src={s.image} alt="" />}
+              <span className="slide-editor-caret">{open === i ? "▲" : "▼"}</span>
+            </button>
             <span className="row-actions">
               <button type="button" className="chip" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Posunout nahoru">↑</button>
               <button type="button" className="chip" onClick={() => move(i, 1)} disabled={i === slides.length - 1} aria-label="Posunout dolů">↓</button>
-              <button type="button" className="linkish" onClick={() => setSlides((prev) => prev.filter((_, j) => j !== i))}>
-                Smazat slide
+              <button type="button" className="chip" onClick={() => duplicate(i)} aria-label="Duplikovat">
+                <IconCopy size={14} />
+              </button>
+              <button
+                type="button"
+                className="chip danger"
+                onClick={() => {
+                  if (!confirm("Opravdu smazat tento slide?")) return;
+                  setSlides((prev) => prev.filter((_, j) => j !== i));
+                  setOpen(null);
+                  setPreview(0);
+                }}
+              >
+                <IconTrash size={14} /> Smazat
               </button>
             </span>
           </div>
-          <label>Štítek nad nadpisem (kicker)
-            <input value={s.kicker} onChange={(e) => patch(i, "kicker", e.target.value)} placeholder="např. ATELIÉR KAVKA" />
-          </label>
-          <label>Nadpis
-            <input value={s.title} onChange={(e) => patch(i, "title", e.target.value)} placeholder="Domov, který dýchá pomalu" />
-          </label>
-          <label className="full">Text
-            <textarea rows={2} value={s.text} onChange={(e) => patch(i, "text", e.target.value)} />
-          </label>
-          <label>Text tlačítka (CTA)
-            <input value={s.cta} onChange={(e) => patch(i, "cta", e.target.value)} placeholder="Procházet katalog" />
-          </label>
-          <label>Odkaz tlačítka
-            <input value={s.to} onChange={(e) => patch(i, "to", e.target.value)} placeholder="/katalog" />
-          </label>
-          <label className="full">URL obrázku
-            <input value={s.image} onChange={(e) => patch(i, "image", e.target.value)} placeholder="/hero.webp" />
-          </label>
-          <label className="full">Nahrát obrázek (R2, převede se na webp)
-            <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && void upload(i, e.target.files[0])} />
-          </label>
-          <label className="full">
-            <input type="checkbox" checked={s.accent} onChange={(e) => patch(i, "accent", e.target.checked)} /> Tmavý (akcentní) slide
-          </label>
-          {s.image && (
-            <div className="full" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <img
-                src={s.image}
-                alt=""
-                style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 10, border: "1px solid var(--line)" }}
-              />
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>Náhled obrázku</span>
+
+          {open === i && (
+            <div className="admin-form slide-editor-body">
+              <label>
+                Štítek nad nadpisem
+                <input value={s.kicker} onChange={(e) => patch(i, "kicker", e.target.value)} placeholder="např. ATELIÉR KAVKA" />
+              </label>
+              <label>
+                Nadpis
+                <input value={s.title} onChange={(e) => patch(i, "title", e.target.value)} placeholder="Domov, který dýchá pomalu" />
+              </label>
+              <label className="full">
+                Text
+                <textarea rows={2} value={s.text} onChange={(e) => patch(i, "text", e.target.value)} />
+              </label>
+              <label>
+                Text tlačítka
+                <input value={s.cta} onChange={(e) => patch(i, "cta", e.target.value)} placeholder="Procházet katalog" />
+              </label>
+              <label>
+                Odkaz tlačítka
+                <input value={s.to} onChange={(e) => patch(i, "to", e.target.value)} placeholder="/katalog" />
+              </label>
+              <label className="full">
+                URL obrázku
+                <input value={s.image} onChange={(e) => patch(i, "image", e.target.value)} placeholder="/hero.webp" />
+              </label>
+              <label className="full">
+                Nahrát obrázek (uloží se do R2 jako webp)
+                <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && void upload(i, e.target.files[0])} />
+              </label>
+              <label className="admin-check full">
+                <input type="checkbox" checked={s.accent} onChange={(e) => patch(i, "accent", e.target.checked)} />
+                <span>
+                  <b>Tmavý (akcentní) slide</b>
+                  <small>Slide dostane tmavé pozadí a světlý text.</small>
+                </span>
+              </label>
             </div>
           )}
         </div>
       ))}
 
-      <button className="pb-add" style={{ width: "100%", marginBottom: 16 }} onClick={() => setSlides((prev) => [...prev, empty()])}>
+      <button
+        className="pb-add"
+        style={{ width: "100%", marginBottom: 16 }}
+        onClick={() => {
+          setSlides((prev) => [...prev, empty()]);
+          setOpen(slides.length);
+          setPreview(slides.length);
+        }}
+      >
         + Přidat slide
       </button>
 
-      <div className="full row-actions">
-        <button className="btn-dark" onClick={() => void save()}>Uložit carousel</button>
+      <div className="admin-sticky-save">
+        <SaveButton state={saver.state} error={saver.error} onClick={() => void save()}>
+          Uložit carousel
+        </SaveButton>
       </div>
     </>
   );
@@ -1549,6 +2457,7 @@ function CarouselSettings() {
 
 function AppearanceSettings() {
   const { toast, refresh, settings: saved } = useStore();
+  const saver = useSaver();
   const [form, setForm] = useState<Record<string, string>>(themeDefaults());
   const [loaded, setLoaded] = useState(false);
 
@@ -1574,9 +2483,10 @@ function AppearanceSettings() {
   }
 
   async function save() {
-    await api("/admin/settings", { method: "PUT", body: JSON.stringify(form) });
-    toast("Vzhled uložen. Na veřejném webu se projeví ihned.");
-    void refresh();
+    await saver.run(async () => {
+      await api("/admin/settings", { method: "PUT", body: JSON.stringify(form) });
+      await refresh();
+    }, "Vzhled uložen — na veřejném webu platí ihned.");
   }
 
   if (!loaded) return <p>Načítám…</p>;
@@ -1686,11 +2596,11 @@ function AppearanceSettings() {
         </div>
       </section>
 
-      <div className="full row-actions" style={{ marginTop: 20 }}>
-        <button className="btn-dark" type="button" onClick={() => void save()}>
+      <div className="admin-sticky-save">
+        <SaveButton state={saver.state} error={saver.error} onClick={() => void save()}>
           Uložit vzhled
-        </button>
-        <button className="btn-line" type="button" onClick={() => setForm(themeDefaults())}>
+        </SaveButton>
+        <button className="btn-line btn-sm" type="button" onClick={() => setForm(themeDefaults())}>
           Obnovit výchozí
         </button>
       </div>
@@ -1858,10 +2768,20 @@ function PostForm() {
 }
 
 function SettingsPage() {
-  const { toast, refresh } = useStore();
+  const { refresh } = useStore();
+  const saver = useSaver();
   const [form, setForm] = useState<Record<string, string>>({});
   const [showKey, setShowKey] = useState(false);
+  const [q, setQ] = useState("");
   useEffect(() => { void api<Record<string, string>>("/admin/settings").then(setForm); }, []);
+
+  async function saveSettings(e: FormEvent) {
+    e.preventDefault();
+    await saver.run(async () => {
+      await api("/admin/settings", { method: "PUT", body: JSON.stringify(form) });
+      await refresh();
+    }, "Nastavení uloženo.");
+  }
   const keys: [string, string][] = [
     ["store_name", "Zkrácený název obchodu (např. KAVKA)"],
     ["store_company", "Obchodní firma / Provozovatel (pro faktury a VOP)"],
@@ -2015,12 +2935,20 @@ function SettingsPage() {
   };
   return (
     <>
-      <h1>Nastavení e-shopu a právní údaje</h1>
-      <p style={{ color: "var(--muted)", marginBottom: 20 }}>
-        Veškeré zde nastavené firemní a bankovní údaje se automaticky promítají do Obchodních podmínek, Zásad ochrany osobních údajů (GDPR), Reklamačního řádu, Patičky, Pokladny i QR plateb.
+      <div className="toolbar">
+        <h1>
+          <IconGear size={26} /> Nastavení e-shopu
+        </h1>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hledat nastavení…" style={{ minWidth: 220 }} />
+      </div>
+      <p className="admin-lead">
+        Firemní a bankovní údaje se automaticky promítají do Obchodních podmínek, GDPR, Reklamačního řádu, patičky,
+        pokladny i QR plateb. Po uložení se zobrazí potvrzení a změny platí okamžitě.
       </p>
-      <form className="admin-form" onSubmit={(e) => { e.preventDefault(); void api("/admin/settings", { method: "PUT", body: JSON.stringify(form) }).then(() => { toast("Uloženo."); void refresh(); }); }}>
-        {keys.map(([k, label]) => (
+      <form className="admin-form" onSubmit={saveSettings}>
+        {keys
+          .filter(([k, label]) => !q || `${k} ${label}`.toLowerCase().includes(q.toLowerCase()))
+          .map(([k, label]) => (
           <label key={k} className={k.includes("hero") || k.includes("home_") || k.includes("address") || k.includes("registry") || k.includes("return") ? "full" : ""}>
             <span className="field-label">{label} <InfoButton title={label}>{help[k] || "Toto nastavení upravuje chování e-shopu. Změnu uložte tlačítkem dole a poté ověřte výsledek na veřejném webu."}</InfoButton></span>
             {k.includes("hero_text") || k.includes("home_") ? (
@@ -2057,8 +2985,10 @@ function SettingsPage() {
           Resend. Stav a zkušební odeslání najdete na stránce{" "}
           <Link to="/admin/emaily">E-maily</Link>.
         </div>
-        <div className="full">
-          <button className="btn-dark" type="submit">Uložit nastavení</button>
+        <div className="full admin-sticky-save">
+          <SaveButton state={saver.state} error={saver.error} type="submit" savedLabel="Nastavení uloženo">
+            Uložit nastavení
+          </SaveButton>
         </div>
       </form>
 
@@ -2467,6 +3397,493 @@ function EmailsPage() {
             )}
           </tbody>
         </table>
+      </div>
+    </>
+  );
+}
+
+/* ============================================================
+   Oznamovací lišta a dlaždice na úvodní stránce
+   ============================================================ */
+
+const TILE_ICON_LABELS: Record<string, string> = {
+  gift: "🎁 Dárek",
+  leaf: "🌿 List",
+  locker: "📦 Výdejní box",
+  truck: "🚚 Doprava",
+  shield: "🛡 Záruka",
+  spark: "✨ Jiskra",
+  clock: "⏱ Hodiny",
+  heart: "❤️ Srdce",
+  pin: "📍 Špendlík",
+  shop: "🏠 Obchod",
+  star: "★ Hvězda",
+  card: "💳 Karta",
+};
+
+const TILE_COLOR_LABELS: Record<string, string> = {
+  accent: "Akcentní (terakota)",
+  forest: "Lesní zelená",
+  gold: "Zlatá",
+  plain: "Neutrální",
+};
+
+function StripAndTiles() {
+  const { refresh, settings } = useStore();
+  const saver = useSaver();
+  const [loaded, setLoaded] = useState(false);
+  const [announceOn, setAnnounceOn] = useState(true);
+  const [rotate, setRotate] = useState(false);
+  const [items, setItems] = useState<AnnounceItem[]>([]);
+  const [bg, setBg] = useState("");
+  const [fg, setFg] = useState("");
+  const [tilesOn, setTilesOn] = useState(true);
+  const [showCats, setShowCats] = useState(true);
+  const [tilesTitle, setTilesTitle] = useState("");
+  const [tiles, setTiles] = useState<HomeTile[]>([]);
+
+  useEffect(() => {
+    void api<Record<string, string>>("/admin/settings").then((s) => {
+      const a = readAnnounce(s);
+      setAnnounceOn(a.enabled);
+      setRotate(a.rotate);
+      setItems(a.items);
+      setBg(a.bg);
+      setFg(a.fg);
+      const t = readHomeTiles(s);
+      setTilesOn(t.enabled);
+      setShowCats(t.showCategories);
+      setTilesTitle(t.title);
+      setTiles(t.items);
+      setLoaded(true);
+    });
+  }, []);
+
+  async function save() {
+    await saver.run(async () => {
+      await api("/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          announce_enabled: announceOn ? "1" : "0",
+          announce_rotate: rotate ? "1" : "0",
+          announce_items: JSON.stringify(items.filter((i) => i.text.trim())),
+          announce_bg: bg,
+          announce_fg: fg,
+          home_tiles_enabled: tilesOn ? "1" : "0",
+          home_tiles_show_categories: showCats ? "1" : "0",
+          home_tiles_title: tilesTitle,
+          home_tiles_items: JSON.stringify(tiles.filter((t) => t.title.trim() || t.image)),
+        }),
+      });
+      await refresh();
+    }, "Lišta a dlaždice uloženy — na webu se to projeví hned.");
+  }
+
+  function moveTile(i: number, dir: number) {
+    const to = i + dir;
+    if (to < 0 || to >= tiles.length) return;
+    const next = tiles.slice();
+    [next[i], next[to]] = [next[to], next[i]];
+    setTiles(next);
+  }
+
+  if (!loaded) return <p>Načítám…</p>;
+
+  const previewItems = items.filter((i) => i.text.trim());
+
+  return (
+    <>
+      <h1>
+        <IconMegaphone size={26} /> Lišta a dlaždice
+      </h1>
+      <p className="admin-lead">
+        Tady upravíte <b>oznamovací lištu</b> nad hlavičkou (ten tenký pruh s dopravou zdarma) a <b>dlaždice rychlých
+        odkazů</b> na úvodní stránce. Obojí jde i úplně vypnout.
+      </p>
+
+      {/* ---------------- Oznamovací lišta ---------------- */}
+      <section className="admin-card">
+        <h2 className="admin-form-title">
+          <IconBell size={18} /> Oznamovací lišta nad hlavičkou
+        </h2>
+
+        <label className="admin-check">
+          <input type="checkbox" checked={announceOn} onChange={(e) => setAnnounceOn(e.target.checked)} />
+          <span>
+            <b>Lištu zobrazovat</b>
+            <small>Po vypnutí pruh z webu úplně zmizí.</small>
+          </span>
+        </label>
+        <label className="admin-check">
+          <input type="checkbox" checked={rotate} onChange={(e) => setRotate(e.target.checked)} />
+          <span>
+            <b>Zprávy střídat po pěti vteřinách</b>
+            <small>Jinak se zobrazí všechny vedle sebe oddělené tečkou.</small>
+          </span>
+        </label>
+
+        <div className="admin-preview" style={{ background: bg || undefined, color: fg || undefined }}>
+          <span className="admin-preview-label">Náhled lišty</span>
+          <div className="announce announce-preview" style={{ background: bg || undefined, color: fg || undefined }}>
+            <span className="announce-dot" aria-hidden="true" />
+            <span className="announce-body">
+              {(previewItems.length
+                ? previewItems
+                : [{ text: "Doprava zdarma od *1 500 Kč*" }, { text: "Sleva 10 % na první nákup — kód *KAVKA10*" }]
+              ).map((it, i) => (
+                <span key={i} className="announce-item">
+                  {i > 0 && <span className="announce-sep">·</span>}
+                  {it.text.split("*").map((part, j) => (j % 2 === 1 ? <b key={j}>{part}</b> : <span key={j}>{part}</span>))}
+                </span>
+              ))}
+            </span>
+          </div>
+        </div>
+
+        <p className="admin-hint">
+          Text mezi <code>*hvězdičkami*</code> se zvýrazní tučně, například <code>Doprava zdarma od *1 500 Kč*</code>.
+        </p>
+
+        {items.map((it, i) => (
+          <div key={i} className="admin-row-card">
+            <span className="admin-row-num">{i + 1}</span>
+            <div className="admin-row-fields">
+              <label>
+                Text zprávy
+                <input value={it.text} onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} />
+              </label>
+              <label>
+                Odkaz (nepovinné)
+                <input
+                  value={it.to || ""}
+                  placeholder="/katalog"
+                  onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))}
+                />
+              </label>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="chip" disabled={i === 0} onClick={() => {
+                const next = items.slice();
+                [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                setItems(next);
+              }}>↑</button>
+              <button type="button" className="chip" disabled={i === items.length - 1} onClick={() => {
+                const next = items.slice();
+                [next[i + 1], next[i]] = [next[i], next[i + 1]];
+                setItems(next);
+              }}>↓</button>
+              <button type="button" className="chip danger" onClick={() => setItems(items.filter((_, j) => j !== i))}>
+                <IconTrash size={14} /> Odebrat
+              </button>
+            </div>
+          </div>
+        ))}
+        <button type="button" className="pb-add" onClick={() => setItems([...items, { text: "" }])}>
+          + Přidat zprávu do lišty
+        </button>
+
+        <div className="admin-form" style={{ padding: 0, border: 0, background: "transparent", marginTop: 14 }}>
+          <label>
+            Barva pozadí lišty
+            <div className="color-field">
+              <input type="color" value={bg || "#24352c"} onChange={(e) => setBg(e.target.value)} />
+              <input value={bg} onChange={(e) => setBg(e.target.value)} placeholder="výchozí" />
+              {bg && <button type="button" className="chip" onClick={() => setBg("")}>Výchozí</button>}
+            </div>
+          </label>
+          <label>
+            Barva textu
+            <div className="color-field">
+              <input type="color" value={fg || "#efe8dc"} onChange={(e) => setFg(e.target.value)} />
+              <input value={fg} onChange={(e) => setFg(e.target.value)} placeholder="výchozí" />
+              {fg && <button type="button" className="chip" onClick={() => setFg("")}>Výchozí</button>}
+            </div>
+          </label>
+        </div>
+      </section>
+
+      {/* ---------------- Dlaždice ---------------- */}
+      <section className="admin-card">
+        <h2 className="admin-form-title">
+          <IconGrid size={18} /> Dlaždice rychlých odkazů (úvodní stránka)
+        </h2>
+
+        <label className="admin-check">
+          <input type="checkbox" checked={tilesOn} onChange={(e) => setTilesOn(e.target.checked)} />
+          <span>
+            <b>Dlaždice zobrazovat</b>
+            <small>Sekce „Rychlé odkazy“ hned pod úvodním carouselem.</small>
+          </span>
+        </label>
+        <label className="admin-check">
+          <input type="checkbox" checked={showCats} onChange={(e) => setShowCats(e.target.checked)} />
+          <span>
+            <b>Doplnit dlaždice kategoriemi</b>
+            <small>Za vaše dlaždice se přidají první čtyři kategorie z katalogu.</small>
+          </span>
+        </label>
+        <div className="admin-form" style={{ padding: 0, border: 0, background: "transparent" }}>
+          <label className="full">
+            Nadpis nad dlaždicemi (nepovinné)
+            <input value={tilesTitle} onChange={(e) => setTilesTitle(e.target.value)} placeholder="např. Kam dál" />
+          </label>
+        </div>
+
+        {/* Živý náhled dlaždic */}
+        {(tiles.length > 0 || tilesOn) && (
+          <div className="admin-preview">
+            <span className="admin-preview-label">Náhled dlaždic</span>
+            <div className="tile-preview">
+              {(tiles.length ? tiles : [emptyTile()]).map((t, i) => (
+                <span key={i} className="tile-preview-item">
+                  <span className={`home-tile-icon ${t.color}`}>{TILE_ICON_LABELS[t.icon]?.split(" ")[0] || "✨"}</span>
+                  <span>
+                    <b>{t.title || "Název dlaždice"}</b>
+                    <small>{t.subtitle || "Popisek"}</small>
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tiles.map((t, i) => (
+          <div key={i} className="admin-row-card">
+            <span className="admin-row-num">{i + 1}</span>
+            <div className="admin-row-fields tile-fields">
+              <label>
+                Nadpis
+                <input value={t.title} onChange={(e) => setTiles(tiles.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
+              </label>
+              <label>
+                Popisek
+                <input value={t.subtitle} onChange={(e) => setTiles(tiles.map((x, j) => (j === i ? { ...x, subtitle: e.target.value } : x)))} />
+              </label>
+              <label>
+                Odkaz
+                <input value={t.to} onChange={(e) => setTiles(tiles.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))} placeholder="/katalog" />
+              </label>
+              <label>
+                Ikona
+                <select value={t.icon} onChange={(e) => setTiles(tiles.map((x, j) => (j === i ? { ...x, icon: e.target.value as HomeTile["icon"] } : x)))}>
+                  {TILE_ICONS.map((ic) => (
+                    <option key={ic} value={ic}>{TILE_ICON_LABELS[ic] || ic}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Barva
+                <select value={t.color} onChange={(e) => setTiles(tiles.map((x, j) => (j === i ? { ...x, color: e.target.value as HomeTile["color"] } : x)))}>
+                  {TILE_COLORS.map((c) => (
+                    <option key={c} value={c}>{TILE_COLOR_LABELS[c] || c}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Vlastní obrázek (URL, místo ikony)
+                <input value={t.image || ""} onChange={(e) => setTiles(tiles.map((x, j) => (j === i ? { ...x, image: e.target.value } : x)))} />
+              </label>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="chip" disabled={i === 0} onClick={() => moveTile(i, -1)}>↑</button>
+              <button type="button" className="chip" disabled={i === tiles.length - 1} onClick={() => moveTile(i, 1)}>↓</button>
+              <button type="button" className="chip danger" onClick={() => setTiles(tiles.filter((_, j) => j !== i))}>
+                <IconTrash size={14} /> Odebrat
+              </button>
+            </div>
+          </div>
+        ))}
+        <button type="button" className="pb-add" onClick={() => setTiles([...tiles, emptyTile()])}>
+          + Přidat dlaždici
+        </button>
+        {!tiles.length && (
+          <p className="admin-hint">
+            Dokud nepřidáte vlastní dlaždice, zobrazí se výchozí čtveřice (poukazy, ateliér, výdejní místa, doprava).
+          </p>
+        )}
+      </section>
+
+      <div className="admin-sticky-save">
+        <SaveButton state={saver.state} error={saver.error} onClick={() => void save()}>
+          Uložit lištu a dlaždice
+        </SaveButton>
+      </div>
+      {settings.announce_enabled === "0" && announceOn && (
+        <p className="admin-hint">Lišta je zatím na webu vypnutá — uložením ji zapnete.</p>
+      )}
+    </>
+  );
+}
+
+/* ============================================================
+   Filtry a štítky katalogu
+   ============================================================ */
+
+function FiltersAndTags() {
+  const { refresh } = useStore();
+  const { toast } = useStore();
+  const saver = useSaver();
+  const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
+  const [groups, setGroups] = useState<{ title: string; tags: string[] }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [rename, setRename] = useState<{ from: string; to: string } | null>(null);
+
+  const loadTags = () => void api<{ tag: string; count: number }[]>("/admin/tags").then(setTags).catch(() => setTags([]));
+
+  useEffect(() => {
+    loadTags();
+    void api<Record<string, string>>("/admin/settings").then((s) => {
+      setGroups(readFilterGroups(s));
+      setLoaded(true);
+    });
+  }, []);
+
+  async function save() {
+    await saver.run(async () => {
+      await api("/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({ catalog_filters: JSON.stringify(groups.filter((g) => g.title.trim() && g.tags.length)) }),
+      });
+      await refresh();
+    }, "Filtry uloženy — v katalogu se projeví hned.");
+  }
+
+  async function applyRename() {
+    if (!rename) return;
+    try {
+      const r = await api<{ changed: number }>("/admin/tags", { method: "POST", body: JSON.stringify(rename) });
+      toast(rename.to ? `Štítek přejmenován u ${r.changed} produktů.` : `Štítek smazán u ${r.changed} produktů.`);
+      setRename(null);
+      loadTags();
+    } catch {
+      toast("Změnu se nepodařilo provést.", "err");
+    }
+  }
+
+  function toggleInGroup(gi: number, tag: string) {
+    setGroups(
+      groups.map((g, i) =>
+        i === gi
+          ? { ...g, tags: g.tags.some((t) => t.toLowerCase() === tag.toLowerCase()) ? g.tags.filter((t) => t.toLowerCase() !== tag.toLowerCase()) : [...g.tags, tag] }
+          : g
+      )
+    );
+  }
+
+  if (!loaded) return <p>Načítám…</p>;
+
+  return (
+    <>
+      <h1>
+        <IconFilter size={26} /> Filtry a štítky
+      </h1>
+      <p className="admin-lead">
+        Štítky přidáváte přímo u produktu (sekce <b>Štítky produktu</b>). Tady z nich sestavíte <b>skupiny filtrů</b>,
+        které zákazník uvidí v katalogu, a můžete štítky hromadně přejmenovat nebo smazat.
+      </p>
+
+      <section className="admin-card">
+        <h2 className="admin-form-title">
+          <IconTagIcon size={18} /> Použité štítky ({tags.length})
+        </h2>
+        {tags.length ? (
+          <div className="tag-editor">
+            {tags.map((t) => (
+              <span key={t.tag} className="tag-chip">
+                {t.tag} <small>{t.count}×</small>
+                <button type="button" onClick={() => setRename({ from: t.tag, to: t.tag })} aria-label={`Upravit štítek ${t.tag}`}>
+                  <IconPen size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="admin-hint">
+            Zatím žádné štítky. Otevřete <Link to="/admin/produkty">produkt</Link> a přidejte mu první štítek.
+          </p>
+        )}
+
+        {rename && (
+          <div className="admin-row-card" style={{ marginTop: 12 }}>
+            <div className="admin-row-fields">
+              <label>
+                Přejmenovat štítek „{rename.from}“ na
+                <input value={rename.to} onChange={(e) => setRename({ ...rename, to: e.target.value })} />
+              </label>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="btn-dark btn-sm" onClick={() => void applyRename()}>
+                Přejmenovat
+              </button>
+              <button type="button" className="chip danger" onClick={() => { setRename({ ...rename, to: "" }); void applyRename(); }}>
+                <IconTrash size={14} /> Smazat u všech produktů
+              </button>
+              <button type="button" className="chip" onClick={() => setRename(null)}>
+                Zrušit
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="admin-card">
+        <h2 className="admin-form-title">
+          <IconFilter size={18} /> Skupiny filtrů v katalogu
+        </h2>
+        <p className="admin-hint">
+          Každá skupina je jeden blok filtrů (např. „Materiál“ se štítky len, keramika, dřevo). Když nevytvoříte žádnou
+          skupinu, katalog nabídne prostě všechny štítky.
+        </p>
+        {groups.map((g, gi) => (
+          <div key={gi} className="admin-row-card">
+            <span className="admin-row-num">{gi + 1}</span>
+            <div className="admin-row-fields">
+              <label>
+                Název skupiny
+                <input value={g.title} onChange={(e) => setGroups(groups.map((x, i) => (i === gi ? { ...x, title: e.target.value } : x)))} placeholder="Materiál" />
+              </label>
+              <div className="tag-picker">
+                <span>Štítky ve skupině:</span>
+                <div className="tag-editor">
+                  {tags.map((t) => {
+                    const on = g.tags.some((x) => x.toLowerCase() === t.tag.toLowerCase());
+                    return (
+                      <button key={t.tag} type="button" className={`chip tag-chip${on ? " on" : ""}`} onClick={() => toggleInGroup(gi, t.tag)}>
+                        {on ? "✓ " : "+ "}
+                        {t.tag}
+                      </button>
+                    );
+                  })}
+                  {!tags.length && <small className="admin-hint">Nejdřív přidejte štítky produktům.</small>}
+                </div>
+              </div>
+            </div>
+            <div className="row-actions">
+              <button type="button" className="chip" disabled={gi === 0} onClick={() => {
+                const next = groups.slice();
+                [next[gi - 1], next[gi]] = [next[gi], next[gi - 1]];
+                setGroups(next);
+              }}>↑</button>
+              <button type="button" className="chip" disabled={gi === groups.length - 1} onClick={() => {
+                const next = groups.slice();
+                [next[gi + 1], next[gi]] = [next[gi], next[gi + 1]];
+                setGroups(next);
+              }}>↓</button>
+              <button type="button" className="chip danger" onClick={() => setGroups(groups.filter((_, i) => i !== gi))}>
+                <IconTrash size={14} /> Odebrat
+              </button>
+            </div>
+          </div>
+        ))}
+        <button type="button" className="pb-add" onClick={() => setGroups([...groups, { title: "", tags: [] }])}>
+          + Přidat skupinu filtrů
+        </button>
+      </section>
+
+      <div className="admin-sticky-save">
+        <SaveButton state={saver.state} error={saver.error} onClick={() => void save()}>
+          Uložit filtry
+        </SaveButton>
       </div>
     </>
   );
