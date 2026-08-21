@@ -1,7 +1,7 @@
 import type { App } from "./helpers";
 import { requireAdmin, slugify } from "./helpers";
 import { loadOrder } from "./public";
-import { notifyBackInStock, notifyOrderStatus } from "./mail";
+import { notifyBackInStock, notifyOrderStatus, resolveMailConfig, sendTestMail } from "./mail";
 import { CARRIERS, createShipment, type CarrierCode } from "./shipping";
 import {
   cancelInvoiceForOrder,
@@ -179,7 +179,7 @@ export function registerAdmin(app: App) {
         const prod = await c.env.DB.prepare("SELECT id, name, slug FROM products WHERE id = ?").bind(id).first<{ id: number; name: string; slug: string }>();
         const waiting = (await c.env.DB.prepare("SELECT email FROM stock_alerts WHERE product_id = ? AND notified_at IS NULL").bind(id).all<{ email: string }>()).results || [];
         if (prod && waiting.length) {
-          await notifyBackInStock(c.env.DB, prod, waiting.map((w) => w.email));
+          await notifyBackInStock(c.env.DB, prod, waiting.map((w) => w.email), c.env);
           await c.env.DB.prepare("UPDATE stock_alerts SET notified_at = datetime('now') WHERE product_id = ? AND notified_at IS NULL").bind(id).run();
         }
       } catch (err) {
@@ -499,6 +499,93 @@ export function registerAdmin(app: App) {
       .map(([k, v]) => c.env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").bind(k, String(v ?? "")));
     if (stmts.length) await c.env.DB.batch(stmts);
     return c.json({ ok: true });
+  });
+
+  /* ============================================================
+     E-maily — přehled odesílání, diagnostika Resend, test
+     ============================================================ */
+
+  app.get("/admin/emails", async (c) => {
+    const rows = (
+      await c.env.DB.prepare(
+        "SELECT id, kind, recipient, subject, status, error, meta, created_at FROM email_log ORDER BY id DESC LIMIT 200"
+      ).all()
+    ).results || [];
+    return c.json(rows);
+  });
+
+  app.get("/admin/stock-alerts", async (c) => {
+    const rows = (
+      await c.env.DB.prepare(
+        `SELECT a.id, a.email, a.product_id, a.notified_at, a.created_at, COALESCE(p.name, '') AS product_name
+         FROM stock_alerts a LEFT JOIN products p ON p.id = a.product_id
+         ORDER BY a.id DESC LIMIT 200`
+      ).all()
+    ).results || [];
+    return c.json(rows);
+  });
+
+  /**
+   * Diagnostika odesílání e-mailů:
+   *  - kde je klíč (nastavení / Cloudflare secret / nikde),
+   *  - odesílatel,
+   *  - ověřené domény v účtu Resend (volá Resend API daným klíčem).
+   * Klíč samotný nikdy nevracíme.
+   */
+  app.get("/admin/mail/status", async (c) => {
+    const settings = await loadSettings(c.env.DB);
+    const { key, keySource, from, fromName } = resolveMailConfig(settings, c.env);
+    let domains: { name: string; status: string }[] | null = null;
+    let domainError: string | null = null;
+    if (key) {
+      try {
+        const res = await fetch("https://api.resend.com/domains", {
+          headers: { Authorization: `Bearer ${key}` },
+        });
+        if (res.ok) {
+          const body = (await res.json()) as { data?: { name: string; status: string }[]; domains?: { name: string; status: string }[] };
+          domains = (body.data || body.domains || []).map((d) => ({ name: d.name, status: d.status }));
+        } else {
+          domainError = `Resend odpověděl HTTP ${res.status}`;
+        }
+      } catch (e) {
+        domainError = String(e);
+      }
+    }
+    const fromDomain = from.includes("@") ? from.split("@")[1].toLowerCase() : "";
+    const fromVerified = domains ? domains.some((d) => d.name.toLowerCase() === fromDomain && d.status === "verified") : null;
+    let hint: string | null = null;
+    if (!key) {
+      hint = "Není nastavený žádný Resend API klíč. Vyplňte ho v Nastavení e-shopu (resend_api_key) nebo přidejte Cloudflare secret RESEND_API_KEY. Bez klíče se e-maily jen ukládají do přehledu (status „logged“) a neodesílají.";
+    } else if (domains && fromVerified === false) {
+      hint = `Odesílatel je „${from}“, ale doména „${fromDomain}“ není v Resend ověřená (nebo tam vůbec není). Ověřte doménu v Resend (Domains) a podle ní upravte mail_from.`;
+    } else if (domains && fromVerified === null) {
+      hint = "Domény z účtu Resend se nepodařilo načíst, ověření odesílatele přeskočeno.";
+    }
+    return c.json({
+      key_source: keySource,
+      key_present: !!key,
+      key_masked: key ? `re_…${key.slice(-4)}` : null,
+      from,
+      from_name: fromName,
+      from_domain: fromDomain,
+      from_verified: fromVerified,
+      domains,
+      domain_error: domainError,
+      hint,
+      webhook: settings.mail_webhook || "",
+    });
+  });
+
+  /** Odeslání testovacího e-mailu — okamžitá zpětná vazba od Resendu. */
+  app.post("/admin/mail/test", async (c) => {
+    const b = (await c.req.json().catch(() => ({}))) as { to?: string };
+    const to = (b.to || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      return c.json({ error: "Zadejte platný e-mail pro test." }, 400);
+    }
+    const result = await sendTestMail(c.env.DB, to, c.env);
+    return c.json(result);
   });
 
   app.get("/admin/stock", async (c) => {

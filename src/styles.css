@@ -2847,6 +2847,13 @@ select:focus-visible, textarea:focus-visible {
   font-size: 12px;
 }
 .export-card .btn { margin-top: auto; align-self: flex-start; }
+.mail-hint { line-height: 1.55; }
+.mail-hint code {
+  background: rgba(28, 25, 21, 0.07);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 0.92em;
+}
 
 /* ============================================================
    Doladěná typografie a design — pohodlnější čtení
@@ -2893,7 +2900,7 @@ h1, h2, h3 { line-height: 1.15; }
 
 .mobile-nav {
   position: fixed;
-  top: var(--header-h, var(--header));
+  top: var(--header-offset, var(--header-h, var(--header)));
   left: 0;
   right: 0;
   height: calc(100dvh - var(--header-h, var(--header)));
@@ -3794,3 +3801,145 @@ tbody tr { transition: background 0.18s var(--ease-out); }
   .pb-canvas { order: 1; }
   .pb-columns.cols-2, .pb-columns.cols-3 { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   Poslední vrstva — živá domovská stránka a jemné detaily
+   (přidáno: nástup hero sekce, informační lišta, výběr textu…)
+   ============================================================ */
+
+/* ---- Informační lišta nad hlavičkou ---- */
+.announce {
+  position: relative;
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 9px 16px;
+  background: linear-gradient(120deg, var(--forest) 0%, var(--forest-2) 100%);
+  color: #efe8dc;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.announce b { color: var(--gold); font-weight: 700; }
+.announce-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 0 rgba(196, 165, 116, 0.55);
+  animation: announcePulse 2.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes announcePulse {
+  0% { box-shadow: 0 0 0 0 rgba(196, 165, 116, 0.5); }
+  70% { box-shadow: 0 0 0 9px rgba(196, 165, 116, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(196, 165, 116, 0); }
+}
+.announce-sep { margin: 0 10px; opacity: 0.45; }
+@media (max-width: 640px) {
+  .announce { font-size: 10px; letter-spacing: 0.1em; gap: 8px; }
+  .announce-sep { display: none; }
+  .announce span:last-child { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px; }
+}
+
+/* ---- Nástup hero sekce (domovská stránka) ---- */
+.demo-hero { animation: pageIn 0.5s ease both; }
+.demo-hero .saas-badge { animation: rise 0.7s ease both; }
+.demo-hero-content h1 { animation: rise 0.7s 0.08s ease both; }
+.demo-hero-content .lead { animation: rise 0.7s 0.16s ease both; }
+.demo-hero-btns { animation: rise 0.7s 0.24s ease both; }
+.demo-hero-img-wrap { animation: fade 0.9s 0.16s ease both; }
+.demo-hero-img { animation: heroZoom 1.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.demo-hero-badge { animation: floaty 5.5s ease-in-out infinite; }
+
+/* ---- Přechod mezi stránkami s jemným výjezdem ---- */
+.page-fade { animation: pageIn 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- Důvěryhodné bloky: tři karty se roztáhnou přes šířku ---- */
+.trust { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.trust article {
+  transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), border-color 0.3s var(--ease-out);
+}
+.trust article:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--sh-3);
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
+}
+.trust .reveal-cell { height: 100%; }
+.trust .reveal-cell article { height: 100%; }
+
+/* ---- Galerie produktu — jemný zoom při najetí ---- */
+.gallery { position: relative; overflow: hidden; }
+.gallery img { transition: transform 1s var(--ease-out); }
+.gallery:hover img { transform: scale(1.045); }
+
+/* ---- Kategorie na domovské stránce — karty vstupují postupně ---- */
+.demo-cats-grid .reveal-cell { height: 100%; }
+.demo-cat-card {
+  transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), border-color 0.3s var(--ease-out);
+  height: 100%;
+}
+.demo-cat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--sh-3);
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
+}
+
+/* ---- Výběr textu a scrollbar laděný do palety ---- */
+::selection { background: var(--accent); color: #fff; }
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--line) 80%, transparent) transparent; }
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 99px;
+  border: 3px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted) 70%, transparent); }
+
+/* ---- Patička — jemný zlatý proužek nad dolní částí ---- */
+.footer { position: relative; }
+.footer::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0.35;
+}
+
+/* ---- Nahoru tlačítko po scrollu — pružnější ---- */
+.scroll-top { transition: transform 0.25s var(--ease-spring), opacity 0.25s ease, box-shadow 0.25s var(--ease-out); }
+.scroll-top:hover { transform: translateY(-3px) scale(1.05); box-shadow: var(--sh-3); }
+
+/* ---- Hlavní CTA blok na domovské stránce ---- */
+.cta-final {
+  grid-template-columns: 1fr;
+  background:
+    radial-gradient(700px 300px at 85% -20%, rgba(196, 165, 116, 0.22), transparent 60%),
+    linear-gradient(130deg, var(--forest) 0%, var(--forest-2) 100%);
+  color: #efe8dc;
+}
+.cta-final h2 em { color: var(--gold); font-style: normal; }
+.cta-final p { color: #cfc4b3; }
+.cta-final .btn-line { border-color: #cfc4b3; color: #efe8dc; }
+.cta-final .btn-line:hover { border-color: #fff; color: var(--forest); }
+.cta-final .btn-line::before { background: #efe8dc; }
+
+/* ---- Detail produktu — galerie a info nastupují společně ---- */
+.product { animation: pageIn 0.5s ease both; }
+.product .gallery { animation: pageIn 0.55s 0.05s ease both; }
+.product-info { animation: pageIn 0.55s 0.1s ease both; }
+
+/* ---- Prázdné stavy (košík, oblíbené, 404) — jemný nástup ---- */
+.empty { animation: pageIn 0.45s ease both; }
+
+/* ---- Souhrn v košíku a pokladně — jemné odlišení ---- */
+.summary { animation: pageIn 0.45s 0.08s ease both; }

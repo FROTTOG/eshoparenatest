@@ -9,11 +9,42 @@ export type MailPayload = {
   meta?: string;
 };
 
+/**
+ * Volitelné prostředí pro odesílání e-mailů.
+ * Klíč i odesílatele lze nastavit dvěma způsoby:
+ *  1. v databázi (Nastavení → resend_api_key / mail_from), nebo
+ *  2. jako Cloudflare secret / proměnnou (RESEND_API_KEY / MAIL_FROM) —
+ *     to je vhodné hlavně pro klíč, aby neležel v D1.
+ * Prioritu má hodnota z databáze.
+ */
+export type MailEnv = {
+  RESEND_API_KEY?: string;
+  MAIL_FROM?: string;
+};
+
+export type MailStatus = {
+  ok: boolean;
+  status: string; // sent | logged | failed | skipped
+  error?: string;
+  hint?: string;
+  usedKeySource?: "settings" | "env" | "none";
+  from?: string;
+};
+
 function escapeHtml(s: string): string {
   return String(s || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+/** Název odesílatele zbavíme znaků, které Resend odmítá v "Name <email>". */
+function safeFromName(name: string): string {
+  return String(name || "")
+    .replace(/[<>()",;:]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
 }
 
 export function wrapMail(store: string, title: string, body: string): string {
@@ -35,22 +66,70 @@ export function wrapMail(store: string, title: string, body: string): string {
 </body></html>`;
 }
 
-export async function sendMail(db: D1Database, payload: MailPayload): Promise<{ ok: boolean; error?: string }> {
+/**
+ * Srozumitelná nápověda (česky) podle odpovědi Resendu.
+ * Časté příčiny nefunkčního odesílání:
+ *  - 401: klíč neexistuje / je špatně zkopírovaný,
+ *  - 403 / 422 s „domain“: odesílatel není z ověřené domény,
+ *  - 429: překročený limit,
+ *  - „not verified“: doména zatím neprošla ověřením v Resend.
+ */
+export function resendHint(status: number, bodyText: string, from: string): string {
+  const t = (bodyText || "").toLowerCase();
+  const snippet = (bodyText || "").replace(/\s+/g, " ").trim().slice(0, 300);
+  if (status === 401 || (status === 403 && t.includes("key"))) {
+    return "Resend hlásí neplatný API klíč. Zkontrolujte, že je klíč zkopírovaný celý (bez mezer a koncových znaků) a že ho máte uložený v Nastavení e-shopu (nebo jako Cloudflare secret RESEND_API_KEY).";
+  }
+  if (status === 403 || status === 422 || status === 404) {
+    if (t.includes("domain") || t.includes("from")) {
+      return `Resend odmítl odesílatele „${from}“. Doména za @ musí být v účtu Resend OVĚŘENÁ (Resend → Domains → pošlete jim DNS záznam). Dokud není ověřená, Resend e-maily neodešle.`;
+    }
+    if (t.includes("not verified") || t.includes("unverified")) {
+      return "Resend hlásí, že doména odesílatele není ověřená. Ověřte ji v Resend (Domains) a nastavte mail_from na ověřenou doménu.";
+    }
+  }
+  if (status === 429) {
+    return "Resend hlásí překročený limit odesílání (429). Počkejte chvíli a zkuste to znovu, nebo zvyšte limit v účtu Resend.";
+  }
+  if (status >= 500) {
+    return "Resend má dočasnou chybu (5xx). Zkuste odeslání za chvíli znovu.";
+  }
+  const msg = snippet ? ` — ${snippet}` : "";
+  return `Resend odpověděl chybou HTTP ${status}${msg}`;
+}
+
+/** Vrátí klíč a odesílatele podle priority databáze → prostředí. */
+export function resolveMailConfig(
+  s: Record<string, string>,
+  env?: MailEnv
+): { key: string; keySource: "settings" | "env" | "none"; from: string; fromName: string } {
+  const fromDb = String(s.resend_api_key || "").trim();
+  const fromEnv = String(env?.RESEND_API_KEY || "").trim();
+  const key = fromDb || fromEnv;
+  const keySource: "settings" | "env" | "none" = fromDb ? "settings" : fromEnv ? "env" : "none";
+  const from = String(s.mail_from || s.store_email || env?.MAIL_FROM || "ahoj@kavka.shop").trim();
+  const fromName = safeFromName(s.store_name || "KAVKA");
+  return { key, keySource, from, fromName };
+}
+
+export async function sendMail(
+  db: D1Database,
+  payload: MailPayload,
+  env?: MailEnv
+): Promise<MailStatus> {
   const s = await loadSettings(db);
-  const from = s.mail_from || s.store_email || "ahoj@kavka.shop";
-  const fromName = s.store_name || "KAVKA";
+  const { key, keySource, from, fromName } = resolveMailConfig(s, env);
+  const webhook = String(s.mail_webhook || "").trim();
   let status = "queued";
   let error: string | null = null;
-
-  const resendKey = s.resend_api_key || "";
-  const webhook = s.mail_webhook || "";
+  let hint: string | undefined;
 
   try {
-    if (resendKey) {
+    if (key) {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${resendKey}`,
+          Authorization: `Bearer ${key}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -64,7 +143,8 @@ export async function sendMail(db: D1Database, payload: MailPayload): Promise<{ 
       if (!res.ok) {
         const t = await res.text();
         status = "failed";
-        error = t.slice(0, 500);
+        error = `${res.status}: ${t.slice(0, 500)}`;
+        hint = resendHint(res.status, t, from);
       } else {
         status = "sent";
       }
@@ -75,13 +155,18 @@ export async function sendMail(db: D1Database, payload: MailPayload): Promise<{ 
         body: JSON.stringify({ from, to: payload.to, subject: payload.subject, html: payload.html, kind: payload.kind }),
       });
       status = res.ok ? "sent" : "failed";
-      if (!res.ok) error = `webhook ${res.status}`;
+      if (!res.ok) {
+        error = `webhook ${res.status}`;
+        hint = "Záložní webhook odpověděl chybou — zkontrolujte adresu webhooku.";
+      }
     } else {
       status = "logged";
+      hint = "Není nastavený Resend API klíč (ani v nastavení e-shopu, ani jako Cloudflare secret RESEND_API_KEY). E-mail se pouze uložil do přehledu — nic se neodeslalo.";
     }
   } catch (e) {
     status = "failed";
     error = String(e);
+    hint = "Spojení se službou Resend selhalo. Zkontrolujte, že je z e-shopu dostupný internet (fetch na api.resend.com).";
   }
 
   try {
@@ -103,7 +188,26 @@ export async function sendMail(db: D1Database, payload: MailPayload): Promise<{ 
     console.error("email_log insert failed", e);
   }
 
-  return { ok: status === "sent" || status === "logged", error: error || undefined };
+  return { ok: status === "sent" || status === "logged", status, error: error || undefined, hint, usedKeySource: keySource, from };
+}
+
+/** Testovací e-mail — pomáhá zjistit, proč odesílání nefunguje. */
+export async function sendTestMail(db: D1Database, to: string, env?: MailEnv): Promise<MailStatus> {
+  const s = await loadSettings(db);
+  const store = s.store_name || "KAVKA";
+  const now = new Date().toLocaleString("cs-CZ");
+  const html = wrapMail(
+    store,
+    "Testovací e-mail",
+    `<p>Dobrý den,</p>
+     <p>toto je zkušební e-mail z e-shopu <b>${escapeHtml(store)}</b>. Pokud ho vidíte, e-mailové odesílání funguje správně.</p>
+     <p>Odesláno: <b>${escapeHtml(now)}</b></p>`
+  );
+  return sendMail(
+    db,
+    { to, subject: `${store}: testovací e-mail (${now})`, html, kind: "test", meta: "manual" },
+    env
+  );
 }
 
 export async function notifyOrderCreated(
@@ -116,7 +220,8 @@ export async function notifyOrderCreated(
     shipping_name: string;
     payment_name: string;
     items: { name: string; quantity: number; price: number }[];
-  }
+  },
+  env?: MailEnv
 ) {
   const s = await loadSettings(db);
   const store = s.store_name || "KAVKA";
@@ -134,28 +239,37 @@ export async function notifyOrderCreated(
      <p><b>Celkem ${order.total} Kč</b><br/>Doprava: ${escapeHtml(order.shipping_name)}<br/>Platba: ${escapeHtml(order.payment_name)}</p>
      <p><a href="${escapeHtml(link)}">Sledovat objednávku</a></p>`
   );
-  await sendMail(db, {
-    to: order.email,
-    subject: `${store}: objednávka ${order.number}`,
-    html,
-    kind: "order_created",
-    meta: order.number,
-  });
+  await sendMail(
+    db,
+    {
+      to: order.email,
+      subject: `${store}: objednávka ${order.number}`,
+      html,
+      kind: "order_created",
+      meta: order.number,
+    },
+    env
+  );
   const admin = s.store_email;
   if (admin && admin.toLowerCase() !== order.email.toLowerCase()) {
-    await sendMail(db, {
-      to: admin,
-      subject: `${store}: nová objednávka ${order.number} (${order.total} Kč)`,
-      html,
-      kind: "order_admin",
-      meta: order.number,
-    });
+    await sendMail(
+      db,
+      {
+        to: admin,
+        subject: `${store}: nová objednávka ${order.number} (${order.total} Kč)`,
+        html,
+        kind: "order_admin",
+        meta: order.number,
+      },
+      env
+    );
   }
 }
 
 export async function notifyOrderStatus(
   db: D1Database,
-  order: { number: string; email: string; name: string; status: string; tracking_number?: string | null; tracking_url?: string | null }
+  order: { number: string; email: string; name: string; status: string; tracking_number?: string | null; tracking_url?: string | null },
+  env?: MailEnv
 ) {
   const s = await loadSettings(db);
   const store = s.store_name || "KAVKA";
@@ -179,19 +293,24 @@ export async function notifyOrderStatus(
      <p>stav vaší objednávky <b>${escapeHtml(order.number)}</b> je teď: <b>${escapeHtml(label)}</b>.</p>
      ${track}`
   );
-  await sendMail(db, {
-    to: order.email,
-    subject: `${store}: ${order.number} — ${label}`,
-    html,
-    kind: "order_status",
-    meta: `${order.number}:${order.status}`,
-  });
+  await sendMail(
+    db,
+    {
+      to: order.email,
+      subject: `${store}: ${order.number} — ${label}`,
+      html,
+      kind: "order_status",
+      meta: `${order.number}:${order.status}`,
+    },
+    env
+  );
 }
 
 export async function notifyBackInStock(
   db: D1Database,
   product: { id: number; name: string; slug: string },
-  emails: string[]
+  emails: string[],
+  env?: MailEnv
 ) {
   const s = await loadSettings(db);
   const store = s.store_name || "KAVKA";
@@ -204,20 +323,25 @@ export async function notifyBackInStock(
       `<p>Hlídali jste si ${escapeHtml(product.name)} — právě je znovu na polici.</p>
        <p><a href="${escapeHtml(url)}">Otevřít produkt</a></p>`
     );
-    await sendMail(db, {
-      to,
-      subject: `${store}: ${product.name} je znovu skladem`,
-      html,
-      kind: "back_in_stock",
-      meta: String(product.id),
-    });
+    await sendMail(
+      db,
+      {
+        to,
+        subject: `${store}: ${product.name} je znovu skladem`,
+        html,
+        kind: "back_in_stock",
+        meta: String(product.id),
+      },
+      env
+    );
   }
 }
 
 export async function notifyAbandonedCart(
   db: D1Database,
   to: string,
-  coupon: string
+  coupon: string,
+  env?: MailEnv
 ) {
   const s = await loadSettings(db);
   const store = s.store_name || "KAVKA";
@@ -228,5 +352,5 @@ export async function notifyAbandonedCart(
     `<p>Nechali jste v košíku zboží. Když nákup dokončíte, máte slevu <b>5 %</b> s kódem <b>${escapeHtml(coupon)}</b>.</p>
      <p><a href="${escapeHtml(origin ? `${origin}/kosik` : "/kosik")}">Vrátit se do košíku</a></p>`
   );
-  await sendMail(db, { to, subject: `${store}: 5 % na dokončení nákupu`, html, kind: "abandoned_cart", meta: coupon });
+  await sendMail(db, { to, subject: `${store}: 5 % na dokončení nákupu`, html, kind: "abandoned_cart", meta: coupon }, env);
 }

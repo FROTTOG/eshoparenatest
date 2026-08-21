@@ -2,3 +2,9 @@
 # a vyplňte dlouhé náhodné heslo.
 
 AUTH_SECRET=zmente-me-na-dlouhy-nahodny-retezec
+
+# Volitelně: e-maily přes Resend i v lokálním vývoji.
+# Klíč můžete mít taky jen v Nastavení e-shopu (admin → Nastavení → resend_api_key),
+# anebo tady jako proměnnou prostředí:
+# RESEND_API_KEY=re_XXXXXXXX
+# MAIL_FROM=info@vasadomena.cz

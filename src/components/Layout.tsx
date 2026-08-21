@@ -8,6 +8,7 @@ import { ExitIntent } from "./ExitIntent";
 import { bootTags } from "../analytics";
 import { SearchBox } from "./SearchBox";
 import { Logo } from "./Ui";
+import { czk, pickupFreeOver } from "../format";
 
 const NAV_LINKS = [
   { to: "/", label: "Domů", end: true },
@@ -18,7 +19,7 @@ const NAV_LINKS = [
 ];
 
 export function Layout() {
-  const { user, cart, settings, toasts, wishlist } = useStore();
+  const { user, cart, settings, toasts, wishlist, shipping } = useStore();
   const [navPages, setNavPages] = useState<{ id: number; title: string; slug: string; in_nav: number; nav_label: string; nav_order: number }[]>([]);
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -33,6 +34,8 @@ export function Layout() {
     if (!el) return;
     const apply = () => {
       document.documentElement.style.setProperty("--header-h", `${el.offsetHeight}px`);
+      // Kam sahá hlavička od vrchu okna (pod informační lištou), pro mobilní menu
+      document.documentElement.style.setProperty("--header-offset", `${Math.max(0, el.getBoundingClientRect().top)}px`);
     };
     apply();
     const ro = new ResizeObserver(apply);
@@ -59,6 +62,8 @@ export function Layout() {
       const doc = document.documentElement;
       const max = doc.scrollHeight - doc.clientHeight;
       setProgress(max > 0 ? Math.min(1, y / max) : 0);
+      const el = headerRef.current;
+      if (el) doc.style.setProperty("--header-offset", `${Math.max(0, el.getBoundingClientRect().top)}px`);
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -125,6 +130,8 @@ export function Layout() {
     };
   }, [open, searchOpen]);
 
+  const freeOver = pickupFreeOver(shipping);
+
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const ico = settings.store_ico || "19200456";
   const dic = settings.store_dic || "CZ19200456";
@@ -142,6 +149,22 @@ export function Layout() {
 
       {/* Pruh postupu čtení stránky */}
       <div className="scroll-progress" aria-hidden="true" style={{ transform: `scaleX(${progress})` }} />
+
+      {/* Informační lišta nad hlavičkou */}
+      <div className="announce" role="note">
+        <span className="announce-dot" aria-hidden="true" />
+        <span>
+          {freeOver ? (
+            <>
+              Doprava zdarma od <b>{czk(freeOver)}</b>
+            </>
+          ) : (
+            <>Doprava po celé ČR</>
+          )}
+          <span className="announce-sep" aria-hidden="true">·</span>
+          Sleva 10 % na první nákup — kód <b>KAVKA10</b>
+        </span>
+      </div>
 
       <header ref={headerRef} className={`header${scrolled ? " scrolled" : ""}`}>
         <div className="header-in">

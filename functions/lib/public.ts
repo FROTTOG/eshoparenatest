@@ -463,7 +463,7 @@ export function registerPublic(app: App) {
     const s = await loadSettings(c.env.DB);
     const code = s.exit_coupon || "STAY5";
     try {
-      await notifyAbandonedCart(c.env.DB, email, code);
+      await notifyAbandonedCart(c.env.DB, email, code, c.env);
     } catch (err) {
       console.error("abandon mail", err);
     }
@@ -773,7 +773,7 @@ export function registerPublic(app: App) {
           shipping_name: String(order.shipping_name),
           payment_name: String(order.payment_name),
           items: (order.items as { name: string; quantity: number; price: number }[]) || [],
-        });
+        }, c.env);
       }
     } catch (err) {
       console.error("Order mail error:", err);
