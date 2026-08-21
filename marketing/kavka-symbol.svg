@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="280" height="280" role="img" aria-labelledby="title desc">
+  <title id="title">Symbol KAVKA</title>
+  <desc id="desc">Vektorový symbol se stylizovaným ptákem.</desc>
+  <g transform="translate(16 16) scale(1.107143)">
+    <rect x="0.000" y="0.000" width="224.000" height="224.000" rx="45.920" fill="#1C1915"/>
+    <path d="M14 42c8-2 12-11 14-20 1 7 4 14 12 18 3-8 8-14 16-16-6 8-8 16-7 24H18c-1-8-2-14-4-6z"
+          fill="#F4EFE6" transform="translate(0.000 0.000) scale(3.500000)"/>
+    <circle cx="140.000" cy="77.000" r="7.700" fill="#B54A2C"/>
+  </g>
+</svg>
