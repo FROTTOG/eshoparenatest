@@ -512,6 +512,16 @@ const SETTINGS: Record<string, string> = {
   comgate_merchant: "",
   comgate_secret: "",
   comgate_test: "1",
+  // Vzhled e-shopu — barvy, zaoblení, stíny a animace načítacích tlačítek (stránka „Vzhled“).
+  theme_bg: "#f3eee4",
+  theme_bg_deep: "#e7dece",
+  theme_card: "#fffdf8",
+  theme_ink: "#1c1915",
+  theme_accent: "#b54a2c",
+  theme_forest: "#24352c",
+  theme_radius: "20",
+  theme_shadow: "0.08",
+  theme_btn_anim: "spin",
   // Dvoufázové ověření (TOTP) pro administrátory: 0 = dobrovolné, 1 = povinné.
   totp_required: "0",
   // Verze cache katalogu — zvyšuje se automaticky po změnách v administraci.

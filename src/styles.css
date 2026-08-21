@@ -13,7 +13,7 @@
   --gold: #c4a574;
   --danger: #9b2c2c;
   --ok: #2f6b4f;
-  --shadow: 0 20px 50px rgba(28, 25, 21, 0.08);
+  --shadow: 0 20px 50px rgba(28, 25, 21, var(--shadow-alpha, 0.08));
   --radius: 20px;
   --serif: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif;
   --sans: "Outfit", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -3080,12 +3080,14 @@ h1, h2, h3 { line-height: 1.15; }
    ============================================================ */
 
 :root {
+  /* Intenzita stínů — laditelná v administraci (Vzhled). */
+  --shadow-alpha: 0.08;
   /* Jemnější, vrstvená hloubka místo jednoho tvrdého stínu */
-  --sh-1: 0 1px 2px rgba(28, 25, 21, 0.05);
-  --sh-2: 0 2px 6px rgba(28, 25, 21, 0.05), 0 8px 20px rgba(28, 25, 21, 0.05);
-  --sh-3: 0 4px 12px rgba(28, 25, 21, 0.06), 0 18px 40px rgba(28, 25, 21, 0.09);
-  --sh-4: 0 8px 24px rgba(28, 25, 21, 0.08), 0 30px 70px rgba(28, 25, 21, 0.12);
-  --sh-accent: 0 10px 26px rgba(181, 74, 44, 0.28);
+  --sh-1: 0 1px 2px rgba(28, 25, 21, calc(var(--shadow-alpha) * 0.62));
+  --sh-2: 0 2px 6px rgba(28, 25, 21, calc(var(--shadow-alpha) * 0.62)), 0 8px 20px rgba(28, 25, 21, calc(var(--shadow-alpha) * 0.62));
+  --sh-3: 0 4px 12px rgba(28, 25, 21, calc(var(--shadow-alpha) * 0.75)), 0 18px 40px rgba(28, 25, 21, var(--shadow-alpha));
+  --sh-4: 0 8px 24px rgba(28, 25, 21, var(--shadow-alpha)), 0 30px 70px rgba(28, 25, 21, calc(var(--shadow-alpha) * 1.5));
+  --sh-accent: 0 10px 26px rgba(181, 74, 44, calc(var(--shadow-alpha) * 3.5));
   /* Pohyb: pružné odsazení a rychlá odezva na stisk */
   --ease-out: cubic-bezier(0.22, 0.75, 0.28, 1);
   --ease-spring: cubic-bezier(0.34, 1.42, 0.52, 1);
@@ -3564,6 +3566,73 @@ tbody tr { transition: background 0.18s var(--ease-out); }
   animation: btnSpin 0.7s linear infinite;
 }
 @keyframes btnSpin { to { transform: rotate(360deg); } }
+
+/* Varianty načítacích animací tlačítek — vybírají se v administraci (Vzhled).
+   Přepíná se atributem data-btn-anim na <html>. Výchozí je „spin“ (kolečko). */
+
+/* Tečky — tři poskakující body */
+html[data-btn-anim="dots"] .btn-spinner {
+  width: 6px;
+  height: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 18px;
+  position: relative;
+  animation: btnDotBounce 0.9s ease-in-out infinite;
+}
+html[data-btn-anim="dots"] .btn-spinner::before,
+html[data-btn-anim="dots"] .btn-spinner::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: btnDotBounce 0.9s ease-in-out infinite;
+}
+html[data-btn-anim="dots"] .btn-spinner::before { left: 9px; animation-delay: 0.15s; }
+html[data-btn-anim="dots"] .btn-spinner::after { left: 18px; animation-delay: 0.3s; }
+@keyframes btnDotBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.55; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+
+/* Puls — dýchající kroužek */
+html[data-btn-anim="pulse"] .btn-spinner {
+  animation: btnPulse 0.9s var(--ease-out) infinite;
+}
+@keyframes btnPulse {
+  0%, 100% { transform: scale(0.55); opacity: 0.4; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+/* Pruh — posuvný progres uvnitř tlačítka */
+html[data-btn-anim="bar"] .btn-spinner {
+  width: 22px;
+  height: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 25%, transparent);
+  overflow: hidden;
+  position: relative;
+  animation: none;
+}
+html[data-btn-anim="bar"] .btn-spinner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  border-radius: 999px;
+  background: currentColor;
+  animation: btnBar 0.9s ease-in-out infinite;
+}
+@keyframes btnBar {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(260%); }
+}
+
 .btn-busy { cursor: progress; }
 .btn-busy::after { display: none; }
 .btn-added svg { animation: checkPop 0.4s var(--ease-spring) both; }
@@ -5563,4 +5632,192 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     min-width: 44px;
     min-height: 44px;
   }
+}
+
+/* ------------------------------------------------------------
+   Administrace → Vzhled (barvy, animace tlačítek, slider s náhledem)
+   ------------------------------------------------------------ */
+.appearance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+  margin: 20px 0;
+}
+.appearance-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--sh-1);
+}
+.appearance-panel h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+.color-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 14px;
+}
+.color-field:last-of-type { border-bottom: 0; }
+.color-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.color-input input[type="color"] {
+  width: 42px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+}
+.color-input code {
+  font-size: 12px;
+  background: var(--bg-deep);
+  padding: 3px 7px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.anim-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.anim-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  transition: border-color 0.2s var(--ease-out), background 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+}
+.anim-option:hover { border-color: var(--accent); }
+.anim-option.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.anim-demo { width: 26px; height: 26px; display: grid; place-items: center; position: relative; flex: none; }
+.anim-demo i { display: block; }
+.anim-demo-spin i {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--accent);
+  animation: btnSpin 0.7s linear infinite;
+}
+.anim-demo-dots i {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  animation: btnDotBounce 0.9s ease-in-out infinite;
+}
+.anim-demo-dots::before, .anim-demo-dots::after {
+  content: ""; position: absolute; top: 50%; margin-top: -3px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  animation: btnDotBounce 0.9s ease-in-out infinite;
+}
+.anim-demo-dots::before { left: 0; animation-delay: 0.15s; }
+.anim-demo-dots::after { right: 0; animation-delay: 0.3s; }
+.anim-demo-pulse i {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: btnPulse 0.9s var(--ease-out) infinite;
+}
+.anim-demo-bar i {
+  width: 22px; height: 3px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  position: relative; overflow: hidden;
+}
+.anim-demo-bar i::before {
+  content: ""; position: absolute; inset: 0; width: 45%; border-radius: 999px;
+  background: var(--accent); animation: btnBar 0.9s ease-in-out infinite;
+}
+
+.range-field {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  font-size: 14px;
+}
+.range-field span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.range-field output {
+  font-weight: 650;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.range-field input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.appearance-preview {
+  margin-top: 6px;
+  padding: 22px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 46%),
+    var(--bg);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-2);
+}
+.appearance-preview h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+.preview-card {
+  max-width: 320px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.preview-media {
+  aspect-ratio: 4 / 3;
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--bg-deep) 60%, transparent), var(--bg-deep));
+  display: grid;
+  place-items: center;
+  color: var(--ink-soft);
+  font-family: var(--serif);
+  font-size: 26px;
+}
+.preview-body {
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+.preview-badge {
+  justify-self: start;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 999px;
+}
+.preview-body h3 { margin: 0; font-size: 20px; }
+.preview-body p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.preview-demo { display: flex; flex-wrap: wrap; gap: 10px; }
+.preview-footer {
+  background: var(--forest);
+  color: #efe8dc;
+  padding: 12px 16px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
 }
