@@ -59,6 +59,7 @@ export function Admin() {
           <NavLink to="/admin/doprava">Doprava</NavLink>
           <NavLink to="/admin/vydejni-mista">Výdejní místa</NavLink>
           <NavLink to="/admin/platby">Platby</NavLink>
+          <NavLink to="/admin/magazin">Magazín (blog)</NavLink>
           <NavLink to="/admin/stranky">Stránky (editor)</NavLink>
           <NavLink to="/admin/navbar">Menu a logo</NavLink>
           <NavLink to="/admin/carousel">Carousel</NavLink>
@@ -88,6 +89,9 @@ export function Admin() {
           <Route path="doprava" element={<Shipping />} />
           <Route path="vydejni-mista" element={<Points />} />
           <Route path="platby" element={<Payments />} />
+          <Route path="magazin" element={<Posts />} />
+          <Route path="magazin/novy" element={<PostForm />} />
+          <Route path="magazin/:id" element={<PostForm />} />
           <Route path="stranky" element={<Pages />} />
           <Route path="stranky/:id" element={<PageBuilder />} />
           <Route path="navbar" element={<NavbarSettings />} />
@@ -153,31 +157,184 @@ function Dash() {
 }
 
 function Products() {
+  const { toast } = useStore();
   const [rows, setRows] = useState<Product[]>([]);
+  const [cats, setCats] = useState<{ id: number; name: string }[]>([]);
   const [q, setQ] = useState("");
+  const [sel, setSel] = useState<number[]>([]);
+  const [action, setAction] = useState("price_percent");
+  const [value, setValue] = useState("10");
+  const [busy, setBusy] = useState(false);
+  const [importInfo, setImportInfo] = useState("");
+
   async function load(query = q) {
     setRows(await api<Product[]>(`/admin/products${query ? `?q=${encodeURIComponent(query)}` : ""}`));
+    setSel([]);
   }
-  useEffect(() => { void load(""); }, []);
+  useEffect(() => {
+    void load("");
+    void api<{ id: number; name: string }[]>("/admin/categories").then(setCats);
+  }, []);
+
+  const allChecked = rows.length > 0 && sel.length === rows.length;
+  const toggle = (id: number) => setSel((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const toggleAll = () => setSel(allChecked ? [] : rows.map((r) => r.id));
+
+  /** Popisek a typ pole pro hodnotu podle zvolené hromadné akce. */
+  const valueHint: Record<string, string> = {
+    price_percent: "Změna ceny v % (např. 10 = zdražit o 10 %, -15 = zlevnit o 15 %)",
+    price_add: "Přičíst / odečíst Kč (např. -50)",
+    price_set: "Nastavit cenu na (Kč)",
+    b2b_percent: "Velkoobchodní sleva v % z maloobchodní ceny (dopočte cenu bez DPH)",
+    b2b_set: "Nastavit velkoobchodní cenu bez DPH (Kč)",
+    stock_set: "Nastavit sklad na (ks)",
+    stock_add: "Naskladnit / odepsat (ks, např. -3)",
+    category: "Zvolte kategorii",
+    active: "1 = zobrazit v e-shopu, 0 = skrýt",
+    featured: "1 = zobrazit na úvodní stránce, 0 = ne",
+    delete: "Smazání je nevratné",
+  };
+
+  async function runBulk() {
+    if (!sel.length) {
+      toast("Nejdřív zaškrtněte produkty.", "err");
+      return;
+    }
+    if (action === "delete" && !confirm(`Opravdu smazat ${sel.length} produktů? Tato akce je nevratná.`)) return;
+    setBusy(true);
+    try {
+      const r = await api<{ changed: number }>("/admin/products/bulk", {
+        method: "POST",
+        body: JSON.stringify({ ids: sel, action, value: Number(value) || 0 }),
+      });
+      toast(`Upraveno ${r.changed} produktů.`);
+      await load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Hromadná úprava selhala.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importCsv(file: File) {
+    setBusy(true);
+    setImportInfo("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await api<{ created: number; updated: number; skipped: number; errors: string[] }>("/admin/products/import", {
+        method: "POST",
+        body: fd,
+      });
+      setImportInfo(
+        `Nových: ${r.created} · upravených: ${r.updated} · přeskočených: ${r.skipped}` +
+          (r.errors.length ? ` — ${r.errors.slice(0, 3).join(" | ")}` : "")
+      );
+      toast(`Import hotov: ${r.created} nových, ${r.updated} upravených.`);
+      await load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Import se nezdařil.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <div className="toolbar">
         <h1>Produkty</h1>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hledat" onKeyDown={(e) => e.key === "Enter" && void load()} />
           <Link className="btn" to="/admin/produkty/novy">Nový produkt</Link>
         </div>
       </div>
+
+      {/* Hromadné úpravy — zaškrtněte řádky a vyberte akci */}
+      <div className="bulk-bar">
+        <div className="bulk-row">
+          <strong>Hromadná úprava</strong>
+          <span className="bulk-count">{sel.length ? `${sel.length} vybráno` : "nic není vybráno"}</span>
+          <select value={action} onChange={(e) => setAction(e.target.value)}>
+            <optgroup label="Cena">
+              <option value="price_percent">Změnit cenu o %</option>
+              <option value="price_add">Přičíst / odečíst Kč</option>
+              <option value="price_set">Nastavit cenu</option>
+            </optgroup>
+            <optgroup label="Velkoobchod (B2B)">
+              <option value="b2b_percent">Velkoobchodní sleva v %</option>
+              <option value="b2b_set">Nastavit VO cenu bez DPH</option>
+            </optgroup>
+            <optgroup label="Sklad">
+              <option value="stock_set">Nastavit sklad</option>
+              <option value="stock_add">Naskladnit / odepsat</option>
+            </optgroup>
+            <optgroup label="Ostatní">
+              <option value="category">Přesunout do kategorie</option>
+              <option value="active">Viditelnost v e-shopu</option>
+              <option value="featured">Doporučené na úvod</option>
+              <option value="delete">Smazat produkty</option>
+            </optgroup>
+          </select>
+          {action === "category" ? (
+            <select value={value} onChange={(e) => setValue(e.target.value)}>
+              <option value="0">— bez kategorie —</option>
+              {cats.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          ) : action === "delete" ? null : (
+            <input
+              type="number"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              style={{ width: 120 }}
+              aria-label="Hodnota hromadné úpravy"
+            />
+          )}
+          <button className="btn btn-sm" type="button" disabled={busy || !sel.length} onClick={() => void runBulk()}>
+            Provést
+          </button>
+        </div>
+        <p className="bulk-hint">{valueHint[action]}</p>
+        <div className="bulk-row">
+          <a className="btn-line btn-sm" href="/api/admin/export/products-csv">Export produktů do CSV</a>
+          <label className="btn-line btn-sm" style={{ cursor: "pointer" }}>
+            Import z CSV
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: "none" }}
+              onChange={(e) => e.target.files?.[0] && void importCsv(e.target.files[0])}
+            />
+          </label>
+          <span className="bulk-hint" style={{ margin: 0 }}>
+            Sloupce: id / sku / slug pro spárování, dál jen to, co chcete měnit (price, price_b2b, stock, category_slug, active…).
+          </span>
+        </div>
+        {importInfo && <p className="bulk-hint">{importInfo}</p>}
+      </div>
+
       <div className="table-wrap">
         <table>
-          <thead><tr><th></th><th>Název</th><th>SKU</th><th>Cena</th><th>Sklad</th><th>Aktivní</th></tr></thead>
+          <thead>
+            <tr>
+              <th style={{ width: 34 }}>
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Vybrat vše" />
+              </th>
+              <th></th><th>Název</th><th>SKU</th><th>Cena</th><th>VO bez DPH</th><th>Sklad</th><th>Aktivní</th>
+            </tr>
+          </thead>
           <tbody>
             {rows.map((p) => (
-              <tr key={p.id}>
+              <tr key={p.id} className={sel.includes(p.id) ? "row-selected" : ""}>
+                <td>
+                  <input type="checkbox" checked={sel.includes(p.id)} onChange={() => toggle(p.id)} aria-label={`Vybrat ${p.name}`} />
+                </td>
                 <td>{p.image ? <img src={optimizedImage(p.image)} alt="" loading="lazy" decoding="async" width={44} height={44} style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} /> : null}</td>
                 <td data-label="Název"><Link to={`/admin/produkty/${p.id}`}>{p.name}</Link></td>
                 <td data-label="SKU">{p.sku}</td>
                 <td data-label="Cena">{czk(p.price)}</td>
+                <td data-label="VO bez DPH">{p.price_b2b ? czk(p.price_b2b) : "—"}</td>
                 <td data-label="Sklad">{p.stock}</td>
                 <td data-label="Aktivní">{p.active ? "ano" : "ne"}</td>
               </tr>
@@ -196,7 +353,7 @@ function ProductForm() {
   const [cats, setCats] = useState<{ id: number; name: string }[]>([]);
   const [form, setForm] = useState({
     name: "", slug: "", sku: "", description: "", short_description: "",
-    price: 0, compare_price: "" as number | "", stock: 0, low_stock: 5,
+    price: 0, price_b2b: 0, compare_price: "" as number | "", stock: 0, low_stock: 5,
     category_id: "" as number | "", image: "", weight: 0, active: 1, featured: 0,
   });
 
@@ -206,7 +363,7 @@ function ProductForm() {
       void api<Product & { compare_price: number | null }>(`/admin/products/${id}`).then((p) => {
         setForm({
           name: p.name, slug: p.slug, sku: p.sku, description: p.description, short_description: p.short_description,
-          price: p.price, compare_price: p.compare_price ?? "", stock: p.stock, low_stock: p.low_stock,
+          price: p.price, price_b2b: p.price_b2b ?? 0, compare_price: p.compare_price ?? "", stock: p.stock, low_stock: p.low_stock,
           category_id: p.category_id ?? "", image: p.image, weight: p.weight, active: p.active, featured: p.featured,
         });
       });
@@ -281,6 +438,11 @@ function ProductForm() {
         </label>
         <label>Cena Kč<input type="number" value={form.price} onChange={(e) => set("price", Number(e.target.value))} /></label>
         <label>Původní cena<input type="number" value={form.compare_price} onChange={(e) => set("compare_price", e.target.value === "" ? "" : Number(e.target.value))} /></label>
+        <label>
+          Velkoobchodní cena bez DPH
+          <input type="number" value={form.price_b2b} onChange={(e) => set("price_b2b", Number(e.target.value))} />
+          <small style={{ color: "var(--muted)" }}>0 = použije se plošná sleva z nastavení (b2b_discount).</small>
+        </label>
         {!id && <label>Počáteční sklad<input type="number" value={form.stock} onChange={(e) => set("stock", Number(e.target.value))} /></label>}
         <label>Hláška nízkého skladu<input type="number" value={form.low_stock} onChange={(e) => set("low_stock", Number(e.target.value))} /></label>
         <label>Hmotnost g<input type="number" value={form.weight} onChange={(e) => set("weight", Number(e.target.value))} /></label>
@@ -368,10 +530,42 @@ function Categories() {
 }
 
 function Orders() {
+  const { toast } = useStore();
   const [rows, setRows] = useState<Order[]>([]);
   const [status, setStatus] = useState("");
-  const load = () => void api<Order[]>(`/admin/orders${status ? `?status=${status}` : ""}`).then(setRows);
+  const [sel, setSel] = useState<number[]>([]);
+  const load = () => void api<Order[]>(`/admin/orders${status ? `?status=${status}` : ""}`).then((r) => { setRows(r); setSel([]); });
   useEffect(() => { load(); }, [status]);
+
+  const allChecked = rows.length > 0 && sel.length === rows.length;
+  const toggle = (id: number) => setSel((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  /** Otevře jeden tiskový dokument se všemi vybranými fakturami / štítky. */
+  function print(what: "invoices" | "labels" | "both") {
+    if (!sel.length) {
+      toast("Nejdřív zaškrtněte objednávky.", "err");
+      return;
+    }
+    window.open(`/api/admin/print?ids=${sel.join(",")}&what=${what}`, "_blank", "noopener");
+  }
+
+  async function bulkStatus(next: string) {
+    if (!sel.length) {
+      toast("Nejdřív zaškrtněte objednávky.", "err");
+      return;
+    }
+    try {
+      const r = await api<{ changed: number }>("/admin/orders/bulk", {
+        method: "POST",
+        body: JSON.stringify({ ids: sel, status: next }),
+      });
+      toast(`Změněno u ${r.changed} objednávek.`);
+      load();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Nepodařilo se změnit stav.", "err");
+    }
+  }
+
   return (
     <>
       <div className="toolbar">
@@ -383,12 +577,40 @@ function Orders() {
           ))}
         </select>
       </div>
+
+      {/* Hromadný tisk — označte objednávky a stáhněte jedno PDF */}
+      <div className="bulk-bar">
+        <div className="bulk-row">
+          <strong>Hromadné akce</strong>
+          <span className="bulk-count">{sel.length ? `${sel.length} vybráno` : "nic není vybráno"}</span>
+          <button className="btn btn-sm" type="button" onClick={() => print("both")}>Tisk faktur + štítků</button>
+          <button className="btn-line btn-sm" type="button" onClick={() => print("invoices")}>Jen faktury</button>
+          <button className="btn-line btn-sm" type="button" onClick={() => print("labels")}>Jen štítky</button>
+          <button className="btn-line btn-sm" type="button" onClick={() => void bulkStatus("processing")}>Označit „Zpracovává se“</button>
+          <button className="btn-line btn-sm" type="button" onClick={() => void bulkStatus("shipped")}>Označit „Odesláno“</button>
+        </div>
+        <p className="bulk-hint">
+          Otevře se jeden dokument se všemi fakturami a adresními štítky (každý na vlastní stránce) rovnou v tiskovém
+          dialogu — vyberte „Uložit jako PDF“ nebo tiskárnu.
+        </p>
+      </div>
+
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Číslo</th><th>Zákazník</th><th>Stav</th><th>Platba</th><th>Celkem</th><th>Kdy</th></tr></thead>
+          <thead>
+            <tr>
+              <th style={{ width: 34 }}>
+                <input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? [] : rows.map((r) => r.id))} aria-label="Vybrat vše" />
+              </th>
+              <th>Číslo</th><th>Zákazník</th><th>Stav</th><th>Platba</th><th>Celkem</th><th>Kdy</th>
+            </tr>
+          </thead>
           <tbody>
             {rows.map((o) => (
-              <tr key={o.id}>
+              <tr key={o.id} className={sel.includes(o.id) ? "row-selected" : ""}>
+                <td>
+                  <input type="checkbox" checked={sel.includes(o.id)} onChange={() => toggle(o.id)} aria-label={`Vybrat objednávku ${o.number}`} />
+                </td>
                 <td data-label="Číslo"><Link to={`/admin/objednavky/${o.id}`}>{o.number}</Link></td>
                 <td data-label="Zákazník">{o.name}<br /><small>{o.email}</small></td>
                 <td data-label="Stav"><span className={`tag ${o.status}`}>{statusLabel(o.status)}</span></td>
@@ -786,19 +1008,60 @@ function Exports() {
 }
 
 function Customers() {
-  const [rows, setRows] = useState<{ id: number; email: string; name: string; phone: string; role: string; orders: number; spent: number; created_at: string }[]>([]);
-  useEffect(() => { void api<typeof rows>("/admin/customers").then(setRows); }, []);
+  const { toast } = useStore();
+  type Row = {
+    id: number; email: string; name: string; phone: string; role: string;
+    customer_group?: string; company_name?: string; ico?: string;
+    orders: number; spent: number; created_at: string;
+  };
+  const [rows, setRows] = useState<Row[]>([]);
+  const [q, setQ] = useState("");
+  const load = () => void api<Row[]>("/admin/customers").then(setRows);
+  useEffect(() => { load(); }, []);
+
+  async function setGroup(u: Row, group: string) {
+    try {
+      await api(`/admin/customers/${u.id}`, { method: "PATCH", body: JSON.stringify({ customer_group: group }) });
+      setRows((prev) => prev.map((r) => (r.id === u.id ? { ...r, customer_group: group } : r)));
+      toast(group === "b2b" ? `${u.email} vidí velkoobchodní ceny.` : `${u.email} má běžné ceny.`);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Změnu se nepodařilo uložit.", "err");
+    }
+  }
+
+  const filtered = rows.filter(
+    (u) => !q || `${u.name} ${u.email} ${u.company_name || ""} ${u.ico || ""}`.toLowerCase().includes(q.toLowerCase())
+  );
+  const b2bCount = rows.filter((u) => u.customer_group === "b2b").length;
+
   return (
     <>
-      <h1>Zákazníci</h1>
+      <div className="toolbar">
+        <h1>Zákazníci</h1>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hledat jméno, e-mail, IČO" />
+      </div>
+      <p style={{ color: "var(--muted)" }}>
+        Velkoobchodní skupina: <b>{b2bCount}</b> z {rows.length}. Zákazník ve skupině „Velkoobchod (B2B)“ vidí po přihlášení
+        velkoobchodní ceny bez DPH — ceník nastavíte u produktu (pole „Velkoobchodní cena bez DPH“) nebo plošně
+        v <Link to="/admin/nastaveni">Nastavení → b2b_discount</Link>.
+      </p>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Jméno</th><th>E-mail</th><th>Role</th><th>Obj.</th><th>Útrata</th></tr></thead>
+          <thead><tr><th>Jméno</th><th>E-mail</th><th>Skupina</th><th>Role</th><th>Obj.</th><th>Útrata</th></tr></thead>
           <tbody>
-            {rows.map((u) => (
+            {filtered.map((u) => (
               <tr key={u.id}>
-                <td data-label="Jméno">{u.name}</td>
+                <td data-label="Jméno">
+                  {u.name}
+                  {u.company_name ? <><br /><small>{u.company_name}{u.ico ? ` · IČO ${u.ico}` : ""}</small></> : null}
+                </td>
                 <td data-label="E-mail">{u.email}<br /><small>{u.phone}</small></td>
+                <td data-label="Skupina">
+                  <select value={u.customer_group === "b2b" ? "b2b" : "retail"} onChange={(e) => void setGroup(u, e.target.value)}>
+                    <option value="retail">Běžný zákazník</option>
+                    <option value="b2b">Velkoobchod (B2B)</option>
+                  </select>
+                </td>
                 <td data-label="Role">{u.role}</td>
                 <td data-label="Objednávek">{u.orders}</td>
                 <td data-label="Útrata">{czk(u.spent)}</td>
@@ -1435,6 +1698,165 @@ function AppearanceSettings() {
   );
 }
 
+/* ============================================================
+   Magazín (blog) — psaní článků pro organickou návštěvnost
+   ============================================================ */
+type AdminPost = {
+  id: number; title: string; slug: string; perex: string; body?: string; cover: string;
+  author: string; tags: string; meta_title?: string; meta_description?: string;
+  published: number; published_at: string; updated_at?: string;
+};
+
+function Posts() {
+  const { toast } = useStore();
+  const [rows, setRows] = useState<AdminPost[]>([]);
+  const load = () => void api<AdminPost[]>("/admin/posts").then(setRows);
+  useEffect(() => { load(); }, []);
+
+  async function remove(p: AdminPost) {
+    if (!confirm(`Smazat článek „${p.title}“?`)) return;
+    await api(`/admin/posts/${p.id}`, { method: "DELETE" });
+    toast("Článek smazán.");
+    load();
+  }
+
+  async function togglePublish(p: AdminPost) {
+    await api(`/admin/posts/${p.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ ...p, published: p.published ? 0 : 1 }),
+    });
+    load();
+  }
+
+  return (
+    <>
+      <div className="toolbar">
+        <h1>Magazín</h1>
+        <div style={{ display: "flex", gap: 8 }}>
+          <a className="btn-line btn-sm" href="/magazin" target="_blank" rel="noreferrer">Zobrazit na webu</a>
+          <Link className="btn" to="/admin/magazin/novy">Nový článek</Link>
+        </div>
+      </div>
+      <p style={{ color: "var(--muted)" }}>
+        Články pomáhají e-shopu růst ve vyhledávačích. Každý článek dostane vlastní SEO titulek, popis, drobečkovou
+        navigaci a strukturovaná data (Article) — Google je tak umí zobrazit s datem i autorem.
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Název</th><th>URL</th><th>Štítky</th><th>Vyšlo</th><th>Stav</th><th></th></tr></thead>
+          <tbody>
+            {rows.map((p) => (
+              <tr key={p.id}>
+                <td data-label="Název"><Link to={`/admin/magazin/${p.id}`}>{p.title}</Link></td>
+                <td data-label="URL"><small>/magazin/{p.slug}</small></td>
+                <td data-label="Štítky"><small>{p.tags}</small></td>
+                <td data-label="Vyšlo">{dateCs(p.published_at)}</td>
+                <td data-label="Stav">
+                  <button className={`chip ${p.published ? "on" : ""}`} onClick={() => void togglePublish(p)}>
+                    {p.published ? "Publikováno" : "Koncept"}
+                  </button>
+                </td>
+                <td><button className="linkish" onClick={() => void remove(p)}>Smazat</button></td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr><td colSpan={6}>Zatím žádné články. Začněte tlačítkem „Nový článek“.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function PostForm() {
+  const { id } = useParams();
+  const nav = useNavigate();
+  const { toast } = useStore();
+  const [form, setForm] = useState({
+    title: "", slug: "", perex: "", body: "", cover: "", author: "", tags: "",
+    meta_title: "", meta_description: "", published: 1, published_at: "",
+  });
+
+  useEffect(() => {
+    if (!id) return;
+    void api<{ post: AdminPost }>(`/admin/posts/${id}`).then(({ post }) => {
+      setForm({
+        title: post.title, slug: post.slug, perex: post.perex, body: post.body || "", cover: post.cover,
+        author: post.author, tags: post.tags, meta_title: post.meta_title || "",
+        meta_description: post.meta_description || "", published: post.published,
+        published_at: (post.published_at || "").slice(0, 10),
+      });
+    });
+  }, [id]);
+
+  function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function upload(file: File) {
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const r = await api<{ url: string }>("/admin/upload", { method: "POST", body: fd });
+      set("cover", r.url);
+      toast("Titulní fotka nahrána.");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Nahrání selhalo. Máte připojené R2?", "err");
+    }
+  }
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    try {
+      if (id) {
+        await api(`/admin/posts/${id}`, { method: "PUT", body: JSON.stringify(form) });
+        toast("Uloženo.");
+      } else {
+        const r = await api<{ id: number }>("/admin/posts", { method: "POST", body: JSON.stringify(form) });
+        nav(`/admin/magazin/${r.id}`);
+      }
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Uložení selhalo.", "err");
+    }
+  }
+
+  return (
+    <>
+      <div className="toolbar">
+        <h1>{id ? "Upravit článek" : "Nový článek"}</h1>
+        {id && form.slug && (
+          <a className="btn-line btn-sm" href={`/magazin/${form.slug}`} target="_blank" rel="noreferrer">Náhled</a>
+        )}
+      </div>
+      <form className="admin-form" onSubmit={save}>
+        <label className="full">Název<input value={form.title} onChange={(e) => set("title", e.target.value)} required /></label>
+        <label>URL (slug)<input value={form.slug} onChange={(e) => set("slug", e.target.value)} placeholder="doplní se samo" /></label>
+        <label>Autor<input value={form.author} onChange={(e) => set("author", e.target.value)} /></label>
+        <label>Štítky (oddělte čárkou)<input value={form.tags} onChange={(e) => set("tags", e.target.value)} placeholder="keramika,péče" /></label>
+        <label>Datum vydání<input type="date" value={form.published_at} onChange={(e) => set("published_at", e.target.value)} /></label>
+        <label>Titulní fotka (URL)<input value={form.cover} onChange={(e) => set("cover", e.target.value)} /></label>
+        <label>Nahrát fotku<input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} /></label>
+        <label className="full">
+          Perex (krátké shrnutí — použije se ve výpisu a v náhledu odkazu)
+          <textarea rows={2} value={form.perex} onChange={(e) => set("perex", e.target.value)} />
+        </label>
+        <label className="full">
+          Text článku (HTML: &lt;h2&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;a&gt;)
+          <textarea rows={16} value={form.body} onChange={(e) => set("body", e.target.value)} />
+        </label>
+        <label className="full">SEO titulek<input value={form.meta_title} onChange={(e) => set("meta_title", e.target.value)} placeholder="Nechte prázdné = použije se název" /></label>
+        <label className="full">SEO popis<textarea rows={2} value={form.meta_description} onChange={(e) => set("meta_description", e.target.value)} placeholder="Nechte prázdné = použije se perex" /></label>
+        <label><input type="checkbox" checked={!!form.published} onChange={(e) => set("published", e.target.checked ? 1 : 0)} /> Publikovat</label>
+        <div className="full row-actions">
+          <button className="btn-dark" type="submit">Uložit</button>
+          <Link className="btn-line" to="/admin/magazin">Zpět na seznam</Link>
+        </div>
+      </form>
+    </>
+  );
+}
+
 function SettingsPage() {
   const { toast, refresh } = useStore();
   const [form, setForm] = useState<Record<string, string>>({});
@@ -1509,6 +1931,16 @@ function SettingsPage() {
     ["apple_pay_merchant_id", "Apple Pay merchant ID"],
     ["google_pay_merchant_id", "Google Pay merchant ID"],
     ["exit_coupon", "Kupón pro opouštěcí pop-up (výchozí STAY5)"],
+    ["b2b_enabled", "Velkoobchodní režim B2B (1 = zapnutý, 0 = vypnutý)"],
+    ["b2b_discount", "Plošná velkoobchodní sleva v % (u produktů bez vlastní ceny)"],
+    ["b2b_note", "Věta o velkoobchodních cenách (zobrazí se v košíku a pokladně)"],
+    ["blog_enabled", "Magazín / blog (1 = zapnutý, 0 = vypnutý)"],
+    ["blog_title", "Název magazínu (nadpis a odkaz v menu)"],
+    ["blog_perex", "Úvodní věta magazínu"],
+    ["abandoned_enabled", "Připomínky opuštěného košíku (1/0)"],
+    ["abandoned_stage1_hours", "1. připomínka opuštěného košíku — po kolika hodinách (např. 2)"],
+    ["abandoned_stage2_hours", "2. připomínka opuštěného košíku — po kolika hodinách (např. 24)"],
+    ["og_dynamic", "Dynamické náhledové obrázky pro sdílení (1 = generovat, 0 = fotka produktu)"],
   ];
   const help: Record<string, string> = {
     store_name: "Krátký název se zobrazuje v logu, titulcích, e-mailech a produktových feedech.",
@@ -1558,6 +1990,16 @@ function SettingsPage() {
     invoice_due_days: "Počet dnů splatnosti faktury.",
     invoice_vat_payer: "1 znamená plátce DPH a zapne rozpis DPH na faktuře; 0 jej vypne.",
     invoice_vat_rate: "Výchozí sazba DPH v procentech používaná na fakturách.",
+    b2b_enabled: "Po zapnutí vidí zákazník ve skupině B2B velkoobchodní ceny bez DPH. Skupinu nastavíte v sekci Zákazníci.",
+    b2b_discount: "Použije se u produktů, které nemají vyplněnou vlastní velkoobchodní cenu. Například 20 = sleva 20 % z maloobchodní ceny.",
+    b2b_note: "Krátké vysvětlení, proč jsou ceny bez DPH. Zobrazí se velkoobchodníkovi v košíku a v pokladně.",
+    blog_enabled: "Vypnutí skryje odkaz na magazín v menu. Články zůstanou uložené.",
+    blog_title: "Zobrazuje se jako nadpis magazínu a v hlavním menu.",
+    blog_perex: "Jedna až dvě věty pod nadpisem magazínu.",
+    abandoned_enabled: "0 vypne automatické e-maily zákazníkům, kteří nedokončili nákup.",
+    abandoned_stage1_hours: "Za jak dlouho po opuštění košíku odejde první připomínka. Doporučeno 2 hodiny.",
+    abandoned_stage2_hours: "Druhá (poslední) připomínka. Doporučeno 24 hodin.",
+    og_dynamic: "Náhled odkazu na Facebooku či Instagramu se vygeneruje s fotkou, názvem a cenou produktu.",
     invoice_currency: "Třípísmenný kód měny, standardně CZK.",
     gtm_id: "ID kontejneru Google Tag Manager ve tvaru GTM-XXXX. Prázdné pole měření vypne.",
     ga4_id: "Measurement ID Google Analytics 4 ve tvaru G-XXXX.",

@@ -44,18 +44,72 @@
 - **tisk štítků** — Česká pošta (Podání online), PPL a DPD jedním klikem z objednávky
 - **XML feedy** Heureka / Zboží.cz / Google Shopping + **OpenAI (ChatGPT Shopping) feed** (JSONL.GZ na `/openai-feed.jsonl.gz`)
 - **GTM, GA4 a Meta Pixel** + e-commerce události `view_item`, `add_to_cart`, `purchase`
-- **JSON-LD v prvotním HTML** (Organization, WebSite se SearchAction, Product + Offer se shippingDetails, BreadcrumbList) — pro Google merchant listings i AI vyhledávání
+- **JSON-LD v prvotním HTML** (Organization, WebSite se SearchAction, Product + Offer se shippingDetails a **AggregateRating**, BreadcrumbList u produktu, kategorie i článku, CollectionPage, BlogPosting) — Google tak umí ukázat cenu, hvězdičky i dostupnost přímo ve výsledcích
 - **vrstvená cache** veřejných API (Cloudflare Cache API + verze cache), **AVIF** varianty obrázků, `smart placement` Workeru u D1
 - **CSP hlavička**, **zálohy D1 do R2** jedním klikem, údržba logů z administrace
 - **e-mailové notifikace** (objednávka, stav, hlídací pes, opuštěný košík) přes Resend
 - **hlídací pes** u vyprodaného zboží — e-mailem i přes **Web Push** do prohlížeče
-- **opouštěcí pop-up** se slevou 5 % (`STAY5`) a **3e-mailová série opuštěného košíku** (24 h / 72 h, spouští cron)
+- **opouštěcí pop-up** se slevou 5 % (`STAY5`) a **série opuštěného košíku** — e-mail po **2 h** a po **24 h** zákazníkovi, který zanechal e-mail v pokladně (hodiny jdou nastavit, kdo mezitím objednal, e-mail nedostane)
+- **velkoobchodní režim (B2B)** — zákazník ve skupině „b2b“ vidí po přihlášení velkoobchodní ceny **bez DPH** (vlastní cena u produktu nebo plošná sleva)
+- **magazín / blog** — psaní článků v administraci, výpis na `/magazin`, Article + BreadcrumbList v JSON-LD, články v sitemapě
+- **hromadné úpravy produktů** — zaškrtávací políčka + změna ceny/skladu/kategorie/viditelnosti, **CSV import a export**
+- **hromadný tisk** — označíte objednávky a jedním klikem otevřete jeden dokument se všemi fakturami i adresními štítky (Uložit jako PDF)
+- **dynamické OG obrázky** — náhled sdíleného odkazu se vygeneruje s fotkou, názvem a cenou (`/og/produkt/<slug>.svg`)
 - **upsell v košíku** (např. zápalky ke svíčce)
 - **stránky** — drag & drop editor s **35+ bloky** (nadpisy, text, obrázky, tlačítka, citáty, FAQ, galerie, video, mapa, HTML **a nově**: hero sekce, živé produkty a kategorie z obchodu, ceníky, reference, tým, časová osa, záložky, odpočet, newsletter, tabulky, sociální sítě, soubory ke stažení…), přidávání/mazání stránek, **hledání v toolboxu**, **undo/redo (Ctrl+Z)**, klávesové zkratky (Ctrl+S, Delete)
 - **vzhled každého bloku** — vnitřní okraje, pozadí, barvy, zaoblení, stín, max. šířka, kotvy (#odkazy), animace při scrollu, skrytí na mobilu
 - **editace hlavní stránky a systémových stránek** — v editoru jde upravit i úvodní stránka (`/`), O ateliéru, doprava, obchodní podmínky, GDPR a reklamace; dokud nemají bloky, ukazuje se výchozí obsah, tlačítko „Vložit ukázkové bloky“ sestaví stránku na jedno kliknutí
 - **SEO u každé stránky** — vlastní titulek, meta popisek, noindex, šířka obsahu, skrytí drobenky
 - **navbar a logo** — úprava položek menu, pořadí, vlastní text a SVG loga
+
+### Velkoobchod (B2B ceník)
+
+1. V **Nastavení** nechte `b2b_enabled = 1` a nastavte plošnou slevu `b2b_discount` (např. `20`).
+2. U produktu vyplňte **Velkoobchodní cenu bez DPH** (pole v detailu produktu) — má přednost před plošnou slevou.
+   Hromadně ji dopočítáte v **Produkty → Hromadná úprava → Velkoobchodní sleva v %**.
+3. V **Zákazníci** přepněte zákazníka na skupinu **Velkoobchod (B2B)**.
+
+Po přihlášení vidí takový zákazník ceny **bez DPH** (s DPH je uvedená v druhém řádku), v košíku i pokladně má
+rozpis DPH a účtuje se mu velkoobchodní cena. Faktura i objednávka běží beze změny — objednávka si navíc
+pamatuje, že vznikla ve velkoobchodním režimu (`orders.customer_group`).
+
+### Magazín (blog)
+
+Administrace → **Magazín (blog)**. Článek má titulek, perex, HTML text, titulní fotku, štítky, datum vydání
+a vlastní SEO titulek/popis. Publikované články najdete na `/magazin`, jednotlivé na `/magazin/<slug>`;
+jsou v `sitemap.xml` a mají strukturovaná data `BlogPosting` + drobečkovou navigaci.
+
+### Hromadné úpravy a CSV
+
+V **Produkty** zaškrtnete řádky a v pruhu nahoře vyberete akci: změna ceny o %, o Kč nebo na pevnou hodnotu,
+velkoobchodní cena, nastavení či naskladnění skladu, přesun do kategorie, skrytí/zobrazení, doporučené, smazání.
+Vedle toho je **Export produktů do CSV** a **Import z CSV** (středník, UTF‑8 s BOM — otevře se v Excelu).
+Řádky se párují podle `id`, `sku` nebo `slug`; stačí importovat jen sloupce, které chcete změnit
+(např. `sku;price;stock`). Sklad se mění přes pohyby skladu, takže zůstává historie.
+
+### Hromadný tisk faktur a štítků
+
+V **Objednávkách** zaškrtnete objednávky a kliknete na **Tisk faktur + štítků** (nebo jen faktury / jen štítky).
+Otevře se jeden dokument (`/api/admin/print?ids=…&what=both`), kde je každá faktura i štítek na vlastní stránce
+a rovnou se nabídne tiskový dialog — vyberete tiskárnu nebo „Uložit jako PDF“. Chybějící faktury se cestou
+vystaví, chybějící čísla zásilek dogenerují.
+
+### Dynamické OG obrázky
+
+Náhled odkazu na Facebooku, Instagramu nebo Twitteru/X se generuje na serveru z aktuálních dat:
+
+- `/og/produkt/<slug>.svg` — fotka produktu, název, cena, hvězdičky a stav skladu,
+- `/og/clanek/<slug>.svg` — titulek a perex článku,
+- `/og/default.svg` — obecná varianta.
+
+Middleware vkládá tento obrázek jako `og:image`; jako druhý `og:image` (a `twitter:image`) zůstává klasická
+fotka produktu, aby měla každá síť co zobrazit. Vypnout se dá nastavením `og_dynamic = 0`.
+
+### Hodnocení jen po nákupu
+
+Formulář hodnocení se ukáže jen zákazníkovi, který má produkt v historii objednávek (párování podle účtu
+i e-mailu objednávky, stornované objednávky se nepočítají). Ostatní vidí vysvětlení a odkaz na své objednávky.
+Server tuto podmínku kontroluje znovu při ukládání hodnocení.
 
 ### Faktury a účetnictví
 
@@ -126,7 +180,7 @@ přijde push notifikace (VAPID klíče se vygenerují samy do nastavení). Push 
 Kód obsahuje automatizace, které se spouští z cronu (Cloudflare Dashboard → Pages projekt →
 Settings → Functions → Cron Triggers, např. každých 15 minut):
 
-- `POST /api/admin/mail/abandoned` — 2. a 3. e-mail série opuštěného košíku (24 h / 72 h); bez cronu ji spustíte ručně v administraci,
+- `POST /api/admin/mail/abandoned` — připomínky opuštěného košíku (výchozí po 2 h a po 24 h, viz nastavení `abandoned_stage1_hours` / `abandoned_stage2_hours`); bez cronu ji spustíte ručně v administraci tlačítkem v sekci E-maily,
 - `POST /api/admin/maintenance` — úklid logů pokusů o přihlášení a prázdných starých košíků.
 
 Při nasazení přes `wrangler pages deploy` stačí odkomentovat sekci `[[triggers]]` ve `wrangler.toml`.

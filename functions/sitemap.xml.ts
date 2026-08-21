@@ -18,6 +18,7 @@ export const onRequest: PagesFunction<Bindings> = async (context) => {
     "/ochrana-udaju",
     "/reklamace",
     "/sledovani",
+    "/magazin",
   ];
   const urls = staticPaths.map((p) => `  <url><loc>${origin}${p}</loc><changefreq>weekly</changefreq><priority>${p === "/" ? "1.0" : "0.6"}</priority></url>`);
 
@@ -58,6 +59,20 @@ export const onRequest: PagesFunction<Bindings> = async (context) => {
           : "";
         urls.push(
           `  <url><loc>${origin}/produkt/${encodeURIComponent(p.slug)}</loc><changefreq>weekly</changefreq><priority>0.8</priority>${image}${lastmod(p.updated_at)}</url>`
+        );
+      }
+      const posts =
+        (
+          await context.env.DB.prepare(
+            "SELECT slug, cover, updated_at FROM posts WHERE published = 1 ORDER BY published_at DESC LIMIT 1000"
+          ).all<{ slug: string; cover: string; updated_at: string }>()
+        ).results || [];
+      for (const post of posts) {
+        const cover = post.cover
+          ? `\n    <image:image><image:loc>${origin}${post.cover.startsWith("/") ? post.cover : `/${post.cover}`}</image:loc></image:image>`
+          : "";
+        urls.push(
+          `  <url><loc>${origin}/magazin/${encodeURIComponent(post.slug)}</loc><changefreq>monthly</changefreq><priority>0.6</priority>${cover}${lastmod(post.updated_at)}</url>`
         );
       }
       for (const pg of pages) {

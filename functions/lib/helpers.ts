@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Bindings, Variables, AppUser } from "./types";
 import { randomId } from "./crypto";
+import { RETAIL_CTX, effectivePrice, netPrice, type PriceCtx } from "./pricing";
 
 export type App = Hono<{ Bindings: Bindings; Variables: Variables }>;
 
@@ -126,36 +127,51 @@ export type CartItemRow = {
   image: string;
   stock: number;
   sku: string;
+  /** Cena bez DPH — vyplněná jen ve velkoobchodním režimu. */
+  price_net?: number;
 };
 
-export async function loadCart(db: D1Database, cartId: string) {
+export async function loadCart(db: D1Database, cartId: string, ctx: PriceCtx = RETAIL_CTX) {
   const cart = await db.prepare("SELECT * FROM carts WHERE id = ?").bind(cartId).first<{
     id: string;
     user_id: number | null;
     coupon_code: string | null;
   }>();
-  const items =
+  const rows =
     (
       await db
         .prepare(
-          `SELECT ci.id, ci.product_id, ci.quantity, p.name, p.slug, p.price, p.image, p.stock, p.sku
+          `SELECT ci.id, ci.product_id, ci.quantity, p.name, p.slug, p.price, p.price_b2b, p.image, p.stock, p.sku
            FROM cart_items ci JOIN products p ON p.id = ci.product_id
            WHERE ci.cart_id = ?`
         )
         .bind(cartId)
-        .all<CartItemRow>()
+        .all<CartItemRow & { price_b2b?: number }>()
     ).results || [];
+  // Ve velkoobchodním režimu se počítá s velkoobchodní cenou (uvnitř e-shopu
+  // pořád včetně DPH), navíc přidáme cenu bez DPH kvůli zobrazení.
+  const items: CartItemRow[] = rows.map((r) => {
+    const price = effectivePrice(r, ctx);
+    return { ...r, price, price_net: netPrice(price, ctx) };
+  });
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const coupon = await getCoupon(db, cart?.coupon_code);
   const disc = await loadCouponDiscount(db, coupon, subtotal, cart?.user_id);
+  const discount = disc.ok ? disc.discount : 0;
   return {
     id: cartId,
     items,
     subtotal,
     coupon: disc.ok && coupon ? { code: coupon.code, description: (coupon as CouponRow & { description?: string }).description, type: coupon.type, value: coupon.value } : null,
     coupon_error: cart?.coupon_code && !disc.ok ? disc.error : null,
-    discount: disc.ok ? disc.discount : 0,
+    discount,
     count: items.reduce((s, i) => s + i.quantity, 0),
+    /** Velkoobchodní režim — front-end podle toho zobrazuje ceny bez DPH. */
+    b2b: ctx.b2b,
+    vat_rate: ctx.vatRate,
+    subtotal_net: ctx.b2b ? netPrice(subtotal, ctx) : subtotal,
+    /** DPH z ceny zboží po slevě (jen informativně pro velkoobchod). */
+    vat_amount: ctx.b2b ? subtotal - discount - netPrice(subtotal - discount, ctx) : 0,
   };
 }
 
@@ -194,7 +210,7 @@ export async function userBySession(db: D1Database, sid: string | null): Promise
   if (!sid) return null;
   const row = await db
     .prepare(
-      `SELECT u.id, u.email, u.name, u.phone, u.role, s.expires_at
+      `SELECT u.id, u.email, u.name, u.phone, u.role, u.customer_group, s.expires_at
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = ?`
     )
@@ -205,7 +221,14 @@ export async function userBySession(db: D1Database, sid: string | null): Promise
     await db.prepare("DELETE FROM sessions WHERE id = ?").bind(sid).run();
     return null;
   }
-  return { id: row.id, email: row.email, name: row.name, phone: row.phone, role: row.role };
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    phone: row.phone,
+    role: row.role,
+    customer_group: row.customer_group === "b2b" ? "b2b" : "retail",
+  };
 }
 
 export function newCartId(): string {

@@ -15,6 +15,8 @@ export type AppUser = {
   name: string;
   phone: string;
   role: "customer" | "admin";
+  /** Cenová skupina zákazníka: "retail" (běžná) nebo "b2b" (velkoobchod). */
+  customer_group: "retail" | "b2b";
 };
 
 export type Variables = {

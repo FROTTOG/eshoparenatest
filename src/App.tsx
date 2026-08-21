@@ -10,6 +10,7 @@ import { Home } from "./pages/Home";
 import { OrderPage, Track } from "./pages/Order";
 import { ProductPage } from "./pages/Product";
 import { About, Privacy, Returns, ShippingInfo, Terms } from "./pages/Static";
+import { BlogList, BlogPost } from "./pages/Blog";
 import { DynamicPage } from "./pages/DynamicPage";
 import { WishlistPage } from "./pages/Wishlist";
 
@@ -46,6 +47,8 @@ export function App() {
         <Route path="katalog" element={<Catalog />} />
         <Route path="katalog/:slug" element={<Catalog />} />
         <Route path="produkt/:slug" element={<ProductPage />} />
+        <Route path="magazin" element={<BlogList />} />
+        <Route path="magazin/:slug" element={<BlogPost />} />
         <Route path="kosik" element={<CartPage />} />
         <Route path="oblibene" element={<WishlistPage />} />
         <Route path="pokladna" element={<Checkout />} />

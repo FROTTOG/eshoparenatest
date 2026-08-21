@@ -16,10 +16,11 @@ import {
 import { hashPassword, orderNumber, randomId, verifyPassword, verifyTotp } from "./crypto";
 import { ensureInvoiceForOrder, invoiceHtml, loadSettings, markInvoicePaid } from "./invoices";
 import { registerFeeds } from "./feeds";
-import { notifyAbandonedCart, notifyAbandonedCartStage, notifyOrderCreated, notifyOrderStatus } from "./mail";
+import { notifyAbandonedCart, notifyOrderCreated, notifyOrderStatus } from "./mail";
 import { cachedJson, bumpCache } from "./cache";
 import { comgateCreate, comgateStatus, type ComgateSettings } from "./payments";
 import { pushToSubscriptions } from "./push";
+import { applyPricing, applyPricingAll, effectivePrice, netPrice, priceContext, type PriceCtx } from "./pricing";
 
 const LOGIN_MAX_FAILS = 8;
 
@@ -94,6 +95,12 @@ async function loadPublicSettings(db: D1Database): Promise<Record<string, string
       "theme_radius",
       "theme_shadow",
       "theme_btn_anim",
+      "blog_enabled",
+      "blog_title",
+      "blog_perex",
+      "b2b_enabled",
+      "b2b_note",
+      "b2b_discount",
     ];
     const pub: Record<string, string> = {};
     for (const k of publicKeys) if (all[k] != null) pub[k] = all[k];
@@ -186,6 +193,46 @@ export function registerPublic(app: App) {
     return c.json({ page });
   });
 
+  /* ---------------------------------------------------------------
+     Magazín (blog) — články pro organickou návštěvnost z vyhledávačů
+     --------------------------------------------------------------- */
+  app.get("/posts", async (c) => {
+    const tag = (c.req.query("tag") || "").trim();
+    const limit = Math.min(48, Math.max(1, Number(c.req.query("limit") || 12)));
+    const page = Math.max(1, Number(c.req.query("page") || 1));
+    return cachedJson(c.env.DB, c.req.url, "/api/posts", 60, async () => {
+      const where = tag ? "WHERE published = 1 AND tags LIKE ?" : "WHERE published = 1";
+      const binds: (string | number)[] = tag ? [`%${tag}%`] : [];
+      const count = await c.env.DB.prepare(`SELECT COUNT(*) AS c FROM posts ${where}`)
+        .bind(...binds)
+        .first<{ c: number }>();
+      const rows = (
+        await c.env.DB.prepare(
+          `SELECT id, title, slug, perex, cover, author, tags, published_at
+           FROM posts ${where} ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?`
+        )
+          .bind(...binds, limit, (page - 1) * limit)
+          .all()
+      ).results || [];
+      return { items: rows, total: count?.c || 0, page, limit };
+    });
+  });
+
+  app.get("/posts/:slug", async (c) => {
+    const slug = (c.req.param("slug") || "").toLowerCase();
+    const post = await c.env.DB.prepare("SELECT * FROM posts WHERE slug = ? AND published = 1").bind(slug).first();
+    if (!post) return c.json({ error: "Článek nenalezen." }, 404);
+    const related =
+      (
+        await c.env.DB.prepare(
+          "SELECT id, title, slug, perex, cover, published_at FROM posts WHERE published = 1 AND id != ? ORDER BY published_at DESC LIMIT 3"
+        )
+          .bind((post as { id: number }).id)
+          .all()
+      ).results || [];
+    return c.json({ post, related });
+  });
+
   app.get("/categories", async (c) => {
     return cachedJson(c.env.DB, c.req.url, "/api/categories", 120, async () => {
       const rows = await c.env.DB.prepare(
@@ -212,7 +259,11 @@ export function registerPublic(app: App) {
     const limit = Math.min(48, Math.max(1, Number(c.req.query("limit") || 24)));
     const offset = (page - 1) * limit;
 
-    return cachedJson(c.env.DB, c.req.url, "/api/products", 45, async () => {
+    const ctx = await priceContext(c.env.DB, c.get("user"));
+    // Cache je společná pro všechny — velkoobchodní ceny dopočítáme až nad
+    // výsledkem z cache, aby se B2B ceník nikdy neuložil do veřejné cache.
+    const cacheKey = c.req.url;
+    const listed = await cachedJson(c.env.DB, cacheKey, "/api/products", 45, async () => {
       let where = "WHERE p.active = 1";
       const binds: (string | number)[] = [];
       if (q) {
@@ -266,6 +317,14 @@ export function registerPublic(app: App) {
 
       return { items: rows.results || [], total: count?.c || 0, page, limit };
     });
+    if (!ctx.b2b) return listed;
+    const data = (await listed.json()) as { items: Record<string, unknown>[]; total: number; page: number; limit: number };
+    return c.json({
+      ...data,
+      items: applyPricingAll(data.items as { price: number }[], ctx),
+      b2b: true,
+      vat_rate: ctx.vatRate,
+    });
   });
 
   app.get("/products/:slug", async (c) => {
@@ -295,7 +354,36 @@ export function registerPublic(app: App) {
     )
       .bind((p as { id: number }).id)
       .first();
-    return c.json({ ...p, images: images.map((i) => i.url), reviews, rating: (agg as { rating: number | null })?.rating, review_count: (agg as { review_count: number })?.review_count || 0 });
+    // Hodnotit může jen zákazník, který produkt má v historii objednávek.
+    const user = c.get("user");
+    let canReview = false;
+    let hasReview = false;
+    if (user) {
+      const bought = await c.env.DB.prepare(
+        `SELECT 1 AS ok FROM order_items oi JOIN orders o ON o.id = oi.order_id
+         WHERE oi.product_id = ? AND (o.user_id = ? OR o.email = ?) AND o.status != 'cancelled' LIMIT 1`
+      )
+        .bind((p as { id: number }).id, user.id, user.email)
+        .first();
+      canReview = !!bought;
+      const mine = await c.env.DB.prepare("SELECT 1 AS ok FROM reviews WHERE product_id = ? AND user_id = ?")
+        .bind((p as { id: number }).id, user.id)
+        .first();
+      hasReview = !!mine;
+    }
+    const ctx = await priceContext(c.env.DB, user);
+    const priced = applyPricing(p as { price: number; price_b2b?: number }, ctx);
+    return c.json({
+      ...priced,
+      images: images.map((i) => i.url),
+      reviews,
+      rating: (agg as { rating: number | null })?.rating,
+      review_count: (agg as { review_count: number })?.review_count || 0,
+      can_review: canReview,
+      has_review: hasReview,
+      b2b: ctx.b2b,
+      vat_rate: ctx.vatRate,
+    });
   });
 
   app.get("/shipping", async (c) => {
@@ -373,7 +461,7 @@ export function registerPublic(app: App) {
     const secure = isSecure(c);
     c.header("Set-Cookie", setCookie("sid", sid, SESSION_DAYS, secure));
     c.header("Set-Cookie", setCookie("cid", cartId, CART_DAYS, secure), { append: true });
-    return c.json({ user: { id: userId, email, name, phone, role: "customer" } });
+    return c.json({ user: { id: userId, email, name, phone, role: "customer", customer_group: "retail" } });
   });
 
   app.post("/auth/login", async (c) => {
@@ -429,7 +517,16 @@ export function registerPublic(app: App) {
     const secure = isSecure(c);
     c.header("Set-Cookie", setCookie("sid", sid, SESSION_DAYS, secure));
     c.header("Set-Cookie", setCookie("cid", cartId, CART_DAYS, secure), { append: true });
-    return c.json({ user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role } });
+    return c.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        customer_group: (user as { customer_group?: string }).customer_group === "b2b" ? "b2b" : "retail",
+      },
+    });
   });
 
   // Druhý faktor přihlášení — ověření TOTP kódu z autentizační aplikace.
@@ -461,7 +558,16 @@ export function registerPublic(app: App) {
     const secure = isSecure(c);
     c.header("Set-Cookie", setCookie("sid", sid, SESSION_DAYS, secure));
     c.header("Set-Cookie", setCookie("cid", cartId, CART_DAYS, secure), { append: true });
-    return c.json({ user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role } });
+    return c.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        customer_group: (user as { customer_group?: string }).customer_group === "b2b" ? "b2b" : "retail",
+      },
+    });
   });
 
   app.post("/auth/logout", async (c) => {
@@ -479,7 +585,7 @@ export function registerPublic(app: App) {
 
   app.get("/cart", async (c) => {
     await ensureCart(c.env.DB, c.get("cartId"), c.get("user")?.id ?? null);
-    return c.json(await loadCart(c.env.DB, c.get("cartId")));
+    return c.json(await loadCart(c.env.DB, c.get("cartId"), await priceContext(c.env.DB, c.get("user"))));
   });
 
   app.post("/cart/items", async (c) => {
@@ -499,7 +605,7 @@ export function registerPublic(app: App) {
     } else {
       await c.env.DB.prepare("INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)").bind(cartId, productId, qty).run();
     }
-    return c.json(await loadCart(c.env.DB, cartId));
+    return c.json(await loadCart(c.env.DB, cartId, await priceContext(c.env.DB, c.get("user"))));
   });
 
   app.patch("/cart/items/:id", async (c) => {
@@ -520,34 +626,34 @@ export function registerPublic(app: App) {
       if (qty > item.stock) return c.json({ error: `Na skladě je jen ${item.stock} ks.` }, 400);
       await c.env.DB.prepare("UPDATE cart_items SET quantity = ? WHERE id = ?").bind(qty, id).run();
     }
-    return c.json(await loadCart(c.env.DB, cartId));
+    return c.json(await loadCart(c.env.DB, cartId, await priceContext(c.env.DB, c.get("user"))));
   });
 
   app.delete("/cart/items/:id", async (c) => {
     await c.env.DB.prepare("DELETE FROM cart_items WHERE id = ? AND cart_id = ?").bind(Number(c.req.param("id")), c.get("cartId")).run();
-    return c.json(await loadCart(c.env.DB, c.get("cartId")));
+    return c.json(await loadCart(c.env.DB, c.get("cartId"), await priceContext(c.env.DB, c.get("user"))));
   });
 
   app.post("/cart/coupon", async (c) => {
     const body = await c.req.json<{ code?: string }>();
     const code = (body.code || "").trim();
-    const cart = await loadCart(c.env.DB, c.get("cartId"));
+    const cart = await loadCart(c.env.DB, c.get("cartId"), await priceContext(c.env.DB, c.get("user")));
     const coupon = await getCoupon(c.env.DB, code);
     if (!coupon) return c.json({ error: "Kupón neexistuje." }, 404);
     const disc = await loadCouponDiscount(c.env.DB, coupon, cart.subtotal, c.get("user")?.id ?? null);
     if (!disc.ok) return c.json({ error: disc.error }, 400);
     await ensureCart(c.env.DB, c.get("cartId"), c.get("user")?.id ?? null);
     await c.env.DB.prepare("UPDATE carts SET coupon_code = ? WHERE id = ?").bind(coupon.code, c.get("cartId")).run();
-    return c.json(await loadCart(c.env.DB, c.get("cartId")));
+    return c.json(await loadCart(c.env.DB, c.get("cartId"), await priceContext(c.env.DB, c.get("user"))));
   });
 
   app.delete("/cart/coupon", async (c) => {
     await c.env.DB.prepare("UPDATE carts SET coupon_code = NULL WHERE id = ?").bind(c.get("cartId")).run();
-    return c.json(await loadCart(c.env.DB, c.get("cartId")));
+    return c.json(await loadCart(c.env.DB, c.get("cartId"), await priceContext(c.env.DB, c.get("user"))));
   });
 
   app.get("/cart/upsells", async (c) => {
-    const cart = await loadCart(c.env.DB, c.get("cartId"));
+    const cart = await loadCart(c.env.DB, c.get("cartId"), await priceContext(c.env.DB, c.get("user")));
     const inCart = new Set(cart.items.map((i) => i.product_id));
     const ids = cart.items.map((i) => i.product_id);
     if (!ids.length) return c.json({ items: [] });
@@ -556,7 +662,7 @@ export function registerPublic(app: App) {
       (
         await c.env.DB
           .prepare(
-            `SELECT p.id, p.name, p.slug, p.sku, p.price, p.image, p.stock, p.short_description, u.product_id AS for_product
+            `SELECT p.id, p.name, p.slug, p.sku, p.price, p.price_b2b, p.image, p.stock, p.short_description, u.product_id AS for_product
              FROM product_upsells u
              JOIN products p ON p.id = u.upsell_product_id
              WHERE u.product_id IN (${placeholders}) AND p.active = 1 AND p.stock > 0
@@ -571,7 +677,7 @@ export function registerPublic(app: App) {
         : (
             await c.env.DB
               .prepare(
-                `SELECT p.id, p.name, p.slug, p.sku, p.price, p.image, p.stock, p.short_description, p.category_id AS for_product
+                `SELECT p.id, p.name, p.slug, p.sku, p.price, p.price_b2b, p.image, p.stock, p.short_description, p.category_id AS for_product
                  FROM products p
                  WHERE p.active = 1 AND p.stock > 0 AND p.featured = 1
                  ORDER BY p.price ASC LIMIT 6`
@@ -585,18 +691,39 @@ export function registerPublic(app: App) {
       seen.add(id);
       return true;
     });
-    return c.json({ items: items.slice(0, 4) });
+    const ctxUp = await priceContext(c.env.DB, c.get("user"));
+    return c.json({ items: applyPricingAll(items.slice(0, 4) as { price: number }[], ctxUp) });
+  });
+
+  /**
+   * Zapamatování e-mailu z pokladny — zákazník ho vyplní, ale nemusí nákup
+   * dokončit. Na tenhle e-mail pak naváže série „opuštěný košík“ (2 h / 24 h).
+   * Neposílá nic hned, jen si e-mail uloží ke košíku.
+   */
+  app.post("/cart/email", async (c) => {
+    const body = await c.req.json<{ email?: string }>().catch(() => ({}) as { email?: string });
+    const email = (body.email || c.get("user")?.email || "").trim().toLowerCase();
+    if (!validEmail(email)) return c.json({ ok: false, skipped: true });
+    const cartId = c.get("cartId");
+    await ensureCart(c.env.DB, cartId, c.get("user")?.id ?? null);
+    const has = await c.env.DB.prepare("SELECT 1 AS ok FROM cart_items WHERE cart_id = ? LIMIT 1").bind(cartId).first();
+    if (!has) return c.json({ ok: true, skipped: true });
+    await c.env.DB
+      .prepare("UPDATE carts SET email = ?, abandoned_stage = 0, abandoned_at = datetime('now') WHERE id = ?")
+      .bind(email, cartId)
+      .run();
+    return c.json({ ok: true });
   });
 
   app.post("/cart/abandon", async (c) => {
     const body = await c.req.json<{ email?: string }>();
     const email = (body.email || c.get("user")?.email || "").trim().toLowerCase();
     if (!validEmail(email)) return c.json({ error: "Zadejte platný e-mail." }, 400);
-    const cart = await loadCart(c.env.DB, c.get("cartId"));
+    const cart = await loadCart(c.env.DB, c.get("cartId"), await priceContext(c.env.DB, c.get("user")));
     if (!cart.items.length) return c.json({ ok: true, skipped: true });
     // E-mail si pamatujeme u košíku — série opuštěného košíku na něj naváže.
     await ensureCart(c.env.DB, c.get("cartId"), c.get("user")?.id ?? null);
-    await c.env.DB.prepare("UPDATE carts SET email = ?, updated_at = datetime('now') WHERE id = ?").bind(email, c.get("cartId")).run();
+    await c.env.DB.prepare("UPDATE carts SET email = ?, abandoned_stage = 1, abandoned_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").bind(email, c.get("cartId")).run();
     const s = await loadSettings(c.env.DB);
     const code = s.exit_coupon || "STAY5";
     try {
@@ -715,7 +842,7 @@ export function registerPublic(app: App) {
       return c.json({ error: "Pro odeslání objednávky musíte potvrdit souhlas s obchodními podmínkami." }, 400);
     }
 
-    const cart = await loadCart(c.env.DB, c.get("cartId"));
+    const cart = await loadCart(c.env.DB, c.get("cartId"), await priceContext(c.env.DB, c.get("user")));
     if (!cart.items.length) return c.json({ error: "Košík je prázdný." }, 400);
 
     // Sleva na první nákup (např. KAVKA10) patří jen přihlášeným zákazníkům.
@@ -834,8 +961,8 @@ export function registerPublic(app: App) {
           payment_code, payment_name, payment_fee, payment_status, status,
           street, city, zip, country, pickup_point_id, pickup_snapshot,
           subtotal, discount, coupon_code, total, note,
-          agree_terms, agree_gdpr
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)`
+          agree_terms, agree_gdpr, customer_group
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`
       ).bind(
         number,
         user?.id ?? null,
@@ -870,7 +997,8 @@ export function registerPublic(app: App) {
         cart.discount,
         cart.coupon?.code ?? null,
         total,
-        (body.note || "").trim()
+        (body.note || "").trim(),
+        user?.customer_group === "b2b" ? "b2b" : "retail"
       )
     );
 
@@ -1196,11 +1324,15 @@ export function registerPublic(app: App) {
     if (!productId || rating < 1 || rating > 5) return c.json({ error: "Zadejte hodnocení 1–5." }, 400);
     const bought = await c.env.DB.prepare(
       `SELECT 1 AS ok FROM order_items oi JOIN orders o ON o.id = oi.order_id
-       WHERE oi.product_id = ? AND o.user_id = ? AND o.status != 'cancelled' LIMIT 1`
+       WHERE oi.product_id = ? AND (o.user_id = ? OR o.email = ?) AND o.status != 'cancelled' LIMIT 1`
     )
-      .bind(productId, user.id)
+      .bind(productId, user.id, user.email)
       .first();
-    if (!bought) return c.json({ error: "Hodnotit můžete jen zboží, které jste u nás koupili." }, 403);
+    if (!bought)
+      return c.json(
+        { error: "Hodnotit můžete jen zboží, které máte v historii objednávek." },
+        403
+      );
     const auto = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'reviews_auto_approve'").first<{ value: string }>();
     const approved = auto?.value === "1" ? 1 : 0;
     try {

@@ -125,6 +125,34 @@ export const GROWTH_SQL = [
   )`,
   "CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(slug)",
   "CREATE INDEX IF NOT EXISTS idx_pages_nav ON pages(in_nav, nav_order)",
+  // Blog / magazín — články pro budování organické návštěvnosti.
+  `CREATE TABLE IF NOT EXISTS posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL DEFAULT '',
+    slug TEXT NOT NULL UNIQUE,
+    perex TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
+    cover TEXT NOT NULL DEFAULT '',
+    author TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '',
+    meta_title TEXT NOT NULL DEFAULT '',
+    meta_description TEXT NOT NULL DEFAULT '',
+    published INTEGER NOT NULL DEFAULT 0,
+    published_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)",
+  "CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(published, published_at)",
+  // Velkoobchodní režim (B2B) — skupina zákazníka a velkoobchodní cena bez DPH.
+  "ALTER TABLE users ADD COLUMN customer_group TEXT NOT NULL DEFAULT 'retail'",
+  "ALTER TABLE users ADD COLUMN company_name TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE users ADD COLUMN ico TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE products ADD COLUMN price_b2b INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE orders ADD COLUMN customer_group TEXT NOT NULL DEFAULT 'retail'",
+  // Opuštěné košíky — kdy naposledy odešla která fáze e-mailu.
+  "ALTER TABLE carts ADD COLUMN abandoned_stage INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE carts ADD COLUMN abandoned_at TEXT",
 ];
 
 /**
@@ -526,6 +554,22 @@ const SETTINGS: Record<string, string> = {
   totp_required: "0",
   // Verze cache katalogu — zvyšuje se automaticky po změnách v administraci.
   cache_version: "1",
+  // Velkoobchodní režim (B2B): 1 = zapnutý. Zákazník ve skupině „b2b“ vidí po
+  // přihlášení velkoobchodní ceny bez DPH. `b2b_discount` je plošná sleva v %,
+  // která se použije u produktů bez vlastní velkoobchodní ceny.
+  b2b_enabled: "1",
+  b2b_discount: "20",
+  b2b_note: "Velkoobchodní ceny jsou uvedené bez DPH. DPH dopočítáme v pokladně.",
+  // Blog / magazín
+  blog_enabled: "1",
+  blog_title: "Magazín",
+  blog_perex: "Články z ateliéru — jak pečovat o keramiku, len i dřevo.",
+  // Opuštěné košíky — po kolika hodinách odejde 1. a 2. připomínka.
+  abandoned_stage1_hours: "2",
+  abandoned_stage2_hours: "24",
+  abandoned_enabled: "1",
+  // Dynamické OG obrázky pro sdílení na sociálních sítích (0 = jen fotka produktu).
+  og_dynamic: "1",
 };
 
 type ProductSeed = {
@@ -898,8 +942,70 @@ async function seed(env: Bindings) {
   await db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('seeded', '1')").run();
 }
 
+/**
+ * Ukázkové články magazínu — aby modul nebyl po instalaci prázdný.
+ * Vkládají se jen jednou (INSERT OR IGNORE podle slugu).
+ */
+export async function seedPosts(db: D1Database) {
+  const posts: [string, string, string, string, string, string][] = [
+    [
+      "Jak pečovat o ručně točenou keramiku",
+      "jak-pecovat-o-rucne-tocenou-keramiku",
+      "Glazura, sokl a mytí v ruce. Tři minuty čtení, o dvacet let delší život vašeho hrnku.",
+      `<p>Ručně točená keramika není křehká princezna, ale pár návyků jí prodlouží život o roky.</p>
+<h2>Mytí</h2>
+<p>Myjte v ruce vlažnou vodou. Myčka glazuru časem zmatní a surový sokl v ní nasákne saponát.</p>
+<h2>Teplotní šoky</h2>
+<p>Nelijte vařící vodu do studeného hrnku. Nejdřív ho propláchněte teplou — střep se roztáhne pomalu a nepraskne.</p>
+<h2>Skvrny od kávy</h2>
+<p>Jedlá soda a měkký hadřík. Nikdy drátěnka.</p>`,
+      "/products/hrnek.webp",
+      "keramika,péče",
+    ],
+    [
+      "Praný len: proč se první noc nekrábe",
+      "prany-len-proc-se-prvni-noc-neskrabe",
+      "Len z výroby vypraný má měkký omak od začátku. Jak ho prát, aby vydržel dekádu.",
+      `<p>Len je jediné vlákno, které praním sílí. Prané povlečení proto stárne do měkka, ne do ošoupanosti.</p>
+<h2>Praní</h2>
+<p>40 °C, jemný prací prostředek bez bělidel, nižší odstředění. Aviváž nepoužívejte — ucpává vlákno.</p>
+<h2>Sušení</h2>
+<p>Volně na šňůře. Sušička zkracuje životnost a sráží rozměr.</p>
+<h2>Žehlení</h2>
+<p>Nemusí být. Pomačkaný len je feature, ne bug.</p>`,
+      "/products/povleceni.webp",
+      "textil,len,péče",
+    ],
+    [
+      "Velkoobchod: jak nakupovat na IČO",
+      "velkoobchod-jak-nakupovat-na-ico",
+      "Máte kavárnu, obchod nebo studio? Po schválení účtu vidíte velkoobchodní ceny bez DPH.",
+      `<p>Dodáváme i do jiných obchodů, kaváren a pražíren. Velkoobchodní režim je zdarma.</p>
+<h2>Jak na to</h2>
+<ol><li>Zaregistrujte se běžným účtem.</li><li>Napište nám IČO a co prodáváte.</li><li>Přepneme vás do skupiny B2B — po přihlášení uvidíte ceny bez DPH.</li></ol>
+<p>Objednávka pak běží stejně jako v maloobchodu, jen s vaším ceníkem a fakturou se splatností.</p>`,
+      "/hero.webp",
+      "b2b,velkoobchod",
+    ],
+  ];
+  for (const [title, slug, perex, body, cover, tags] of posts) {
+    try {
+      await db
+        .prepare(
+          `INSERT OR IGNORE INTO posts (title, slug, perex, body, cover, author, tags, published, published_at)
+           VALUES (?, ?, ?, ?, ?, 'Ateliér KAVKA', ?, 1, datetime('now'))`
+        )
+        .bind(title, slug, perex, body, cover, tags)
+        .run();
+    } catch (err) {
+      console.error("Post seed error:", err);
+    }
+  }
+}
+
 async function seedGrowthExtras(env: Bindings) {
   const db = env.DB;
+  await seedPosts(db);
   await db
     .prepare(
       `INSERT OR IGNORE INTO payment_methods (code, name, description, fee, sort_order, allowed_shipping, active)
@@ -1098,7 +1204,8 @@ async function prepareDatabase(env: Bindings) {
     try {
       await env.DB.prepare(stmt).run();
     } catch (err) {
-      console.error("Late schema error:", err);
+      // „duplicate column name“ znamená, že ALTER už proběhl dřív — to je v pořádku.
+      if (!/duplicate column name/i.test(String(err))) console.error("Late schema error:", err);
     }
   }
 
@@ -1121,6 +1228,14 @@ async function prepareDatabase(env: Bindings) {
     env.DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)").bind(k, v)
   );
   await runChunked(env.DB, settingStmts);
+
+  // Magazín — když je prázdný, doplníme ukázkové články (i u starších databází).
+  try {
+    const posts = await env.DB.prepare("SELECT COUNT(*) AS c FROM posts").first<{ c: number }>();
+    if ((posts?.c || 0) === 0) await seedPosts(env.DB);
+  } catch (err) {
+    console.error("Posts seed check error:", err);
+  }
 
   if (seeded?.value === "1") return;
   const n = await env.DB.prepare("SELECT COUNT(*) AS c FROM products").first<{ c: number }>();

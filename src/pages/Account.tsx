@@ -42,6 +42,12 @@ function Profile() {
   return (
     <>
       <h1 className="serif">Dobrý den, {user?.name.split(" ")[0]}</h1>
+      {user?.customer_group === "b2b" && (
+        <p className="b2b-banner" style={{ maxWidth: 520 }}>
+          <b>Velkoobchodní účet</b>
+          <span>Ceny v e-shopu vidíte ve svém velkoobchodním ceníku bez DPH.</span>
+        </p>
+      )}
       <form className="form" onSubmit={save}>
         <label>
           Jméno

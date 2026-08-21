@@ -43,9 +43,38 @@ export function Stock({ n }: { n: number }) {
   return <span className="stock-ok">Skladem</span>;
 }
 
-export function Price({ price, compare, vatRate }: { price: number; compare?: number | null; vatRate?: number }) {
+/**
+ * Cena produktu. Běžný zákazník vidí cenu s DPH (a v závorce bez DPH),
+ * velkoobchodní zákazník (skupina B2B) vidí jako hlavní číslo cenu **bez DPH**
+ * a k tomu doporučenou maloobchodní cenu, aby věděl, jaká je jeho marže.
+ */
+export function Price({
+  price,
+  compare,
+  vatRate,
+  retail,
+}: {
+  price: number;
+  compare?: number | null;
+  vatRate?: number;
+  retail?: number | null;
+}) {
+  const { user } = useStore();
   const rate = vatRate ?? 21;
+  const b2b = user?.customer_group === "b2b";
   const without = priceWithoutVat(price, rate);
+  if (b2b) {
+    return (
+      <div className="price price-b2b">
+        <span className="b2b-badge">Velkoobchod</span>
+        {czk(without)} <small className="price-unit">bez DPH</small>
+        <small className="price-sub">
+          {czk(price)} s DPH
+          {retail && retail > price ? ` · doporučená MOC ${czk(retail)}` : ""}
+        </small>
+      </div>
+    );
+  }
   return (
     <div className="price">
       {compare && compare > price ? <s>{czk(compare)}</s> : null}

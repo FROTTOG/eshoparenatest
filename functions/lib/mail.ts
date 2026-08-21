@@ -360,27 +360,36 @@ export async function notifyAbandonedCart(
 }
 
 /**
- * 2. a 3. e-mail série opuštěného košíku (24 h a 72 h po opuštění).
- * Posílá je plánovaná úloha (cron) nebo ručně administrátor.
+ * Připomínka opuštěného košíku. Fáze 1 odchází po `abandoned_stage1_hours`
+ * (výchozí 2 h), fáze 2 po `abandoned_stage2_hours` (výchozí 24 h).
+ * V e-mailu je i seznam zboží, které v košíku zůstalo.
  */
 export async function notifyAbandonedCartStage(
   db: D1Database,
   to: string,
-  stage: 2 | 3,
-  env?: MailEnv
+  stage: 1 | 2,
+  env?: MailEnv,
+  items: { name: string; quantity: number; price: number }[] = []
 ): Promise<void> {
   const s = await loadSettings(db);
   const store = s.store_name || "KAVKA";
   const origin = s.store_url || "";
   const coupon = s.exit_coupon || "STAY5";
   const cartUrl = origin ? `${origin}/kosik` : "/kosik";
-  const couponLine = stage === 2
-    ? `<p>Sleva <b>5 %</b> s kódem <b>${escapeHtml(coupon)}</b> na vás stále čeká.</p>`
-    : `<p>Poslední šance: sleva <b>5 %</b> s kódem <b>${escapeHtml(coupon)}</b> platí už jen dnes.</p>`;
+  const list = items.length
+    ? `<ul style="padding-left:18px;margin:12px 0">${items
+        .map((i) => `<li>${escapeHtml(i.name)} — ${i.quantity}× za ${i.price * i.quantity} Kč</li>`)
+        .join("")}</ul>`
+    : "";
+  const couponLine =
+    stage === 1
+      ? `<p>Kdybyste potřebovali postrčit: sleva <b>5 %</b> s kódem <b>${escapeHtml(coupon)}</b>.</p>`
+      : `<p>Poslední připomenutí — sleva <b>5 %</b> s kódem <b>${escapeHtml(coupon)}</b> na vás pořád čeká.</p>`;
   const html = wrapMail(
     store,
-    stage === 2 ? "Váš košík na vás počká ještě chvíli" : "Košík vám za chvíli uteče",
-    `<p>Všimli jsme si, že jste u nás nechali rozkoukané zboží — zatím vám ho držíme v košíku.</p>
+    stage === 1 ? "Zapomněli jste košík" : "Váš košík na vás pořád čeká",
+    `<p>Nechali jste u nás rozkoukané zboží — zatím vám ho držíme v košíku.</p>
+     ${list}
      ${couponLine}
      <p><a href="${escapeHtml(cartUrl)}">Dokončit nákup</a></p>
      <p style="color:#7a7268;font-size:12px">Pokud jste už objednali, tento e-mail prosím ignorujte.</p>`
@@ -389,7 +398,7 @@ export async function notifyAbandonedCartStage(
     db,
     {
       to,
-      subject: stage === 2 ? `${store}: košík na vás čeká` : `${store}: poslední šance na nákup`,
+      subject: stage === 1 ? `${store}: zapomněli jste košík` : `${store}: košík na vás pořád čeká`,
       html,
       kind: "abandoned_cart",
       meta: `${coupon}|stage:${stage}`,
@@ -399,42 +408,74 @@ export async function notifyAbandonedCartStage(
 }
 
 /**
- * Projde nevyřízené košíky se známým e-mailem a odešle 2./3. e-mail série
- * podle stáří košíku. Volá se z cronu (viz README) nebo z administrace.
+ * Projde košíky se známým e-mailem (zákazník ho zanechal v pokladně nebo
+ * v opouštěcím pop-upu) a rozešle 1. / 2. připomínku podle stáří košíku.
+ * Kdo mezitím objednal, e-mail nedostane. Volá se z cronu (viz README)
+ * nebo ručně z administrace.
  */
-export async function processAbandonedCarts(db: D1Database, env?: MailEnv): Promise<{ sent: number }> {
+export async function processAbandonedCarts(db: D1Database, env?: MailEnv): Promise<{ sent: number; checked: number }> {
+  const s = await loadSettings(db);
+  if (s.abandoned_enabled === "0") return { sent: 0, checked: 0 };
+  const h1 = Math.max(0.25, Number(s.abandoned_stage1_hours || 2) || 2);
+  const h2 = Math.max(h1 + 0.25, Number(s.abandoned_stage2_hours || 24) || 24);
   const rows =
     (
       await db
         .prepare(
-          `SELECT c.id, c.email, c.updated_at
+          `SELECT c.id, c.email, c.updated_at, COALESCE(c.abandoned_stage, 0) AS abandoned_stage
            FROM carts c
            WHERE c.email != ''
-             AND c.updated_at > datetime('now', '-5 days')
+             AND c.updated_at > datetime('now', '-7 days')
              AND EXISTS (SELECT 1 FROM cart_items ci WHERE ci.cart_id = c.id)
            ORDER BY c.updated_at ASC`
         )
-        .all<{ id: string; email: string; updated_at: string }>()
+        .all<{ id: string; email: string; updated_at: string; abandoned_stage: number }>()
     ).results || [];
   let sent = 0;
   for (const cart of rows) {
     const ageMs = Date.now() - new Date(cart.updated_at.replace(" ", "T") + "Z").getTime();
     const ageH = ageMs / 3_600_000;
-    let stage: 2 | 3 | null = null;
-    if (ageH >= 72) stage = 3;
-    else if (ageH >= 24) stage = 2;
+    let stage: 1 | 2 | null = null;
+    if (ageH >= h2) stage = 2;
+    else if (ageH >= h1) stage = 1;
     if (!stage) continue;
+    if ((cart.abandoned_stage || 0) >= stage) continue;
+
+    // Zákazník mezitím objednal — připomínku neposíláme.
+    const ordered = await db
+      .prepare("SELECT 1 AS ok FROM orders WHERE email = ? AND created_at >= ? LIMIT 1")
+      .bind(cart.email, cart.updated_at)
+      .first();
+    if (ordered) {
+      await db.prepare("UPDATE carts SET abandoned_stage = 9 WHERE id = ?").bind(cart.id).run();
+      continue;
+    }
+
     const already = await db
-      .prepare("SELECT COUNT(*) AS c FROM email_log WHERE kind = 'abandoned_cart' AND recipient = ? AND meta LIKE ?")
+      .prepare("SELECT COUNT(*) AS c FROM email_log WHERE kind = 'abandoned_cart' AND recipient = ? AND meta LIKE ? AND created_at > datetime('now', '-7 days')")
       .bind(cart.email, `%|stage:${stage}`)
       .first<{ c: number }>();
-    if ((already?.c || 0) > 0) continue;
+    if ((already?.c || 0) > 0) {
+      await db.prepare("UPDATE carts SET abandoned_stage = ? WHERE id = ?").bind(stage, cart.id).run();
+      continue;
+    }
+
+    const items =
+      (
+        await db
+          .prepare(
+            `SELECT p.name, ci.quantity, p.price FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE ci.cart_id = ?`
+          )
+          .bind(cart.id)
+          .all<{ name: string; quantity: number; price: number }>()
+      ).results || [];
     try {
-      await notifyAbandonedCartStage(db, cart.email, stage, env);
+      await notifyAbandonedCartStage(db, cart.email, stage, env, items);
+      await db.prepare("UPDATE carts SET abandoned_stage = ? WHERE id = ?").bind(stage, cart.id).run();
       sent++;
     } catch (err) {
       console.error("abandoned stage mail:", err);
     }
   }
-  return { sent };
+  return { sent, checked: rows.length };
 }
