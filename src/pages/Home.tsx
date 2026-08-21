@@ -18,6 +18,18 @@ import { useStore } from "../store";
 import { useSeo } from "../title";
 import { renderBlock, useSystemPage } from "./blocks";
 
+/** Slide hero carouselu na úvodní stránce (edituje se v administraci → Carousel). */
+export type HeroSlide = {
+  id?: string;
+  kicker?: string;
+  title: string;
+  text: string;
+  cta: string;
+  to: string;
+  image?: string;
+  accent?: boolean;
+};
+
 export function Home() {
   const { settings, shipping } = useStore();
   const storeName = settings.store_name || "KAVKA";
@@ -61,7 +73,32 @@ export function Home() {
   );
 
   const heroSlides = useMemo(() => {
-    const slides: { kicker?: string; title: string; text: string; cta: string; to: string; image?: string; accent?: boolean }[] = [
+    // Vlastní slidy definované v administraci (sekce Carousel) mají přednost.
+    // Ukládají se jako JSON pole do settings.hero_slides.
+    const custom = settings.hero_slides;
+    if (custom) {
+      try {
+        const parsed = JSON.parse(custom) as HeroSlide[];
+        if (Array.isArray(parsed)) {
+          const clean = parsed
+            .filter((s) => s && (s.title || s.text || s.image))
+            .map((s) => ({
+              kicker: s.kicker || undefined,
+              title: String(s.title || ""),
+              text: String(s.text || ""),
+              cta: String(s.cta || "Zobrazit"),
+              to: String(s.to || "/katalog"),
+              image: s.image || undefined,
+              accent: !!s.accent,
+            }));
+          if (clean.length) return clean;
+        }
+      } catch {
+        /* poškozený JSON — použije se výchozí obsah */
+      }
+    }
+
+    const slides: HeroSlide[] = [
       {
         kicker: text("home_badge", "ATELIÉR KAVKA"),
         title: heroTitle,
@@ -94,7 +131,7 @@ export function Home() {
     }
     return slides;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, heroTitle, heroText, settings.exit_coupon]);
+  }, [items, heroTitle, heroText, settings.exit_coupon, settings.hero_slides]);
 
   useEffect(() => {
     if (heroSlides.length <= 1) return;
@@ -169,24 +206,24 @@ export function Home() {
   }
 
   return (
-    <div className="alza-home wrap">
+    <div className="shop-home wrap">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       {/* Hero carousel — vyhledávání je ve spodní liště (BottomNav) */}
-      <section className="alza-hero" aria-roledescription="carousel">
-        <div className="alza-hero-track" style={{ transform: `translateX(-${hero * 100}%)` }}>
+      <section className="home-hero" aria-roledescription="carousel">
+        <div className="home-hero-track" style={{ transform: `translateX(-${hero * 100}%)` }}>
           {heroSlides.map((s, i) => (
-            <div key={i} className={`alza-hero-slide${s.accent ? " slide-accent" : ""}`}>
-              <div className="alza-hero-copy">
+            <div key={i} className={`home-hero-slide${s.accent ? " slide-accent" : ""}`}>
+              <div className="home-hero-copy">
                 {s.kicker && <span className="kicker">{s.kicker}</span>}
                 <h2>{s.title}</h2>
                 <p>{s.text}</p>
-                <Link to={s.to} className="alza-hero-cta">
+                <Link to={s.to} className="home-hero-cta">
                   {s.cta} <IconArrow size={15} />
                 </Link>
               </div>
               {s.image && (
-                <div className="alza-hero-img">
+                <div className="home-hero-img">
                   <OptimizedImg src={s.image} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" />
                 </div>
               )}
@@ -197,7 +234,7 @@ export function Home() {
           <>
             <button
               type="button"
-              className="alza-hero-nav prev"
+              className="home-hero-nav prev"
               aria-label="Předchozí"
               onClick={() => setHero((h) => (h - 1 + heroSlides.length) % heroSlides.length)}
             >
@@ -205,13 +242,13 @@ export function Home() {
             </button>
             <button
               type="button"
-              className="alza-hero-nav next"
+              className="home-hero-nav next"
               aria-label="Další"
               onClick={() => setHero((h) => (h + 1) % heroSlides.length)}
             >
               ›
             </button>
-            <div className="alza-hero-dots">
+            <div className="home-hero-dots">
               {heroSlides.map((_, i) => (
                 <button
                   key={i}
@@ -227,10 +264,10 @@ export function Home() {
       </section>
 
       {/* Dlaždice zkratek */}
-      <section className="alza-tiles" aria-label="Rychlé odkazy">
+      <section className="home-tiles" aria-label="Rychlé odkazy">
         {tiles.map((t) => (
-          <Link key={t.name} to={t.to} className="alza-tile">
-            <span className={`alza-tile-icon ${t.cls}`}>{t.icon}</span>
+          <Link key={t.name} to={t.to} className="home-tile">
+            <span className={`home-tile-icon ${t.cls}`}>{t.icon}</span>
             <span>
               <b>{t.name}</b>
               <small>{t.sub}</small>
@@ -238,11 +275,11 @@ export function Home() {
           </Link>
         ))}
         {cats.slice(0, 4).map((c) => (
-          <Link key={c.id} to={`/katalog/${c.slug}`} className="alza-tile">
+          <Link key={c.id} to={`/katalog/${c.slug}`} className="home-tile">
             {c.image ? (
-              <OptimizedImg src={c.image} alt="" loading="lazy" decoding="async" width={84} height={84} className="alza-tile-img" />
+              <OptimizedImg src={c.image} alt="" loading="lazy" decoding="async" width={84} height={84} className="home-tile-img" />
             ) : (
-              <span className="alza-tile-icon forest">
+              <span className="home-tile-icon forest">
                 <IconPin size={20} />
               </span>
             )}
@@ -268,7 +305,7 @@ export function Home() {
 
       {/* Doporučené produkty */}
       <section id="produkty">
-        <div className="alza-section-head">
+        <div className="home-section-head">
           <h2>{text("home_featured_title", "Doporučujeme")}</h2>
           <Link to="/katalog">
             Vše <IconArrow size={14} />
@@ -297,27 +334,27 @@ export function Home() {
       </section>
 
       {/* Důvěra */}
-      <section className="alza-trust" aria-label="Proč nakoupit u nás">
+      <section className="home-trust" aria-label="Proč nakoupit u nás">
         <article>
-          <span className="alza-tile-icon">
+          <span className="home-tile-icon">
             <IconLeaf size={20} />
           </span>
           <b>{text("home_trust_1_title", "Z ateliéru")}</b>
-          <span>Ruční výroba, přírodní materiály</span>
+          <span>{text("home_trust_1_text", "Ruční výroba, přírodní materiály")}</span>
         </article>
         <article>
-          <span className="alza-tile-icon forest">
+          <span className="home-tile-icon forest">
             <IconLocker size={20} />
           </span>
           <b>{text("home_trust_2_title", "Doprava po ČR")}</b>
-          <span>{freeOver ? `Zdarma od ${czk(freeOver)}` : "Z-BOX, Zásilkovna, Balíkovna"}</span>
+          <span>{text("home_trust_2_text", freeOver ? `Zdarma od ${czk(freeOver)}` : "Z-BOX, Zásilkovna, Balíkovna")}</span>
         </article>
         <article>
-          <span className="alza-tile-icon gold">
+          <span className="home-tile-icon gold">
             <IconShield size={20} />
           </span>
           <b>{text("home_trust_3_title", "14 dní na vrácení")}</b>
-          <span>Záruka 24 měsíců</span>
+          <span>{text("home_trust_3_text", "Záruka 24 měsíců")}</span>
         </article>
       </section>
     </div>

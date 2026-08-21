@@ -4,7 +4,7 @@ import { IconCart, IconHome, IconMenu, IconSearch, IconShop } from "./Icons";
 
 /**
  * Pevné spodní menu v mobilním stylu (Domů / Katalog / Hledat / Košík / Menu).
- * Vzorem je mobilní web alza.cz — pět rovnoměrně rozložených položek,
+ * Pět rovnoměrně rozložených položek,
  * aktivní v barvě značky, odznak počtu věcí v košíku.
  */
 export function BottomNav({ onSearch, onMenu }: { onSearch: () => void; onMenu: () => void }) {

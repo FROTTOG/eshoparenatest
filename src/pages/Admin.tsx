@@ -61,6 +61,7 @@ export function Admin() {
           <NavLink to="/admin/platby">Platby</NavLink>
           <NavLink to="/admin/stranky">Stránky (editor)</NavLink>
           <NavLink to="/admin/navbar">Menu a logo</NavLink>
+          <NavLink to="/admin/carousel">Carousel</NavLink>
           <NavLink to="/admin/vzhled">Vzhled</NavLink>
           <NavLink to="/admin/feedy">Feedy a měření</NavLink>
           <NavLink to="/admin/emaily">E-maily</NavLink>
@@ -90,6 +91,7 @@ export function Admin() {
           <Route path="stranky" element={<Pages />} />
           <Route path="stranky/:id" element={<PageBuilder />} />
           <Route path="navbar" element={<NavbarSettings />} />
+          <Route path="carousel" element={<CarouselSettings />} />
           <Route path="vzhled" element={<AppearanceSettings />} />
           <Route path="nastaveni" element={<SettingsPage />} />
           <Route path="feedy" element={<FeedsPage />} />
@@ -1114,6 +1116,169 @@ function NavbarSettings() {
             {!navPages.length && <tr><td colSpan={4} style={{ color: "var(--muted)" }}>Zatím žádné stránky.</td></tr>}
           </tbody>
         </table>
+      </div>
+    </>
+  );
+}
+
+function CarouselSettings() {
+  const { toast, refresh } = useStore();
+  type Slide = { kicker: string; title: string; text: string; cta: string; to: string; image: string; accent: boolean };
+  const empty = (): Slide => ({ kicker: "", title: "", text: "", cta: "", to: "/katalog", image: "", accent: false });
+  const [slides, setSlides] = useState<Slide[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    void api<Record<string, string>>("/admin/settings").then((s) => {
+      try {
+        const raw = s.hero_slides;
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<Slide>[];
+          if (Array.isArray(parsed)) {
+            setSlides(
+              parsed
+                .filter((x) => x && typeof x === "object")
+                .map((x) => ({
+                  kicker: String(x.kicker || ""),
+                  title: String(x.title || ""),
+                  text: String(x.text || ""),
+                  cta: String(x.cta || ""),
+                  to: String(x.to || "/katalog"),
+                  image: String(x.image || ""),
+                  accent: !!x.accent,
+                }))
+            );
+          }
+        }
+      } catch {
+        /* poškozený JSON — necháme prázdný seznam */
+      }
+      setLoaded(true);
+    });
+  }, []);
+
+  function patch(i: number, k: keyof Slide, v: string | boolean) {
+    setSlides((prev) => prev.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
+  }
+
+  function move(i: number, dir: number) {
+    setSlides((prev) => {
+      const to = i + dir;
+      if (to < 0 || to >= prev.length) return prev;
+      const next = prev.slice();
+      const [it] = next.splice(i, 1);
+      next.splice(to, 0, it);
+      return next;
+    });
+  }
+
+  async function toWebp(file: File): Promise<File> {
+    if (file.type === "image/webp") return file;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return file;
+      ctx.drawImage(bitmap, 0, 0);
+      const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, "image/webp", 0.82));
+      if (!blob) return file;
+      return new File([blob], file.name.replace(/\.[^.]+$/, ".webp"), { type: "image/webp" });
+    } catch {
+      return file;
+    }
+  }
+
+  async function upload(i: number, file: File) {
+    const webp = await toWebp(file);
+    const fd = new FormData();
+    fd.append("file", webp);
+    try {
+      const r = await api<{ url: string }>("/admin/upload", { method: "POST", body: fd });
+      patch(i, "image", r.url);
+      toast("Obrázek nahrán.");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Nahrání selhalo. Máte připojené R2?", "err");
+    }
+  }
+
+  async function save() {
+    await api("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        hero_slides: JSON.stringify(slides.filter((s) => s.title || s.text || s.image)),
+      }),
+    });
+    toast("Carousel uložen. Na hlavní stránce se projeví ihned.");
+    void refresh();
+  }
+
+  if (!loaded) return <p>Načítám…</p>;
+
+  return (
+    <>
+      <h1>Carousel na hlavní stránce</h1>
+      <p style={{ color: "var(--muted)", marginBottom: 20 }}>
+        Zde přidáváte, upravujete a mažete slidy úvodního carouselu. Když seznam necháte prázdný, zobrazí se výchozí
+        obsah (hlavní nadpis z nastavení a doporučené produkty). Pořadí měňte šipkami.
+      </p>
+
+      {slides.map((s, i) => (
+        <div className="admin-form" style={{ gridTemplateColumns: "1fr" }} key={i}>
+          <div className="row-actions" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <b style={{ fontSize: 14 }}>Slide {i + 1}</b>
+            <span className="row-actions">
+              <button type="button" className="chip" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Posunout nahoru">↑</button>
+              <button type="button" className="chip" onClick={() => move(i, 1)} disabled={i === slides.length - 1} aria-label="Posunout dolů">↓</button>
+              <button type="button" className="linkish" onClick={() => setSlides((prev) => prev.filter((_, j) => j !== i))}>
+                Smazat slide
+              </button>
+            </span>
+          </div>
+          <label>Štítek nad nadpisem (kicker)
+            <input value={s.kicker} onChange={(e) => patch(i, "kicker", e.target.value)} placeholder="např. ATELIÉR KAVKA" />
+          </label>
+          <label>Nadpis
+            <input value={s.title} onChange={(e) => patch(i, "title", e.target.value)} placeholder="Domov, který dýchá pomalu" />
+          </label>
+          <label className="full">Text
+            <textarea rows={2} value={s.text} onChange={(e) => patch(i, "text", e.target.value)} />
+          </label>
+          <label>Text tlačítka (CTA)
+            <input value={s.cta} onChange={(e) => patch(i, "cta", e.target.value)} placeholder="Procházet katalog" />
+          </label>
+          <label>Odkaz tlačítka
+            <input value={s.to} onChange={(e) => patch(i, "to", e.target.value)} placeholder="/katalog" />
+          </label>
+          <label className="full">URL obrázku
+            <input value={s.image} onChange={(e) => patch(i, "image", e.target.value)} placeholder="/hero.webp" />
+          </label>
+          <label className="full">Nahrát obrázek (R2, převede se na webp)
+            <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && void upload(i, e.target.files[0])} />
+          </label>
+          <label className="full">
+            <input type="checkbox" checked={s.accent} onChange={(e) => patch(i, "accent", e.target.checked)} /> Tmavý (akcentní) slide
+          </label>
+          {s.image && (
+            <div className="full" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <img
+                src={s.image}
+                alt=""
+                style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 10, border: "1px solid var(--line)" }}
+              />
+              <span style={{ fontSize: 12, color: "var(--muted)" }}>Náhled obrázku</span>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <button className="pb-add" style={{ width: "100%", marginBottom: 16 }} onClick={() => setSlides((prev) => [...prev, empty()])}>
+        + Přidat slide
+      </button>
+
+      <div className="full row-actions">
+        <button className="btn-dark" onClick={() => void save()}>Uložit carousel</button>
       </div>
     </>
   );
