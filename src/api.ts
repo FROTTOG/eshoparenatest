@@ -37,6 +37,8 @@ export type User = {
   name: string;
   phone: string;
   role: "customer" | "admin";
+  /** Cenová skupina: "retail" (běžný zákazník) nebo "b2b" (velkoobchod). */
+  customer_group?: "retail" | "b2b";
 };
 
 export type Product = {
@@ -61,6 +63,16 @@ export type Product = {
   review_count?: number;
   images?: string[];
   reviews?: Review[];
+  /** Velkoobchodní cena bez DPH (v administraci). */
+  price_b2b?: number;
+  /** Cena bez DPH — vyplněná ve velkoobchodním režimu. */
+  price_net?: number;
+  /** Původní maloobchodní cena (jen ve velkoobchodním režimu). */
+  price_retail?: number;
+  /** Zákazník má produkt v historii objednávek a smí ho hodnotit. */
+  can_review?: boolean;
+  /** Zákazník už produkt hodnotil. */
+  has_review?: boolean;
 };
 
 export type Review = {
@@ -87,6 +99,7 @@ export type CartItem = {
   name: string;
   slug: string;
   price: number;
+  price_net?: number;
   image: string;
   stock: number;
   sku: string;
@@ -100,6 +113,27 @@ export type Cart = {
   coupon: { code: string; description?: string; type: string; value: number } | null;
   coupon_error: string | null;
   count: number;
+  /** Velkoobchodní režim — ceny se zobrazují bez DPH. */
+  b2b?: boolean;
+  vat_rate?: number;
+  subtotal_net?: number;
+  vat_amount?: number;
+};
+
+export type Post = {
+  id: number;
+  title: string;
+  slug: string;
+  perex: string;
+  body?: string;
+  cover: string;
+  author: string;
+  tags: string;
+  meta_title?: string;
+  meta_description?: string;
+  published?: number;
+  published_at: string;
+  updated_at?: string;
 };
 
 export type ShippingMethod = {

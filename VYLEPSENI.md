@@ -238,3 +238,19 @@ Google Shopping, SEO pole u stránek.
 BlazingCDN, Cloudflare komunita/dokumentace, Scrimba, blog Poski.com, Peckadesign, Animato,
 Kollert Slavomír, JTC Solutions, Digital Applied, Witscode, Search Engine Land, e15.cz, GoPay,
 Shoptet, Shopify CZ, Živě.cz).*
+
+---
+
+## Doplněno v této iteraci (srpen 2026)
+
+| Funkce | Kde to najdete | Poznámka |
+|---|---|---|
+| **Strukturovaná data (Schema.org) navíc** | `functions/_middleware.ts` | Product + Offer s `AggregateRating` a `priceValidUntil`, BreadcrumbList u produktu, kategorie i článku, `CollectionPage` u katalogu, `BlogPosting` u článku — vše už v prvotním HTML, takže Google zobrazí cenu, hvězdičky i dostupnost. |
+| **Magazín / blog** | `/magazin`, administrace → Magazín | Tabulka `posts`, veřejné API `/api/posts`, admin CRUD, články v `sitemap.xml`. |
+| **Velkoobchodní režim (B2B)** | Zákazníci → skupina, produkt → VO cena | `users.customer_group`, `products.price_b2b`, `functions/lib/pricing.ts`. Zákazník vidí ceny bez DPH, e-shop uvnitř dál počítá s cenou s DPH (fakturace beze změny). |
+| **Opuštěné košíky po 2 h / 24 h** | `functions/lib/mail.ts`, pokladna | E-mail z pokladny se ukládá ke košíku (`POST /api/cart/email`), série se hlídá sloupcem `carts.abandoned_stage` a kdo mezitím objednal, e-mail nedostane. |
+| **Hromadné úpravy + CSV** | Administrace → Produkty | `functions/lib/bulk.ts`: ceny, VO ceny, sklad, kategorie, viditelnost, mazání; export i import CSV (středník, BOM). |
+| **Dynamické OG obrázky** | `/og/produkt/<slug>.svg` | `functions/og/[[path]].ts` skládá náhled z fotky, názvu, ceny a hvězdiček. Vypínač `og_dynamic`. |
+| **Hromadný tisk faktur a štítků** | Administrace → Objednávky | `functions/lib/print.ts` → `/api/admin/print?ids=…&what=both`, jeden dokument, tiskový dialog → Uložit jako PDF. Doplněny i chybějící endpointy pro štítky jednotlivých objednávek. |
+| **Hodnocení jen po nákupu** | Detail produktu | API vrací `can_review` / `has_review`, formulář se ukáže jen s ověřeným nákupem (server kontroluje znovu). |
+| **Košík a pokladna — vzhled** | `src/styles.css` | Položky košíku jsou karty (dřív jen spodní linka a přetékající hover), v pokladně mají sekce jednotné rozestupy, popisky pod sebou a čísla zarovnaná doprava. |

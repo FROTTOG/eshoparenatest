@@ -58,7 +58,7 @@ export function ProductCard({ p, index = 0 }: { p: Product; index?: number }) {
             <Link to={`/produkt/${p.slug}`}>{p.name}</Link>
           </h3>
           <Stars value={p.rating} count={p.review_count || 0} />
-          <Price price={p.price} compare={p.compare_price} vatRate={vatRate} />
+          <Price price={p.price} compare={p.compare_price} vatRate={vatRate} retail={p.price_retail} />
           <Stock n={p.stock} />
           <button
             className={`btn-line${added ? " btn-added" : ""}${busy ? " btn-busy" : ""}`}

@@ -2,12 +2,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError, type Category, type Product } from "../api";
 import { ProductCard } from "../components/ProductCard";
+import { useStore } from "../store";
 import { usePageTitle } from "../title";
 
 const PAGE_SIZE = 24;
 
 export function Catalog() {
   const { slug } = useParams();
+  const { user, settings } = useStore();
   const [sp, setSp] = useSearchParams();
   const q = sp.get("q") || "";
   const sort = sp.get("sort") || "featured";
@@ -129,6 +131,12 @@ export function Catalog() {
         <Link to="/">Domů</Link> / <Link to="/katalog">Katalog</Link>
         {cat ? ` / ${cat.name}` : q ? ` / „${q}“` : ""}
       </div>
+      {user?.customer_group === "b2b" && (
+        <p className="b2b-banner" style={{ marginTop: 8 }}>
+          <b>Velkoobchodní ceník</b>
+          <span>{settings.b2b_note || "Ceny vidíte bez DPH, cena s DPH je v druhém řádku."}</span>
+        </p>
+      )}
       <div className="toolbar">
         <div>
           <h1 className="serif catalog-title">{cat ? cat.name : q ? `Hledání: ${q}` : "Katalog"}</h1>

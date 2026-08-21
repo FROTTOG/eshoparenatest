@@ -6,6 +6,9 @@ import { bumpCache } from "./cache";
 import { pushToSubscriptions } from "./push";
 import { generateTotpSecret, verifyPassword, verifyTotp } from "./crypto";
 import { CARRIERS, createShipment, type CarrierCode } from "./shipping";
+import { bulkEditProducts, importProductsCsv, productsCsv, type BulkAction } from "./bulk";
+import { batchPrintHtml, type PrintWhat } from "./print";
+import { seedPosts } from "./schema";
 import {
   cancelInvoiceForOrder,
   ensureInvoiceForOrder,
@@ -87,8 +90,8 @@ export function registerAdmin(app: App) {
     const sku = String(b.sku || `KAV-${Date.now().toString(36).toUpperCase()}`);
     try {
       const res = await c.env.DB.prepare(
-        `INSERT INTO products (name, slug, sku, description, short_description, price, compare_price, stock, low_stock, category_id, image, weight, active, featured)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO products (name, slug, sku, description, short_description, price, price_b2b, compare_price, stock, low_stock, category_id, image, weight, active, featured)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
         .bind(
           name,
@@ -97,6 +100,7 @@ export function registerAdmin(app: App) {
           String(b.description || ""),
           String(b.short_description || ""),
           Number(b.price || 0),
+          Number(b.price_b2b || 0),
           b.compare_price ? Number(b.compare_price) : null,
           Number(b.stock || 0),
           Number(b.low_stock ?? 5),
@@ -131,7 +135,7 @@ export function registerAdmin(app: App) {
     const name = String(b.name || "").trim();
     const slug = slugify(String(b.slug || name));
     await c.env.DB.prepare(
-      `UPDATE products SET name=?, slug=?, sku=?, description=?, short_description=?, price=?, compare_price=?,
+      `UPDATE products SET name=?, slug=?, sku=?, description=?, short_description=?, price=?, price_b2b=?, compare_price=?,
        low_stock=?, category_id=?, image=?, weight=?, active=?, featured=?, updated_at=datetime('now') WHERE id=?`
     )
       .bind(
@@ -141,6 +145,7 @@ export function registerAdmin(app: App) {
         String(b.description || ""),
         String(b.short_description || ""),
         Number(b.price || 0),
+        Number(b.price_b2b || 0),
         b.compare_price ? Number(b.compare_price) : null,
         Number(b.low_stock ?? 5),
         b.category_id ? Number(b.category_id) : null,
@@ -405,7 +410,7 @@ export function registerAdmin(app: App) {
 
   app.get("/admin/customers", async (c) => {
     const rows = await c.env.DB.prepare(
-      `SELECT u.id, u.email, u.name, u.phone, u.role, u.created_at,
+      `SELECT u.id, u.email, u.name, u.phone, u.role, u.created_at, u.customer_group, u.company_name, u.ico,
               (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id) AS orders,
               (SELECT COALESCE(SUM(total),0) FROM orders o WHERE o.user_id = u.id AND o.status != 'cancelled') AS spent
        FROM users u ORDER BY u.id DESC`
@@ -763,6 +768,18 @@ export function registerAdmin(app: App) {
           "Cache-Control": "no-store",
         },
       });
+    }
+
+    if (target === "products-csv") {
+      const rows =
+        (
+          await c.env.DB.prepare(
+            `SELECT p.id, p.sku, p.name, p.slug, c.slug AS category_slug, p.price, p.price_b2b, p.compare_price,
+                    p.stock, p.low_stock, p.weight, p.active, p.featured, p.image, p.short_description, p.description
+             FROM products p LEFT JOIN categories c ON c.id = p.category_id ORDER BY p.id`
+          ).all<Record<string, unknown>>()
+        ).results || [];
+      return file(productsCsv(rows), `kavka-produkty-${stamp}.csv`, "text/csv");
     }
 
     if (target === "orders-csv") {
@@ -1123,6 +1140,235 @@ export function registerAdmin(app: App) {
   app.post("/admin/mail/abandoned", async (c) => {
     const r = await processAbandonedCarts(c.env.DB, c.env);
     return c.json({ ok: true, ...r });
+  });
+
+  /* ---------------------------------------------------------------
+     Hromadné úpravy produktů (bulk edit) + CSV import
+     --------------------------------------------------------------- */
+  app.post("/admin/products/bulk", async (c) => {
+    const b = await c.req.json<{ ids?: number[]; action?: BulkAction; value?: string | number }>();
+    const ids = (b.ids || []).map((n) => Number(n));
+    if (!ids.length) return c.json({ error: "Nevybrali jste žádné produkty." }, 400);
+    if (!b.action) return c.json({ error: "Vyberte akci." }, 400);
+    const res = await bulkEditProducts(c.env.DB, ids, b.action, b.value ?? 0, c.get("user")!.id);
+    await bumpCache(c.env.DB);
+    return c.json({ ok: true, ...res });
+  });
+
+  app.post("/admin/products/import", async (c) => {
+    const ctype = c.req.header("Content-Type") || "";
+    let text = "";
+    if (ctype.includes("multipart/form-data")) {
+      const form = await c.req.formData();
+      const file = form.get("file");
+      if (file && typeof file !== "string") text = await file.text();
+    } else {
+      const b = await c.req.json<{ csv?: string }>();
+      text = String(b.csv || "");
+    }
+    if (!text.trim()) return c.json({ error: "Nahrajte CSV soubor s produkty." }, 400);
+    const res = await importProductsCsv(c.env.DB, text, c.get("user")!.id);
+    await bumpCache(c.env.DB);
+    return c.json({ ok: true, ...res });
+  });
+
+  /* ---------------------------------------------------------------
+     Zákazníci — velkoobchodní skupina (B2B)
+     --------------------------------------------------------------- */
+  app.patch("/admin/customers/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    const b = await c.req.json<{ customer_group?: string; role?: string; company_name?: string; ico?: string }>();
+    const fields: string[] = [];
+    const values: (string | number)[] = [];
+    if (b.customer_group != null) {
+      fields.push("customer_group = ?");
+      values.push(b.customer_group === "b2b" ? "b2b" : "retail");
+    }
+    if (b.role != null && (b.role === "admin" || b.role === "customer")) {
+      if (c.get("user")!.id === id && b.role !== "admin") {
+        return c.json({ error: "Sami sobě roli správce odebrat nemůžete." }, 400);
+      }
+      fields.push("role = ?");
+      values.push(b.role);
+    }
+    if (b.company_name != null) {
+      fields.push("company_name = ?");
+      values.push(String(b.company_name));
+    }
+    if (b.ico != null) {
+      fields.push("ico = ?");
+      values.push(String(b.ico));
+    }
+    if (!fields.length) return c.json({ error: "Není co uložit." }, 400);
+    await c.env.DB.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).bind(...values, id).run();
+    const user = await c.env.DB.prepare("SELECT id, email, name, role, customer_group, company_name, ico FROM users WHERE id = ?").bind(id).first();
+    return c.json({ ok: true, user });
+  });
+
+  /* ---------------------------------------------------------------
+     Magazín (blog)
+     --------------------------------------------------------------- */
+  app.get("/admin/posts", async (c) => {
+    const rows = await c.env.DB.prepare(
+      "SELECT id, title, slug, perex, cover, author, tags, published, published_at, updated_at FROM posts ORDER BY published_at DESC, id DESC"
+    ).all();
+    return c.json(rows.results || []);
+  });
+
+  app.get("/admin/posts/:id", async (c) => {
+    const post = await c.env.DB.prepare("SELECT * FROM posts WHERE id = ?").bind(Number(c.req.param("id"))).first();
+    if (!post) return c.json({ error: "Článek nenalezen." }, 404);
+    return c.json({ post });
+  });
+
+  app.post("/admin/posts", async (c) => {
+    const b = await c.req.json<Record<string, unknown>>();
+    const title = String(b.title || "Nový článek").trim();
+    const slug = slugify(String(b.slug || title)) || `clanek-${Date.now().toString(36)}`;
+    try {
+      const res = await c.env.DB.prepare(
+        `INSERT INTO posts (title, slug, perex, body, cover, author, tags, meta_title, meta_description, published, published_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?, ''), datetime('now')))`
+      )
+        .bind(
+          title,
+          slug,
+          String(b.perex || ""),
+          String(b.body || ""),
+          String(b.cover || ""),
+          String(b.author || c.get("user")!.name || ""),
+          String(b.tags || ""),
+          String(b.meta_title || ""),
+          String(b.meta_description || ""),
+          b.published ? 1 : 0,
+          String(b.published_at || "")
+        )
+        .run();
+      await bumpCache(c.env.DB);
+      return c.json({ id: Number(res.meta.last_row_id) });
+    } catch (e) {
+      return c.json({ error: "Článek s tímto URL (slug) už existuje.", detail: String(e) }, 409);
+    }
+  });
+
+  app.put("/admin/posts/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    const b = await c.req.json<Record<string, unknown>>();
+    const title = String(b.title || "").trim();
+    if (!title) return c.json({ error: "Zadejte název článku." }, 400);
+    const slug = slugify(String(b.slug || title));
+    try {
+      await c.env.DB.prepare(
+        `UPDATE posts SET title=?, slug=?, perex=?, body=?, cover=?, author=?, tags=?, meta_title=?, meta_description=?,
+         published=?, published_at=COALESCE(NULLIF(?, ''), published_at), updated_at=datetime('now') WHERE id=?`
+      )
+        .bind(
+          title,
+          slug,
+          String(b.perex || ""),
+          String(b.body || ""),
+          String(b.cover || ""),
+          String(b.author || ""),
+          String(b.tags || ""),
+          String(b.meta_title || ""),
+          String(b.meta_description || ""),
+          b.published ? 1 : 0,
+          String(b.published_at || ""),
+          id
+        )
+        .run();
+    } catch (e) {
+      return c.json({ error: "Článek s tímto URL (slug) už existuje.", detail: String(e) }, 409);
+    }
+    await bumpCache(c.env.DB);
+    return c.json({ ok: true });
+  });
+
+  app.delete("/admin/posts/:id", async (c) => {
+    await c.env.DB.prepare("DELETE FROM posts WHERE id = ?").bind(Number(c.req.param("id"))).run();
+    await bumpCache(c.env.DB);
+    return c.json({ ok: true });
+  });
+
+  // Doplnění ukázkových článků (když si je někdo smaže a chce je zpět).
+  app.post("/admin/posts/seed", async (c) => {
+    await seedPosts(c.env.DB);
+    await bumpCache(c.env.DB);
+    const rows = await c.env.DB.prepare("SELECT COUNT(*) AS c FROM posts").first<{ c: number }>();
+    return c.json({ ok: true, total: rows?.c || 0 });
+  });
+
+  /* ---------------------------------------------------------------
+     Přepravní štítky a hromadný tisk (faktury + štítky v jednom PDF)
+     --------------------------------------------------------------- */
+  app.post("/admin/orders/:id/label", async (c) => {
+    const id = Number(c.req.param("id"));
+    const b = await c.req.json<{ carrier?: string }>();
+    const carrier = (b.carrier || "ceska_posta") as CarrierCode;
+    if (!CARRIERS.some((x) => x.code === carrier)) return c.json({ error: "Neznámý dopravce." }, 400);
+    const shipment = await createShipment(c.env.DB, id, carrier);
+    if (!shipment) return c.json({ error: "Objednávka nenalezena." }, 404);
+    const order = await loadOrder(c.env.DB, id);
+    return c.json({ shipment, order });
+  });
+
+  app.get("/admin/orders/:id/label", async (c) => {
+    const id = Number(c.req.param("id"));
+    const carrier = (c.req.query("carrier") || "") as CarrierCode;
+    let row = await c.env.DB
+      .prepare(
+        carrier
+          ? "SELECT label_html FROM shipments WHERE order_id = ? AND carrier = ? ORDER BY id DESC LIMIT 1"
+          : "SELECT label_html FROM shipments WHERE order_id = ? ORDER BY id DESC LIMIT 1"
+      )
+      .bind(...(carrier ? [id, carrier] : [id]))
+      .first<{ label_html: string }>();
+    if (!row) {
+      const created = await createShipment(c.env.DB, id, (carrier || "ceska_posta") as CarrierCode);
+      if (!created) return c.json({ error: "Objednávka nenalezena." }, 404);
+      row = { label_html: created.label_html };
+    }
+    return new Response(row.label_html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+  });
+
+  /**
+   * Hromadný tisk: /api/admin/print?ids=1,2,3&what=both
+   * Vrátí jeden HTML dokument (faktury + štítky, každý na vlastní stránce),
+   * který se sám otevře v tiskovém dialogu → „Uložit jako PDF“.
+   */
+  app.get("/admin/print", async (c) => {
+    const ids = (c.req.query("ids") || "")
+      .split(",")
+      .map((x) => Number(x.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const what = (c.req.query("what") || "both") as PrintWhat;
+    if (!ids.length) return c.json({ error: "Vyberte alespoň jednu objednávku." }, 400);
+    const { html } = await batchPrintHtml(c.env.DB, ids, what === "invoices" || what === "labels" ? what : "both");
+    return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+  });
+
+  /** Hromadná změna stavu objednávek (např. „označit jako odeslané“). */
+  app.post("/admin/orders/bulk", async (c) => {
+    const b = await c.req.json<{ ids?: number[]; status?: string; payment_status?: string }>();
+    const ids = (b.ids || []).map((n) => Number(n)).filter((n) => n > 0).slice(0, 200);
+    if (!ids.length) return c.json({ error: "Nevybrali jste žádné objednávky." }, 400);
+    const list = ids.map(() => "?").join(",");
+    let changed = 0;
+    if (b.status) {
+      const r = await c.env.DB
+        .prepare(`UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id IN (${list})`)
+        .bind(b.status, ...ids)
+        .run();
+      changed += r.meta.changes;
+    }
+    if (b.payment_status) {
+      const r = await c.env.DB
+        .prepare(`UPDATE orders SET payment_status = ?, updated_at = datetime('now') WHERE id IN (${list})`)
+        .bind(b.payment_status, ...ids)
+        .run();
+      changed += r.meta.changes;
+    }
+    return c.json({ ok: true, changed });
   });
 
   // Ruční smazání starých záznamů pokusů o přihlášení (údržba).

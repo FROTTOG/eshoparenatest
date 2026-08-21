@@ -14,6 +14,7 @@ import { czk, pickupFreeOver } from "../format";
 const NAV_LINKS = [
   { to: "/", label: "Domů", end: true },
   { to: "/katalog", label: "Katalog" },
+  { to: "/magazin", label: "Magazín" },
   { to: "/doprava-a-platba", label: "Doprava a platba" },
   { to: "/o-nas", label: "O ateliéru" },
   { to: "/sledovani", label: "Sledování" },
@@ -127,13 +128,20 @@ export function Layout() {
       .map((p) => ({ to: `/stranka/${p.slug}`, label: p.nav_label || p.title, end: false }));
     const seen = new Set<string>();
     const out: { to: string; label: string; end: boolean }[] = [];
+    // Magazín se v menu ukáže jen když je modul zapnutý (nastavení blog_enabled).
+    const blogOff = settings.blog_enabled === "0";
+    const blogLabel = settings.blog_title || "Magazín";
     for (const l of [...base, ...dyn]) {
+      if (l.to === "/magazin") {
+        if (blogOff) continue;
+        l.label = blogLabel;
+      }
       if (seen.has(l.to)) continue;
       seen.add(l.to);
       out.push({ to: l.to, label: l.label, end: !!l.end });
     }
     return out;
-  }, [settings.navbar_items, navPages]);
+  }, [settings.navbar_items, settings.blog_enabled, settings.blog_title, navPages]);
 
   useEffect(() => {
     document.body.style.overflow = open || searchOpen ? "hidden" : "";
@@ -325,6 +333,9 @@ export function Layout() {
               </li>
               <li>
                 <Link to="/oblibene">Oblíbené</Link>
+              </li>
+              <li>
+                <Link to="/magazin">Magazín</Link>
               </li>
             </ul>
           </div>

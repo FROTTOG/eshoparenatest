@@ -8,7 +8,7 @@ import { usePageTitle } from "../title";
 import { trackAddToCart } from "../analytics";
 
 export function CartPage() {
-  const { cart, setCart, toast, shipping, addToCart } = useStore();
+  const { cart, setCart, toast, shipping, addToCart, settings } = useStore();
   const [code, setCode] = useState("");
   const [upsells, setUpsells] = useState<Product[]>([]);
   usePageTitle("Košík — KAVKA", "Váš nákupní košík v ateliéru KAVKA.");
@@ -58,6 +58,10 @@ export function CartPage() {
     );
   }
 
+  const b2b = !!cart.b2b;
+  const vatRate = Number(cart.vat_rate ?? settings.invoice_vat_rate ?? 21);
+  /** Ve velkoobchodním režimu se zobrazují ceny bez DPH. */
+  const net = (n: number) => (b2b ? Math.round(n / (1 + vatRate / 100)) : n);
   const goods = cart.subtotal - cart.discount;
   const remain = freeOver != null ? Math.max(0, freeOver - goods) : 0;
   const shipPct = freeOver ? Math.min(100, Math.round((goods / freeOver) * 100)) : 100;
@@ -86,8 +90,12 @@ export function CartPage() {
                 </button>
               </div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div>{czk(it.price * it.quantity)}</div>
+            <div className="line-item-price">
+              <div className="line-item-total">{czk(net(it.price * it.quantity))}</div>
+              <div className="line-item-unit">
+                {b2b ? "bez DPH · " : ""}
+                {czk(net(it.price))} / ks
+              </div>
               <button className="linkish" onClick={() => void qty(it.id, 0)}>
                 Odebrat
               </button>
@@ -154,19 +162,31 @@ export function CartPage() {
             <span style={{ width: `${shipPct}%` }} />
           </div>
         </div>
+        {b2b && (
+          <p className="b2b-banner">
+            <b>Velkoobchodní ceník</b>
+            <span>{settings.b2b_note || "Ceny jsou uvedené bez DPH. DPH dopočítáme v pokladně."}</span>
+          </p>
+        )}
         <dl>
           <div>
-            <span>Mezisoučet</span>
-            <span>{czk(cart.subtotal)}</span>
+            <span>Mezisoučet{b2b ? " bez DPH" : ""}</span>
+            <span>{czk(net(cart.subtotal))}</span>
           </div>
           {cart.discount > 0 && (
             <div>
               <span>Sleva {cart.coupon?.code}</span>
-              <span>−{czk(cart.discount)}</span>
+              <span>−{czk(net(cart.discount))}</span>
             </div>
           )}
-          <div>
-            <strong>Zboží</strong>
+          {b2b && (
+            <div>
+              <span>DPH {vatRate} %</span>
+              <span>{czk(goods - net(goods))}</span>
+            </div>
+          )}
+          <div className="sum-total">
+            <strong>Zboží{b2b ? " s DPH" : ""}</strong>
             <strong>{czk(goods)}</strong>
           </div>
         </dl>

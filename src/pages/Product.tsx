@@ -410,7 +410,7 @@ export function ProductPage() {
           <h1>{p.name}</h1>
           <Stars value={p.rating} count={p.review_count || 0} />
           <div style={{ margin: "14px 0" }}>
-            <Price price={p.price} compare={p.compare_price} vatRate={vatRate} />
+            <Price price={p.price} compare={p.compare_price} vatRate={vatRate} retail={p.price_retail} />
           </div>
           <Stock n={p.stock} />
           <p className="desc">{p.description}</p>
@@ -563,13 +563,13 @@ export function ProductPage() {
         ))}
         {!p.reviews?.length && <p className="empty">Zatím tu nikdo nic nenapsal.</p>}
 
-        {user ? (
+        {user && p.can_review && !p.has_review ? (
           <form className="form" onSubmit={review} style={{ marginTop: 20 }}>
             <h3 className="serif" style={{ margin: 0 }}>
               Napsat hodnocení
             </h3>
-            <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
-              Hodnotit můžete jen zboží, které jste u nás opravdu koupili.
+            <p className="review-verified">
+              <IconCheck size={15} /> Ověřený nákup — tento produkt máte v historii objednávek.
             </p>
             <label>
               Hvězdy
@@ -600,8 +600,20 @@ export function ProductPage() {
             </button>
           </form>
         ) : (
-          <p>
-            Pro hodnocení se <Link to="/prihlaseni">přihlaste</Link>.
+          <p className="review-note">
+            {!user ? (
+              <>
+                Hodnotit může jen zákazník, který produkt koupil.{" "}
+                <Link to="/prihlaseni">Přihlaste se</Link> a hodnocení napíšete u zboží ze své historie objednávek.
+              </>
+            ) : p.has_review ? (
+              <>Tento produkt už jste hodnotili — děkujeme!</>
+            ) : (
+              <>
+                Hodnotit můžete jen zboží, které máte v historii objednávek.{" "}
+                <Link to="/ucet/objednavky">Zobrazit moje objednávky</Link>
+              </>
+            )}
           </p>
         )}
       </section>

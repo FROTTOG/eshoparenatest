@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError, type AresResult, type PaymentMethod, type PickupPoint, type ShippingMethod } from "../api";
 import { PickupChooser } from "../components/CarrierMaps";
@@ -51,6 +51,7 @@ export function Checkout() {
   const [busy, setBusy] = useState(false);
   const [aresLoading, setAresLoading] = useState(false);
   const [walletOk, setWalletOk] = useState(false);
+  const savedEmail = useRef("");
   const [addresses, setAddresses] = useState<{ id: number; label: string; name: string; street: string; city: string; zip: string; phone: string }[]>([]);
 
   const [form, setForm] = useState({
@@ -137,10 +138,25 @@ export function Checkout() {
     setWalletOk(false);
   }, [pay]);
 
+  const b2b = !!cart?.b2b;
+  const vatRate = Number(cart?.vat_rate ?? settings.invoice_vat_rate ?? 21);
+  /** Ve velkoobchodním režimu ukazujeme ceny zboží bez DPH. */
+  const net = (n: number) => (b2b ? Math.round(n / (1 + vatRate / 100)) : n);
   const sub = cart ? cart.subtotal - cart.discount : 0;
   const shipPrice = selectedShip ? (selectedShip.free_over != null && sub >= selectedShip.free_over ? 0 : selectedShip.price) : 0;
   const payFee = allowedPay.find((p) => p.code === pay)?.fee || 0;
   const total = sub + shipPrice + payFee;
+
+  /**
+   * Zapamatuje e-mail z pokladny. Když zákazník nákup nedokončí, naváže na něj
+   * série „opuštěný košík“ (připomínka po 2 a po 24 hodinách).
+   */
+  async function rememberEmail(email: string) {
+    const value = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) || value === savedEmail.current) return;
+    savedEmail.current = value;
+    await api("/cart/email", { method: "POST", body: JSON.stringify({ email: value }) }).catch(() => null);
+  }
 
   async function lookupAres() {
     const rawIco = form.ico.replace(/\s+/g, "");
@@ -344,6 +360,7 @@ export function Checkout() {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onBlur={() => rememberEmail(form.email)}
                 autoComplete="email"
                 placeholder="např. jan.novak@email.cz"
               />
@@ -521,7 +538,10 @@ export function Checkout() {
         </div>
 
         {/* 3. ZPŮSOB DOPRAVY */}
-        <h3 className="serif">3. Kam to poslat</h3>
+        <div className="checkout-section-head">
+          <h3 className="serif">3. Kam to poslat</h3>
+          <p>Vyberte dopravu. U výdejních míst pak ještě konkrétní místo na mapě.</p>
+        </div>
         {shipping.map((s) => (
           <label key={s.code} className={`choice ${ship === s.code ? "active" : ""}`}>
             <input
@@ -663,7 +683,10 @@ export function Checkout() {
         )}
 
         {/* 4. ZPŮSOB PLATBY */}
-        <h3 className="serif">4. Jak zaplatíte</h3>
+        <div className="checkout-section-head">
+          <h3 className="serif">4. Jak zaplatíte</h3>
+          <p>Cena včetně případného poplatku se propíše do shrnutí vpravo.</p>
+        </div>
         {allowedPay.map((p) => (
           <label key={p.code} className={`choice ${pay === p.code ? "active" : ""}`}>
             <input type="radio" name="pay" checked={pay === p.code} onChange={() => setPay(p.code)} style={{ display: "none" }} />
@@ -755,21 +778,27 @@ export function Checkout() {
         </h2>
         {cart.items.map((it) => (
           <div key={it.id} className="summary-line">
-            <span>
-              {it.name} × {it.quantity}
+            <span className="summary-line-name">
+              {it.name} <em>× {it.quantity}</em>
             </span>
-            <span>{czk(it.price * it.quantity)}</span>
+            <span className="summary-line-price">{czk(net(it.price * it.quantity))}</span>
           </div>
         ))}
+        {b2b && (
+          <p className="b2b-banner">
+            <b>Velkoobchodní ceník</b>
+            <span>{settings.b2b_note || "Ceny zboží jsou uvedené bez DPH, celková částka je s DPH."}</span>
+          </p>
+        )}
         <dl>
           <div>
-            <span>Mezisoučet</span>
-            <span>{czk(cart.subtotal)}</span>
+            <span>Mezisoučet{b2b ? " bez DPH" : ""}</span>
+            <span>{czk(net(cart.subtotal))}</span>
           </div>
           {cart.discount > 0 && (
             <div>
               <span>Sleva {cart.coupon?.code ? `(${cart.coupon.code})` : ""}</span>
-              <span>−{czk(cart.discount)}</span>
+              <span>−{czk(net(cart.discount))}</span>
             </div>
           )}
           <div>
@@ -782,9 +811,15 @@ export function Checkout() {
               <span>{czk(payFee)}</span>
             </div>
           )}
-          <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, marginTop: 6 }}>
+          {b2b && (
+            <div>
+              <span>DPH {vatRate} %</span>
+              <span>{czk(total - net(total))}</span>
+            </div>
+          )}
+          <div className="sum-total">
             <strong>Celkem k úhradě</strong>
-            <strong style={{ fontSize: 20, color: "var(--accent)" }}>{czk(total)}</strong>
+            <strong className="sum-total-value">{czk(total)}</strong>
           </div>
         </dl>
         <p style={{ fontSize: 11, color: "var(--muted)", margin: "8px 0 0" }}>

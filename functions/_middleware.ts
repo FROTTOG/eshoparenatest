@@ -47,7 +47,16 @@ function abs(origin: string, path: string) {
 
 function injectSeo(
   html: string,
-  seo: { title: string; description: string; url: string; image: string; type?: string; jsonLd?: string }
+  seo: {
+    title: string;
+    description: string;
+    url: string;
+    image: string;
+    imageFallback?: string;
+    imageAlt?: string;
+    type?: string;
+    jsonLd?: string;
+  }
 ) {
   const tags = [
     `<title>${esc(seo.title)}</title>`,
@@ -56,6 +65,12 @@ function injectSeo(
     `<meta property="og:title" content="${esc(seo.title)}" />`,
     `<meta property="og:description" content="${esc(seo.description)}" />`,
     `<meta property="og:image" content="${esc(seo.image)}" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
+    ...(seo.imageAlt ? [`<meta property="og:image:alt" content="${esc(seo.imageAlt)}" />`] : []),
+    ...(seo.imageFallback && seo.imageFallback !== seo.image
+      ? [`<meta property="og:image" content="${esc(seo.imageFallback)}" />`]
+      : []),
     `<meta property="og:url" content="${esc(seo.url)}" />`,
     `<meta property="og:type" content="${esc(seo.type || "website")}" />`,
     `<meta property="og:locale" content="cs_CZ" />`,
@@ -63,7 +78,7 @@ function injectSeo(
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${esc(seo.title)}" />`,
     `<meta name="twitter:description" content="${esc(seo.description)}" />`,
-    `<meta name="twitter:image" content="${esc(seo.image)}" />`,
+    `<meta name="twitter:image" content="${esc(seo.imageFallback || seo.image)}" />`,
     ...(seo.jsonLd ? [`<script type="application/ld+json">${seo.jsonLd}</script>`] : []),
   ].join("\n    ");
   let out = html.replace(/<title>[\s\S]*?<\/title>/gi, "");
@@ -111,6 +126,30 @@ function baseJsonLd(origin: string, storeName: string, email: string): string {
   });
 }
 
+/** Přepínač dynamických OG obrázků (nastavení og_dynamic, výchozí zapnuto). */
+async function ogDynamic(db?: D1Database): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const row = await db.prepare("SELECT value FROM settings WHERE key = 'og_dynamic'").first<{ value: string }>();
+    return (row?.value ?? "1") !== "0";
+  } catch {
+    return false;
+  }
+}
+
+/** Drobečková navigace jako JSON-LD (BreadcrumbList). */
+function crumbs(origin: string, items: [string, string][]): Record<string, unknown> {
+  return {
+    "@type": "BreadcrumbList",
+    itemListElement: items.map(([name, path], i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name,
+      item: `${origin}${path}`,
+    })),
+  };
+}
+
 async function spaHtml(context: EventContext<Env, string, unknown>, url: URL) {
   let res = await context.next();
   if (res.status === 404) {
@@ -123,6 +162,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   if (url.pathname.startsWith("/api/")) return context.next();
   if (url.pathname === "/sitemap.xml" || url.pathname === "/robots.txt") return context.next();
+  // Dynamické OG obrázky obsluhuje functions/og/[[path]].ts
+  if (url.pathname.startsWith("/og/")) return context.next();
 
   const accept = context.request.headers.get("Accept") || "";
   const wantsHtml = accept.includes("text/html") || accept.includes("*/*");
@@ -140,6 +181,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   let title = `${storeName} Ateliér — keramika, len a dřevo`;
   let description = DEFAULT_DESC;
   let image = `${origin}/hero.webp`;
+  let imageFallback = "";
+  let imageAlt = "";
   let type = "website";
   let jsonLd = baseJsonLd(origin, storeName, "ahoj@kavka.shop");
 
@@ -149,7 +192,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const slug = decodeURIComponent(productMatch[1]);
       const p = await context.env.DB.prepare(
         `SELECT p.name, p.description, p.short_description, p.image, p.price, p.sku, p.stock,
-                c.name AS category_name, c.slug AS category_slug
+                c.name AS category_name, c.slug AS category_slug,
+                (SELECT ROUND(AVG(rating), 1) FROM reviews r WHERE r.product_id = p.id AND r.approved = 1) AS rating,
+                (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.approved = 1) AS review_count
          FROM products p LEFT JOIN categories c ON c.id = p.category_id
          WHERE p.slug = ? AND p.active = 1`
       )
@@ -164,11 +209,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           stock: number;
           category_name: string | null;
           category_slug: string | null;
+          rating: number | null;
+          review_count: number;
         }>();
       if (p) {
         title = `${p.name} — KAVKA`;
         description = (p.short_description || p.description || DEFAULT_DESC).slice(0, 240);
-        image = abs(origin, p.image || "/hero.webp");
+        imageFallback = abs(origin, p.image || "/hero.webp");
+        // Dynamický náhledový obrázek s fotkou, názvem a cenou (lze vypnout
+        // nastavením og_dynamic = 0 v administraci).
+        image = (await ogDynamic(context.env.DB))
+          ? `${origin}/og/produkt/${encodeURIComponent(slug)}.svg`
+          : imageFallback;
+        imageAlt = `${p.name} — ${p.price} Kč`;
         type = "product";
         // Product + Offer + BreadcrumbList v prvotním HTML — pro Google
         // (merchant listings) i AI vyhledávače, bez čekání na hydrataci.
@@ -195,9 +248,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             description: (p.description || p.short_description || "").slice(0, 500),
             sku: p.sku,
             brand: { "@type": "Brand", name: storeName },
+            ...(p.rating && p.review_count
+              ? {
+                  aggregateRating: {
+                    "@type": "AggregateRating",
+                    ratingValue: p.rating,
+                    reviewCount: p.review_count,
+                    bestRating: 5,
+                    worstRating: 1,
+                  },
+                }
+              : {}),
             offers: {
               "@type": "Offer",
               url: productUrl,
+              priceValidUntil: new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10),
               priceCurrency: "CZK",
               price: p.price,
               availability: p.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
@@ -222,6 +287,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               ...(p.category_name && p.category_slug
                 ? [{ "@type": "ListItem", position: 3, name: p.category_name, item: `${origin}/katalog/${encodeURIComponent(p.category_slug)}` }]
                 : []),
+              {
+                "@type": "ListItem",
+                position: p.category_name && p.category_slug ? 4 : 3,
+                name: p.name,
+                item: productUrl,
+              },
             ],
           },
         ];
@@ -230,9 +301,129 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     } catch {
       /* D1 nemusí být na preview */
     }
+  } else if (url.pathname.match(/^\/magazin\/([^/]+)\/?$/) && context.env.DB) {
+    // Detail článku magazínu — Article + BreadcrumbList do zdroje stránky.
+    try {
+      const postSlug = decodeURIComponent(url.pathname.match(/^\/magazin\/([^/]+)\/?$/)![1]);
+      const post = await context.env.DB.prepare(
+        `SELECT title, slug, perex, cover, author, tags, meta_title, meta_description, published_at, updated_at
+         FROM posts WHERE slug = ? AND published = 1`
+      )
+        .bind(postSlug)
+        .first<{
+          title: string;
+          slug: string;
+          perex: string;
+          cover: string;
+          author: string;
+          tags: string;
+          meta_title: string;
+          meta_description: string;
+          published_at: string;
+          updated_at: string;
+        }>();
+      if (post) {
+        const postUrl = `${origin}/magazin/${encodeURIComponent(post.slug)}`;
+        title = post.meta_title || `${post.title} — ${storeName} Magazín`;
+        description = (post.meta_description || post.perex || DEFAULT_DESC).slice(0, 240);
+        imageFallback = abs(origin, post.cover || "/hero.webp");
+        image = (await ogDynamic(context.env.DB))
+          ? `${origin}/og/clanek/${encodeURIComponent(post.slug)}.svg`
+          : imageFallback;
+        imageAlt = post.title;
+        type = "article";
+        jsonLd = safeJson({
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": `${origin}/#org`,
+              name: storeName,
+              url: `${origin}/`,
+              logo: `${origin}/favicon.svg`,
+            },
+            {
+              "@type": "BlogPosting",
+              headline: post.title.slice(0, 110),
+              description: (post.perex || "").slice(0, 300),
+              image: [imageFallback],
+              datePublished: String(post.published_at || "").replace(" ", "T"),
+              dateModified: String(post.updated_at || post.published_at || "").replace(" ", "T"),
+              author: { "@type": post.author ? "Person" : "Organization", name: post.author || storeName },
+              publisher: { "@id": `${origin}/#org` },
+              mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
+              inLanguage: "cs-CZ",
+              ...(post.tags ? { keywords: post.tags } : {}),
+            },
+            crumbs(origin, [
+              ["Domů", "/"],
+              ["Magazín", "/magazin"],
+              [post.title, `/magazin/${encodeURIComponent(post.slug)}`],
+            ]),
+          ],
+        });
+      }
+    } catch {
+      /* D1 nemusí být na preview */
+    }
+  } else if (url.pathname === "/magazin" || url.pathname === "/magazin/") {
+    title = `Magazín — ${storeName}`;
+    description = "Články z ateliéru: péče o keramiku, len i dřevo, novinky a návody.";
+    jsonLd = safeJson({
+      "@context": "https://schema.org",
+      "@graph": [
+        { "@type": "Blog", name: `${storeName} Magazín`, url: `${origin}/magazin`, inLanguage: "cs-CZ" },
+        crumbs(origin, [
+          ["Domů", "/"],
+          ["Magazín", "/magazin"],
+        ]),
+      ],
+    });
   } else if (url.pathname.startsWith("/katalog")) {
-    title = "Katalog — KAVKA";
-    description = "Keramika, len a dřevo z ateliéru. Celý obchod KAVKA.";
+    const catSlug = url.pathname.replace(/^\/katalog\/?/, "").replace(/\/$/, "");
+    let catName = "";
+    if (catSlug && context.env.DB) {
+      try {
+        const cat = await context.env.DB.prepare("SELECT name, description FROM categories WHERE slug = ? AND active = 1")
+          .bind(decodeURIComponent(catSlug))
+          .first<{ name: string; description: string }>();
+        if (cat) {
+          catName = cat.name;
+          title = `${cat.name} — ${storeName}`;
+          description = (cat.description || `Kategorie ${cat.name} z ateliéru ${storeName}.`).slice(0, 240);
+        }
+      } catch {
+        /* bez databáze zůstane obecný katalog */
+      }
+    }
+    if (!catName) {
+      title = "Katalog — KAVKA";
+      description = "Keramika, len a dřevo z ateliéru. Celý obchod KAVKA.";
+    }
+    jsonLd = safeJson({
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "CollectionPage",
+          name: catName || "Katalog",
+          url: `${origin}${url.pathname}`,
+          isPartOf: { "@id": `${origin}/#website` },
+        },
+        crumbs(
+          origin,
+          catName
+            ? [
+                ["Domů", "/"],
+                ["Katalog", "/katalog"],
+                [catName, `/katalog/${catSlug}`],
+              ]
+            : [
+                ["Domů", "/"],
+                ["Katalog", "/katalog"],
+              ]
+        ),
+      ],
+    });
   } else if (url.pathname.startsWith("/o-nas")) {
     title = "O nás a kontakty — KAVKA";
   } else if (url.pathname.startsWith("/doprava-a-platba")) {
@@ -244,6 +435,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     description,
     url: `${origin}${url.pathname}`,
     image,
+    imageFallback,
+    imageAlt,
     type,
     jsonLd,
   });
