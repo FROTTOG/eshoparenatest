@@ -900,17 +900,35 @@ export function registerAdmin(app: App) {
       nav_label?: string;
       nav_order?: number;
       published?: number | boolean;
+      meta_title?: string;
+      meta_description?: string;
+      noindex?: number | boolean;
+      hide_crumbs?: number | boolean;
+      page_max_width?: string;
     }>();
     let slug = slugifyPage(b.slug || "");
-    const cur = await c.env.DB.prepare("SELECT * FROM pages WHERE id = ?").bind(id).first<{ title: string; slug: string; is_system: number }>();
+    const cur = await c.env.DB.prepare("SELECT * FROM pages WHERE id = ?").bind(id).first<{
+      title: string;
+      slug: string;
+      is_system: number;
+      meta_title: string;
+      meta_description: string;
+      noindex: number;
+      hide_crumbs: number;
+      page_max_width: string;
+    }>();
     if (!cur) return c.json({ error: "Stránka nenalezena." }, 404);
-    if (!slug) slug = cur.slug;
-    if (slug !== cur.slug) {
-      const clash = await c.env.DB.prepare("SELECT id FROM pages WHERE slug = ? AND id != ?").bind(slug, id).first();
-      if (clash) return c.json({ error: "Tato adresa už je použitá." }, 409);
+    // Systémové stránky (home, o-nas, …) mají pevnou adresu.
+    if (cur.is_system) slug = cur.slug;
+    else {
+      if (!slug) slug = cur.slug;
+      if (slug !== cur.slug) {
+        const clash = await c.env.DB.prepare("SELECT id FROM pages WHERE slug = ? AND id != ?").bind(slug, id).first();
+        if (clash) return c.json({ error: "Tato adresa už je použitá." }, 409);
+      }
     }
     await c.env.DB.prepare(
-      "UPDATE pages SET title=?, slug=?, blocks_json=?, in_nav=?, nav_label=?, nav_order=?, published=?, updated_at=datetime('now') WHERE id=?"
+      "UPDATE pages SET title=?, slug=?, blocks_json=?, in_nav=?, nav_label=?, nav_order=?, published=?, meta_title=?, meta_description=?, noindex=?, hide_crumbs=?, page_max_width=?, updated_at=datetime('now') WHERE id=?"
     ).bind(
       String(b.title ?? cur.title ?? ""),
       slug,
@@ -919,6 +937,11 @@ export function registerAdmin(app: App) {
       String(b.nav_label ?? ""),
       Number(b.nav_order ?? 0),
       b.published === 0 || b.published === false ? 0 : 1,
+      String(b.meta_title ?? cur.meta_title ?? ""),
+      String(b.meta_description ?? cur.meta_description ?? ""),
+      b.noindex == null ? Number(cur.noindex || 0) : b.noindex ? 1 : 0,
+      b.hide_crumbs == null ? Number(cur.hide_crumbs || 0) : b.hide_crumbs ? 1 : 0,
+      String(b.page_max_width ?? cur.page_max_width ?? ""),
       id
     ).run();
     return c.json({ ok: true });

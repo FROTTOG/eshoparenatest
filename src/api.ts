@@ -207,6 +207,11 @@ export type Page = {
   nav_order: number;
   published: number;
   is_system: number;
+  meta_title: string;
+  meta_description: string;
+  noindex: number;
+  hide_crumbs: number;
+  page_max_width: string;
   created_at: string;
   updated_at: string;
 };

@@ -76,6 +76,55 @@ export const GROWTH_SQL = [
   "ALTER TABLE orders ADD COLUMN tracking_number TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE orders ADD COLUMN tracking_carrier TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE orders ADD COLUMN tracking_url TEXT NOT NULL DEFAULT ''",
+  // Editor stránek v2 — tabulka pages i se sloupci pro SEO a vzhled stránky.
+  // Starší databáze (založené migrací 0003) dostanou chybějící sloupce
+  // idempotentními ALTERy níže.
+  `CREATE TABLE IF NOT EXISTS pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL DEFAULT '',
+    slug TEXT NOT NULL UNIQUE,
+    blocks_json TEXT NOT NULL DEFAULT '[]',
+    in_nav INTEGER NOT NULL DEFAULT 0,
+    nav_label TEXT NOT NULL DEFAULT '',
+    nav_order INTEGER NOT NULL DEFAULT 0,
+    published INTEGER NOT NULL DEFAULT 1,
+    is_system INTEGER NOT NULL DEFAULT 0,
+    meta_title TEXT NOT NULL DEFAULT '',
+    meta_description TEXT NOT NULL DEFAULT '',
+    noindex INTEGER NOT NULL DEFAULT 0,
+    hide_crumbs INTEGER NOT NULL DEFAULT 0,
+    page_max_width TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  "CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(slug)",
+  "CREATE INDEX IF NOT EXISTS idx_pages_nav ON pages(in_nav, nav_order)",
+];
+
+/**
+ * Sloupce editoru stránek v2 — u starších databází (migrace 0003) doplníme
+ * potichu, stejně jako se doplňují sloupce objednávek.
+ */
+const pageCols = [
+  "ALTER TABLE pages ADD COLUMN meta_title TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE pages ADD COLUMN meta_description TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE pages ADD COLUMN noindex INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE pages ADD COLUMN hide_crumbs INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE pages ADD COLUMN page_max_width TEXT NOT NULL DEFAULT ''",
+];
+
+/**
+ * Systémové stránky, které se dají upravovat v editoru. Jejich prázdný
+ * `blocks_json` znamená „zobraz výchozí obsah“ (hlavní stránka a statické
+ * stránky). Jakmile do nich editor vloží bloky, nahradí výchozí obsah.
+ */
+export const SYSTEM_PAGES: [string, string][] = [
+  ["home", "Hlavní stránka"],
+  ["o-nas", "O ateliéru KAVKA"],
+  ["doprava-a-platba", "Doprava a platba"],
+  ["obchodni-podminky", "Obchodní podmínky"],
+  ["ochrana-udaju", "Ochrana osobních údajů"],
+  ["reklamace", "Reklamace"],
 ];
 
 export const LATE_INDEX_SQL = [
@@ -914,6 +963,13 @@ async function prepareDatabase(env: Bindings) {
       /* sloupec už existuje */
     }
   }
+  for (const col of pageCols) {
+    try {
+      await env.DB.prepare(col).run();
+    } catch {
+      /* sloupec už existuje */
+    }
+  }
 
   // Faktury — doplníme i do starších databází.
   for (const stmt of [INVOICES_SQL, ...INVOICES_INDEX_SQL]) {
@@ -930,6 +986,21 @@ async function prepareDatabase(env: Bindings) {
       await env.DB.prepare(stmt).run();
     } catch (err) {
       console.error("Late schema error:", err);
+    }
+  }
+
+  // Systémové stránky editoru — vzniknou automaticky, aby šly upravovat
+  // (hlavní stránka, O ateliéru, doprava, VOP, GDPR, reklamace). Prázdné
+  // bloky znamenají „ponech výchozí obsah“.
+  for (const [slug, title] of SYSTEM_PAGES) {
+    try {
+      await env.DB.prepare(
+        "INSERT OR IGNORE INTO pages (title, slug, blocks_json, in_nav, nav_label, nav_order, published, is_system) VALUES (?, ?, '[]', 0, '', 0, 1, 1)"
+      )
+        .bind(title, slug)
+        .run();
+    } catch (err) {
+      console.error("System page seed error:", err);
     }
   }
 

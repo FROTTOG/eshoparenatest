@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type Category, type Product } from "../api";
 import {
@@ -17,6 +17,7 @@ import { cheapestPickup, czk, pickupFreeOver, shippingByKind } from "../format";
 import { optimizedImage } from "../image";
 import { useStore } from "../store";
 import { useSeo } from "../title";
+import { renderBlock, useSystemPage } from "./blocks";
 
 export function Home() {
   const { settings, shipping } = useStore();
@@ -25,11 +26,19 @@ export function Home() {
   const heroText = settings.hero_text || "Ručně točená kamenina z ateliéru, vypraný len z české dílny a doplňky z masivního dřeva s přirozenou kresbou.";
   const text = (key: string, fallback: string) => settings[key] || fallback;
 
+  // Hlavní stránka upravená v editoru (systemová stránka „home“).
+  // Dokud nemá bloky, zobrazuje se výchozí domovská stránka níže.
+  const sys = useSystemPage("home");
+
   useSeo({
-    title: `${storeName} Ateliér — keramika, len a dřevo`,
-    description:
-      "Ručně točená keramika, praný len a dřevo z ateliéru KAVKA. Doprava Z-BOX, Zásilkovna i Balíkovna. QR platba, osobní odběr na Vinohradech.",
+    title: sys
+      ? sys.page.meta_title || sys.page.title
+      : `${storeName} Ateliér — keramika, len a dřevo`,
+    description: sys
+      ? sys.page.meta_description || undefined
+      : "Ručně točená keramika, praný len a dřevo z ateliéru KAVKA. Doprava Z-BOX, Zásilkovna i Balíkovna. QR platba, osobní odběr na Vinohradech.",
     image: "/hero.webp",
+    noindex: !!sys?.page.noindex,
   });
 
   const freeOver = pickupFreeOver(shipping);
@@ -92,6 +101,20 @@ export function Home() {
       },
     ],
   };
+
+  if (sys) {
+    // Obsah hlavní stránky je řízen editorem (bloky stránky „home“).
+    return (
+      <>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        <div className="wrap pb-public-page pb-home-page">
+          {sys.blocks.map((b) => (
+            <Fragment key={b.id}>{renderBlock(b)}</Fragment>
+          ))}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

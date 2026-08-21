@@ -24,6 +24,7 @@ import { openCookieSettings } from "../components/CookieBanner";
 import { czk } from "../format";
 import { useStore } from "../store";
 import { usePageTitle } from "../title";
+import { SystemPageView, useSystemPage } from "./blocks";
 
 function Box({ title, children }: { title: string; children: React.ReactNode }) {
   usePageTitle(`${title} — KAVKA`);
@@ -40,6 +41,7 @@ function Box({ title, children }: { title: string; children: React.ReactNode }) 
 
 export function About() {
   const { settings } = useStore();
+  const sys = useSystemPage("o-nas");
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const ico = settings.store_ico || "19200456";
   const dic = settings.store_dic || "CZ19200456";
@@ -50,6 +52,8 @@ export function About() {
   const bankAcc = settings.bank_account || "192000145399/0800";
   const iban = settings.iban || "CZ6508000000192000145399";
   const bankName = settings.bank_name || "Česká spořitelna, a.s.";
+
+  if (sys) return <SystemPageView page={sys.page} blocks={sys.blocks} />;
 
   return (
     <Box title="O ateliéru KAVKA">
@@ -211,6 +215,8 @@ function shipIcon(kind: string) {
 
 export function ShippingInfo() {
   const { shipping } = useStore();
+  const sys = useSystemPage("doprava-a-platba");
+  if (sys) return <SystemPageView page={sys.page} blocks={sys.blocks} />;
   return (
     <Box title="Doprava a platba">
       <p>
@@ -290,6 +296,7 @@ export function ShippingInfo() {
 
 export function Terms() {
   const { settings } = useStore();
+  const sys = useSystemPage("obchodni-podminky");
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const ico = settings.store_ico || "19200456";
   const dic = settings.store_dic || "CZ19200456";
@@ -297,6 +304,8 @@ export function Terms() {
   const address = settings.store_address || "Korunní 42, 120 00 Praha 2 - Vinohrady";
   const email = settings.store_email || "ahoj@kavka.shop";
   const phone = settings.store_phone || "+420 777 123 456";
+
+  if (sys) return <SystemPageView page={sys.page} blocks={sys.blocks} />;
 
   return (
     <Box title="Obchodní podmínky">
@@ -418,12 +427,15 @@ export function Terms() {
 
 export function Privacy() {
   const { settings } = useStore();
+  const sys = useSystemPage("ochrana-udaju");
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const ico = settings.store_ico || "19200456";
   const dic = settings.store_dic || "CZ19200456";
   const address = settings.store_address || "Korunní 42, 120 00 Praha 2 - Vinohrady";
   const email = settings.store_email || "ahoj@kavka.shop";
   const phone = settings.store_phone || "+420 777 123 456";
+
+  if (sys) return <SystemPageView page={sys.page} blocks={sys.blocks} />;
 
   return (
     <Box title="Ochrana osobních údajů (GDPR)">
@@ -543,6 +555,7 @@ export function Privacy() {
 
 export function Returns() {
   const { settings, toast } = useStore();
+  const sys = useSystemPage("reklamace");
   const company = settings.store_company || settings.store_name || "KAVKA Ateliér s.r.o.";
   const returnAddress = settings.store_return_address || settings.store_address || "KAVKA Ateliér (reklamace a vrácení), Korunní 42, 120 00 Praha 2";
   const email = settings.store_email || "ahoj@kavka.shop";
@@ -598,6 +611,8 @@ Datum: ${new Date().toLocaleDateString("cs-CZ")}`;
   function printWithdrawal() {
     window.print();
   }
+
+  if (sys) return <SystemPageView page={sys.page} blocks={sys.blocks} />;
 
   return (
     <Box title="Reklamace a vrácení zboží">
