@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { api, type Cart, type Product, type Settings, type ShippingMethod, type User } from "./api";
+import { applyTheme } from "./theme";
 
 const WISH_KEY = "kavka-wishlist";
 const RECENT_KEY = "kavka-recent";
@@ -147,6 +148,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Vzhled (barvy, zaoblení, stíny, animace tlačítek) se aplikuje na celý web.
+  useEffect(() => {
+    applyTheme(settings);
+  }, [settings]);
 
   const login = useCallback(
     async (email: string, password: string) => {

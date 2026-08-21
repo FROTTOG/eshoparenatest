@@ -85,6 +85,15 @@ async function loadPublicSettings(db: D1Database): Promise<Record<string, string
       "comgate_merchant",
       "totp_required",
       "vapid_public_key",
+      "theme_bg",
+      "theme_bg_deep",
+      "theme_card",
+      "theme_ink",
+      "theme_accent",
+      "theme_forest",
+      "theme_radius",
+      "theme_shadow",
+      "theme_btn_anim",
     ];
     const pub: Record<string, string> = {};
     for (const k of publicKeys) if (all[k] != null) pub[k] = all[k];

@@ -8,6 +8,7 @@ import { Logo } from "../components/Ui";
 import { czk, dateCs, statusLabel } from "../format";
 import { optimizedImage } from "../image";
 import { useStore } from "../store";
+import { ANIM_LABELS, applyTheme, BTN_ANIMS, readTheme, THEME_VARS, themeDefaults, toHex } from "../theme";
 import { Pages, PageBuilder } from "./Pages";
 
 export function Admin() {
@@ -60,6 +61,7 @@ export function Admin() {
           <NavLink to="/admin/platby">Platby</NavLink>
           <NavLink to="/admin/stranky">Stránky (editor)</NavLink>
           <NavLink to="/admin/navbar">Menu a logo</NavLink>
+          <NavLink to="/admin/vzhled">Vzhled</NavLink>
           <NavLink to="/admin/feedy">Feedy a měření</NavLink>
           <NavLink to="/admin/emaily">E-maily</NavLink>
           <NavLink to="/admin/nastaveni">Nastavení</NavLink>
@@ -88,6 +90,7 @@ export function Admin() {
           <Route path="stranky" element={<Pages />} />
           <Route path="stranky/:id" element={<PageBuilder />} />
           <Route path="navbar" element={<NavbarSettings />} />
+          <Route path="vzhled" element={<AppearanceSettings />} />
           <Route path="nastaveni" element={<SettingsPage />} />
           <Route path="feedy" element={<FeedsPage />} />
           <Route path="emaily" element={<EmailsPage />} />
@@ -1111,6 +1114,157 @@ function NavbarSettings() {
             {!navPages.length && <tr><td colSpan={4} style={{ color: "var(--muted)" }}>Zatím žádné stránky.</td></tr>}
           </tbody>
         </table>
+      </div>
+    </>
+  );
+}
+
+function AppearanceSettings() {
+  const { toast, refresh, settings: saved } = useStore();
+  const [form, setForm] = useState<Record<string, string>>(themeDefaults());
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    void api<Record<string, string>>("/admin/settings").then((s) => {
+      setForm(readTheme(s));
+      setLoaded(true);
+    });
+  }, []);
+
+  // Živý náhled — každá změna se ihned aplikuje na stránku (i do náhledu níže).
+  useEffect(() => {
+    if (loaded) applyTheme(form);
+  }, [form, loaded]);
+
+  // Při odchodu z editoru vrátíme uložený vzhled (zahodí se neuložený náhled).
+  useEffect(() => {
+    return () => applyTheme(saved);
+  }, [saved]);
+
+  function set(k: string, v: string) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function save() {
+    await api("/admin/settings", { method: "PUT", body: JSON.stringify(form) });
+    toast("Vzhled uložen. Na veřejném webu se projeví ihned.");
+    void refresh();
+  }
+
+  if (!loaded) return <p>Načítám…</p>;
+
+  return (
+    <>
+      <h1>Vzhled e-shopu</h1>
+      <p style={{ color: "var(--muted)", marginBottom: 4 }}>
+        Barvy pozadí a webu, zaoblení, intenzita stínů a animace načítacích tlačítek. Změny se hned promítají do náhledu
+        níže, po uložení platí na celém e-shopu.
+      </p>
+
+      <div className="appearance-grid">
+        <section className="appearance-panel" aria-label="Barvy">
+          <h2>Barvy</h2>
+          {THEME_VARS.map((v) => (
+            <label className="color-field" key={v.key}>
+              <span>{v.label}</span>
+              <span className="color-input">
+                <code>{toHex(form[v.key], v.def)}</code>
+                <input
+                  type="color"
+                  value={toHex(form[v.key], v.def)}
+                  aria-label={v.label}
+                  onChange={(e) => set(v.key, e.target.value)}
+                />
+              </span>
+            </label>
+          ))}
+        </section>
+
+        <section className="appearance-panel" aria-label="Animace načítacích tlačítek">
+          <h2>Animace načítacích tlačítek</h2>
+          <div className="anim-options" role="radiogroup" aria-label="Animace spinneru v tlačítkách">
+            {BTN_ANIMS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                role="radio"
+                aria-checked={form.theme_btn_anim === a}
+                className={`anim-option${form.theme_btn_anim === a ? " on" : ""}`}
+                onClick={() => set("theme_btn_anim", a)}
+              >
+                <span className={`anim-demo anim-demo-${a}`} aria-hidden="true">
+                  <i />
+                </span>
+                <span>{ANIM_LABELS[a]}</span>
+              </button>
+            ))}
+          </div>
+          <p style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5, margin: "14px 0 0" }}>
+            Tato animace se ukazuje v tlačítkách, která načítají (např. „Do košíku“), dokud se akce nedokončí.
+          </p>
+        </section>
+
+        <section className="appearance-panel" aria-label="Zaoblení a stíny">
+          <h2>Zaoblení a stíny</h2>
+          <label className="range-field">
+            <span>
+              Zaoblení rohů <output>{Number(form.theme_radius) || 0} px</output>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={40}
+              step={1}
+              value={Number(form.theme_radius) || 0}
+              onChange={(e) => set("theme_radius", e.target.value)}
+            />
+          </label>
+          <label className="range-field">
+            <span>
+              Intenzita stínů <output>{Math.round((Number(form.theme_shadow) || 0) * 100)} %</output>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={0.25}
+              step={0.005}
+              value={Number(form.theme_shadow) || 0}
+              onChange={(e) => set("theme_shadow", e.target.value)}
+            />
+          </label>
+        </section>
+      </div>
+
+      <section className="appearance-preview" aria-label="Náhled vzhledu">
+        <h2>Náhled</h2>
+        <div className="preview-card">
+          <div className="preview-media">KAVKA</div>
+          <div className="preview-body">
+            <span className="preview-badge">Akce</span>
+            <h3>Keramický hrnek</h3>
+            <p>Ručně točená kamenina z ateliéru.</p>
+            <div className="preview-demo">
+              <button type="button" className="btn">
+                <span className="btn-spinner" aria-hidden="true" />
+                Přidává se…
+              </button>
+              <button type="button" className="btn-line">
+                <span className="btn-spinner" aria-hidden="true" />
+                Vkládám…
+              </button>
+            </div>
+          </div>
+          <div className="preview-footer">Patička e-shopu · KAVKA Ateliér</div>
+        </div>
+      </section>
+
+      <div className="full row-actions" style={{ marginTop: 20 }}>
+        <button className="btn-dark" type="button" onClick={() => void save()}>
+          Uložit vzhled
+        </button>
+        <button className="btn-line" type="button" onClick={() => setForm(themeDefaults())}>
+          Obnovit výchozí
+        </button>
       </div>
     </>
   );
