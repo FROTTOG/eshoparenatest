@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type Order, type Page, type Product } from "../api";
 import { IconClose, IconMenu } from "../components/Icons";
+import { InfoButton } from "../components/InfoButton";
 import { Logo } from "../components/Ui";
 import { czk, dateCs, statusLabel } from "../format";
 import { optimizedImage } from "../image";
@@ -1123,6 +1124,28 @@ function SettingsPage() {
     ["store_tagline", "Slogan obchodu"],
     ["hero_title", "Titulek na hlavní straně"],
     ["hero_text", "Text úvodu na hlavní straně"],
+    ["home_badge", "Štítek nad hlavním titulkem"],
+    ["home_hero_primary_cta", "Hlavní tlačítko úvodu"],
+    ["home_hero_secondary_cta", "Druhé tlačítko úvodu"],
+    ["home_coupon_title", "Titulek štítku s kupónem"],
+    ["home_coupon_text", "Text u kupónu na hlavní straně"],
+    ["home_categories_title", "Nadpis sekce kategorií"],
+    ["home_category_fallback", "Výchozí popis kategorie"],
+    ["home_category_cta", "Odkaz na kategorii"],
+    ["home_featured_kicker", "Nadpis nad doporučenými produkty"],
+    ["home_featured_title", "Nadpis doporučených produktů"],
+    ["home_featured_text", "Popis sekce doporučených produktů"],
+    ["home_featured_cta", "Odkaz na celý katalog"],
+    ["home_trust_1_title", "Výhoda 1 — nadpis"],
+    ["home_trust_1_text", "Výhoda 1 — text"],
+    ["home_trust_2_title", "Výhoda 2 — nadpis"],
+    ["home_trust_2_text", "Výhoda 2 — text"],
+    ["home_trust_3_title", "Výhoda 3 — nadpis"],
+    ["home_trust_3_text", "Výhoda 3 — text"],
+    ["home_cta_title", "Závěrečná výzva — nadpis"],
+    ["home_cta_subtitle", "Závěrečná výzva — druhý řádek"],
+    ["home_cta_primary", "Závěrečná výzva — hlavní tlačítko"],
+    ["home_cta_secondary", "Závěrečná výzva — druhé tlačítko"],
     ["store_email", "Oficiální kontaktní e-mail"],
     ["store_phone", "Oficiální telefon pro zákazníky"],
     ["store_address", "Sídlo a adresa ateliéru"],
@@ -1161,6 +1184,67 @@ function SettingsPage() {
     ["google_pay_merchant_id", "Google Pay merchant ID"],
     ["exit_coupon", "Kupón pro opouštěcí pop-up (výchozí STAY5)"],
   ];
+  const help: Record<string, string> = {
+    store_name: "Krátký název se zobrazuje v logu, titulcích, e-mailech a produktových feedech.",
+    store_company: "Plný právní název provozovatele. Používá se na fakturách, v patičce a právních dokumentech.",
+    store_ico: "Osmimístné IČO. Vyplňte přesně podle ARES; slouží k identifikaci podnikatele.",
+    store_dic: "DIČ včetně prefixu CZ, pokud jste plátce DPH. U neplátce ponechte prázdné.",
+    store_vat_note: "Text o režimu DPH, který zákazník uvidí u právních a fakturačních údajů.",
+    store_registry: "Povinná registrační věta pro obchodní podmínky a patičku e-shopu.",
+    store_tagline: "Krátký slogan používaný u značky a v meta informacích.",
+    hero_title: "Hlavní nadpis první obrazovky. Čárka jej rozdělí na dva řádky, druhý řádek bude kurzívou.",
+    hero_text: "Úvodní odstavec pod nadpisem. Pište stručně, ideálně jednu až dvě věty.",
+    home_badge: "Malý štítek nad hlavním nadpisem na úvodní stránce.",
+    home_hero_primary_cta: "Text hlavního tlačítka, které vede do katalogu.",
+    home_hero_secondary_cta: "Text druhého tlačítka, které posune návštěvníka k doporučeným produktům.",
+    home_coupon_title: "Titulek promo štítku přes fotografii. Kupón se bere z nastavení exit_coupon.",
+    home_coupon_text: "Krátká instrukce, která se zobrazí před kódem slevy.",
+    home_categories_title: "Nadpis sekce kategorií na úvodní stránce.",
+    home_category_fallback: "Popis použitý jen u kategorie, která nemá vlastní popis.",
+    home_category_cta: "Text odkazu v každé kartě kategorie.",
+    home_featured_kicker: "Malý nadpis nad sekcí doporučených produktů.",
+    home_featured_title: "Hlavní nadpis sekce doporučených produktů.",
+    home_featured_text: "Vysvětlující text pod nadpisem doporučených produktů.",
+    home_featured_cta: "Text odkazu na kompletní katalog.",
+    home_trust_1_title: "Nadpis první prodejní výhody na úvodní stránce.",
+    home_trust_1_text: "Detailní popis první prodejní výhody.",
+    home_trust_2_title: "Nadpis druhé prodejní výhody na úvodní stránce.",
+    home_trust_2_text: "Detailní popis dopravy; cena dopravy a osobní odběr se doplní automaticky.",
+    home_trust_3_title: "Nadpis třetí prodejní výhody na úvodní stránce.",
+    home_trust_3_text: "Detailní popis vrácení, záruky a reklamací.",
+    home_cta_title: "Nadpis závěrečného kontaktního bloku na úvodní stránce.",
+    home_cta_subtitle: "Druhý řádek závěrečného nadpisu, obvykle otevírací doba.",
+    home_cta_primary: "Text tlačítka, které vede do katalogu.",
+    home_cta_secondary: "Text tlačítka, které vede na stránku O nás.",
+    store_email: "Adresa pro zákaznické dotazy a systémová oznámení; musí být platná.",
+    store_phone: "Telefon zobrazovaný zákazníkům v patičce, na úvodní stránce a v dokumentech.",
+    store_address: "Veřejná adresa provozovny. Uvádí se také v patičce a strukturovaných datech.",
+    store_return_address: "Adresa, kam zákazníci posílají vrácené zboží a reklamace.",
+    store_hours: "Otevírací doba provozovny zobrazovaná zákazníkům.",
+    iban: "IBAN pro automaticky generovaný QR kód při platbě převodem.",
+    bank_name: "Název banky zobrazený u údajů pro převod.",
+    bank_account: "Lokální číslo účtu pro ruční platby; kontrolujte jej před spuštěním obchodu.",
+    reviews_auto_approve: "1 schvaluje hodnocení automaticky, 0 je pošle do fronty ke schválení v sekci Hodnocení.",
+    invoice_auto: "1 vystaví fakturu automaticky, 0 ponechá vystavení na ruční akci v sekci Faktury.",
+    invoice_auto_on: "Zvolte order pro vystavení při objednávce, nebo paid po potvrzení platby.",
+    invoice_prefix: "Předpona čísel faktur, například FV.",
+    invoice_pad: "Počet číslic pořadového čísla, například 4 vytvoří FV-0001.",
+    invoice_due_days: "Počet dnů splatnosti faktury.",
+    invoice_vat_payer: "1 znamená plátce DPH a zapne rozpis DPH na faktuře; 0 jej vypne.",
+    invoice_vat_rate: "Výchozí sazba DPH v procentech používaná na fakturách.",
+    invoice_currency: "Třípísmenný kód měny, standardně CZK.",
+    gtm_id: "ID kontejneru Google Tag Manager ve tvaru GTM-XXXX. Prázdné pole měření vypne.",
+    ga4_id: "Measurement ID Google Analytics 4 ve tvaru G-XXXX.",
+    meta_pixel_id: "Číselné ID Meta Pixelu pro měření reklamních konverzí.",
+    resend_api_key: "Tajný klíč Resend. Bezpečnější je uložit jej jako Cloudflare secret RESEND_API_KEY.",
+    mail_from: "Ověřený odesílatel v Resend, například obchod@vasedomena.cz.",
+    mail_webhook: "Volitelná záložní URL webhooku pro odesílání e-mailů bez Resend.",
+    store_url: "Veřejná URL včetně https://; používá se v e-mailech, sitemapě a feedech.",
+    wallet_merchant_name: "Název obchodníka pro Apple Pay a Google Pay.",
+    apple_pay_merchant_id: "Merchant ID z Apple Developer účtu; bez něj Apple Pay nezprovozníte.",
+    google_pay_merchant_id: "Merchant ID pro Google Pay, podle nastavení vašeho poskytovatele plateb.",
+    exit_coupon: "Kód kupónu v opouštěcím pop-upu a promo štítku. Musí existovat v sekci Kupóny.",
+  };
   return (
     <>
       <h1>Nastavení e-shopu a právní údaje</h1>
@@ -1169,9 +1253,9 @@ function SettingsPage() {
       </p>
       <form className="admin-form" onSubmit={(e) => { e.preventDefault(); void api("/admin/settings", { method: "PUT", body: JSON.stringify(form) }).then(() => { toast("Uloženo."); void refresh(); }); }}>
         {keys.map(([k, label]) => (
-          <label key={k} className={k.includes("hero") || k.includes("address") || k.includes("registry") || k.includes("return") ? "full" : ""}>
-            {label}
-            {k.includes("hero_text") ? (
+          <label key={k} className={k.includes("hero") || k.includes("home_") || k.includes("address") || k.includes("registry") || k.includes("return") ? "full" : ""}>
+            <span className="field-label">{label} <InfoButton title={label}>{help[k] || "Toto nastavení upravuje chování e-shopu. Změnu uložte tlačítkem dole a poté ověřte výsledek na veřejném webu."}</InfoButton></span>
+            {k.includes("hero_text") || k.includes("home_") ? (
               <textarea value={form[k] || ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
             ) : k === "resend_api_key" ? (
               <div style={{ display: "flex", gap: 8 }}>

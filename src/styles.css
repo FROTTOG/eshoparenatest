@@ -3943,3 +3943,11 @@ tbody tr { transition: background 0.18s var(--ease-out); }
 
 /* ---- Souhrn v košíku a pokladně — jemné odlišení ---- */
 .summary { animation: pageIn 0.45s 0.08s ease both; }
+
+/* Contextual administration help */
+.field-label { display: inline-flex; align-items: center; gap: 6px; }
+.info-help { position: relative; display: inline-flex; vertical-align: middle; }
+.info-help-button { width: 19px; height: 19px; padding: 0; border: 1px solid var(--accent); border-radius: 50%; background: transparent; color: var(--accent); font: 700 12px/17px Georgia, serif; cursor: pointer; }
+.info-help-button:hover, .info-help-button:focus-visible { background: var(--accent); color: var(--card); outline: none; }
+.info-help-popover { position: absolute; z-index: 20; top: 26px; left: 0; width: min(310px, calc(100vw - 42px)); display: grid; gap: 5px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink-soft); box-shadow: 0 12px 30px rgb(29 25 20 / 18%); font-size: 12px; line-height: 1.45; font-weight: 400; }
+.info-help-popover b { color: var(--ink); font-size: 13px; }

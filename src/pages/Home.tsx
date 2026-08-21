@@ -22,9 +22,8 @@ export function Home() {
   const { settings, shipping } = useStore();
   const storeName = settings.store_name || "KAVKA";
   const heroTitle = settings.hero_title || "Domov, který dýchá pomalu";
-  const heroText =
-    settings.hero_text ||
-    "Ručně točená kamenina z ateliéru, vypraný len z české dílny a doplňky z masivního dřeva s přirozenou kresbou.";
+  const heroText = settings.hero_text || "Ručně točená kamenina z ateliéru, vypraný len z české dílny a doplňky z masivního dřeva s přirozenou kresbou.";
+  const text = (key: string, fallback: string) => settings[key] || fallback;
 
   useSeo({
     title: `${storeName} Ateliér — keramika, len a dřevo`,
@@ -102,7 +101,7 @@ export function Home() {
         <div className="demo-hero-inner glass-card">
           <div className="demo-hero-content">
             <div className="saas-badge">
-              <span className="saas-dot" /> ATELIÉR KAVKA · VINOHRADY
+              <span className="saas-dot" /> {text("home_badge", "ATELIÉR KAVKA · VINOHRADY")}
             </div>
             <h1 className="serif">
               {heroTitle.includes(",") ? (
@@ -118,10 +117,10 @@ export function Home() {
             <p className="lead">{heroText}</p>
             <div className="demo-hero-btns">
               <Link to="/katalog" className="btn">
-                Procházet katalog <IconArrow size={16} />
+                {text("home_hero_primary_cta", "Procházet katalog")} <IconArrow size={16} />
               </Link>
               <a href="#produkty" className="btn-line">
-                Vybrané kousky
+                {text("home_hero_secondary_cta", "Vybrané kousky")}
               </a>
             </div>
             <div className="hero-pills" style={{ marginTop: 24 }}>
@@ -165,9 +164,9 @@ export function Home() {
             <div className="demo-hero-badge glass-card">
               <IconGift size={18} />
               <div>
-                <b>Sleva 10 % na první nákup</b>
+                <b>{text("home_coupon_title", "Sleva 10 % na první nákup")}</b>
                 <span>
-                  V košíku zadejte kód <code>KAVKA10</code>
+                  {text("home_coupon_text", "V košíku zadejte kód")} <code>{settings.exit_coupon || "KAVKA10"}</code>
                 </span>
               </div>
             </div>
@@ -194,7 +193,7 @@ export function Home() {
               <div className="kicker" style={{ color: "var(--accent)" }}>
                 Sortiment
               </div>
-              <h2>Kategorie</h2>
+              <h2>{text("home_categories_title", "Kategorie")}</h2>
             </div>
             <Link to="/katalog" className="btn-line">
               Celý obchod →
@@ -210,8 +209,8 @@ export function Home() {
                 </div>
                 <div className="demo-cat-info">
                   <h3>{c.name}</h3>
-                  <p>{c.description || "Kolekce z ateliéru"}</p>
-                  <span className="demo-cat-link">Procházet kategorii →</span>
+                  <p>{c.description || text("home_category_fallback", "Kolekce z ateliéru")}</p>
+                  <span className="demo-cat-link">{text("home_category_cta", "Procházet kategorii")} →</span>
                 </div>
               </Link>
             </Reveal>
@@ -224,15 +223,15 @@ export function Home() {
           <div className="section-head">
             <div>
               <div className="kicker" style={{ color: "var(--accent)" }}>
-                Vybrané kousky
+                {text("home_featured_kicker", "Vybrané kousky")}
               </div>
-              <h2>Doporučujeme</h2>
+              <h2>{text("home_featured_title", "Doporučujeme")}</h2>
               <p style={{ color: "var(--ink-soft)", margin: "4px 0 0" }}>
-                Ručně točená kamenina, praný len a dřevo s kresbou.
+                {text("home_featured_text", "Ručně točená kamenina, praný len a dřevo s kresbou.")}
               </p>
             </div>
             <Link to="/katalog" className="btn-line">
-              Zobrazit celý katalog →
+              {text("home_featured_cta", "Zobrazit celý katalog")} →
             </Link>
           </div>
         </Reveal>
@@ -264,16 +263,16 @@ export function Home() {
           <Reveal delay={0}>
             <article>
               <IconLeaf />
-              <h3>Z ateliéru</h3>
-              <p>Keramika točená na kruhu, len z české dílny, dřevo olejované přírodním olejem.</p>
+              <h3>{text("home_trust_1_title", "Z ateliéru")}</h3>
+              <p>{text("home_trust_1_text", "Keramika točená na kruhu, len z české dílny, dřevo olejované přírodním olejem.")}</p>
             </article>
           </Reveal>
           <Reveal delay={90}>
             <article>
               <IconLocker />
-              <h3>Doprava po ČR</h3>
+              <h3>{text("home_trust_2_title", "Doprava po ČR")}</h3>
               <p>
-                Z-BOX, Zásilkovna i Balíkovna s živou mapou
+                {text("home_trust_2_text", "Z-BOX, Zásilkovna i Balíkovna s živou mapou")}
                 {freeOver ? ` · zdarma od ${czk(freeOver)}` : ""}. Osobní odběr na Vinohradech.
               </p>
             </article>
@@ -281,8 +280,8 @@ export function Home() {
           <Reveal delay={180}>
             <article>
               <IconShield />
-              <h3>14 dní na vrácení</h3>
-              <p>Zákonná záruka 24 měsíců. Reklamace vyřídíme do 30 dnů, nebo osobně v ateliéru.</p>
+              <h3>{text("home_trust_3_title", "14 dní na vrácení")}</h3>
+              <p>{text("home_trust_3_text", "Zákonná záruka 24 měsíců. Reklamace vyřídíme do 30 dnů, nebo osobně v ateliéru.")}</p>
             </article>
           </Reveal>
         </div>
@@ -293,19 +292,19 @@ export function Home() {
           <div className="cta-final">
             <div>
               <h2>
-                Ateliér na Vinohradech.
+                {text("home_cta_title", "Ateliér na Vinohradech.")}
                 <br />
-                <em>Otevřeno Po–Pá 10:00–18:00.</em>
+                <em>{text("home_cta_subtitle", "Otevřeno Po–Pá 10:00–18:00.")}</em>
               </h2>
               <p>
                 {settings.store_address || "Korunní 42, 120 00 Praha 2"} · {settings.store_phone || "+420 777 123 456"}
               </p>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
                 <Link to="/katalog" className="btn">
-                  Nakoupit online
+                  {text("home_cta_primary", "Nakoupit online")}
                 </Link>
                 <Link to="/o-nas" className="btn-line">
-                  O ateliéru
+                  {text("home_cta_secondary", "O ateliéru")}
                 </Link>
               </div>
             </div>
