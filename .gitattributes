@@ -1,0 +1,6 @@
+# Keep generated documents and font assets out of textual diffs.
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
