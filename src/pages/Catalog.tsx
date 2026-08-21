@@ -77,8 +77,26 @@ export function Catalog() {
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const breadcrumbs = [
+    { name: "Domů", url: `${origin}/` },
+    { name: "Katalog", url: `${origin}/katalog` },
+    ...(cat ? [{ name: cat.name, url: `${origin}/katalog/${cat.slug}` }] : []),
+  ];
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: breadcrumbs.map((b, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: b.name,
+      item: b.url,
+    })),
+  };
+
   return (
     <div className="wrap">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <div className="crumbs">
         <Link to="/">Domů</Link> / <Link to="/katalog">Katalog</Link>
         {cat ? ` / ${cat.name}` : q ? ` / „${q}“` : ""}

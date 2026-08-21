@@ -20,6 +20,8 @@
 - katalog, hledání, kategorie, detail produktu
 - registrace / přihlášení, profil, uložené adresy
 - košík, kupóny (`KAVKA10`, `VITEJ150`, `LEN20`)
+- **naposledy zhlédnuté produkty** — proužek historie prohlížení na detailu zboží (uloženo v localStorage)
+- instalovatelnost jako aplikace — web manifest + apple-touch ikona (PWA-ready)
 - pokladna i jako host
 - doprava: **Z-BOX** a **Zásilkovna** (živý widget Packety), **Balíkovna** (iframe mapa České pošty), **na adresu**, **osobní odběr**
 - platba: převod s **QR (SPD)**, **Apple Pay**, **Google Pay**, dobírka, karta při převzetí, hotově v ateliéru

@@ -10,6 +10,8 @@ import {
 import { api, type Cart, type Product, type Settings, type ShippingMethod, type User } from "./api";
 
 const WISH_KEY = "kavka-wishlist";
+const RECENT_KEY = "kavka-recent";
+const RECENT_MAX = 10;
 
 export type WishItem = {
   id: number;
@@ -33,6 +35,8 @@ type Store = {
   ready: boolean;
   toasts: Toast[];
   wishlist: WishItem[];
+  recent: WishItem[];
+  addRecent: (p: WishItem | Pick<Product, "id" | "slug" | "name" | "image" | "price" | "compare_price" | "stock" | "category_name">) => void;
   refresh: () => Promise<void>;
   toast: (text: string, kind?: "ok" | "err", extra?: { to?: string; toLabel?: string }) => void;
   login: (email: string, password: string) => Promise<void>;
@@ -50,6 +54,16 @@ function readWish(): WishItem[] {
     const raw = localStorage.getItem(WISH_KEY);
     const parsed = raw ? (JSON.parse(raw) as WishItem[]) : [];
     return Array.isArray(parsed) ? parsed.filter((x) => x && typeof x.id === "number") : [];
+  } catch {
+    return [];
+  }
+}
+
+function readRecent(): WishItem[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    const parsed = raw ? (JSON.parse(raw) as WishItem[]) : [];
+    return Array.isArray(parsed) ? parsed.filter((x) => x && typeof x.id === "number").slice(0, RECENT_MAX) : [];
   } catch {
     return [];
   }
@@ -76,9 +90,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [wishlist, setWishlist] = useState<WishItem[]>([]);
+  const [recent, setRecent] = useState<WishItem[]>([]);
 
   useEffect(() => {
     setWishlist(readWish());
+    setRecent(readRecent());
   }, []);
 
   const persistWish = useCallback((next: WishItem[]) => {
@@ -88,6 +104,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {
       /* private mode */
     }
+  }, []);
+
+  const addRecent = useCallback((p: WishItem | Pick<Product, "id" | "slug" | "name" | "image" | "price" | "compare_price" | "stock" | "category_name">) => {
+    setRecent((prev) => {
+      const snap = snapshot(p);
+      const next = [snap, ...prev.filter((x) => x.id !== snap.id)].slice(0, RECENT_MAX);
+      try {
+        localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+      } catch {
+        /* private mode */
+      }
+      return next;
+    });
   }, []);
 
   const toast = useCallback((text: string, kind: "ok" | "err" = "ok", extra?: { to?: string; toLabel?: string }) => {
@@ -184,6 +213,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ready,
       toasts,
       wishlist,
+      recent,
+      addRecent,
       refresh,
       toast,
       login,
@@ -193,7 +224,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       isWished,
       toggleWish,
     }),
-    [user, cart, settings, shipping, ready, toasts, wishlist, refresh, toast, login, register, logout, addToCart, isWished, toggleWish]
+    [user, cart, settings, shipping, ready, toasts, wishlist, recent, addRecent, refresh, toast, login, register, logout, addToCart, isWished, toggleWish]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
