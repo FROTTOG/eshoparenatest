@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, TouchEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError, type Product as P } from "../api";
 import { IconArrow, IconCart, IconCheck, IconClock, IconLeaf, IconShield } from "../components/Icons";
@@ -25,9 +26,8 @@ export function ProductPage() {
   const [ok, setOk] = useState("");
   const [form, setForm] = useState({ rating: 5, title: "", comment: "" });
   const [lightbox, setLightbox] = useState(false);
-  const [watchEmail, setWatchEmail] = useState("");
-  const [watchMsg, setWatchMsg] = useState("");
   const closeLightboxRef = useRef<HTMLButtonElement>(null);
+  const touchStartX = useRef<number | null>(null);
   const vatRate = Number(useStore().settings.invoice_vat_rate || 21);
 
   useSeo({
@@ -85,9 +85,13 @@ export function ProductPage() {
     if (!lightbox) return;
 
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
+    const html = document.documentElement;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = html.style.overflow;
     document.body.style.overflow = "hidden";
-    closeLightboxRef.current?.focus();
+    html.style.overflow = "hidden";
+    html.classList.add("lightbox-open");
+    closeLightboxRef.current?.focus({ preventScroll: true });
 
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setLightbox(false);
@@ -99,8 +103,10 @@ export function ProductPage() {
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previousOverflow;
-      previousFocus?.focus();
+      document.body.style.overflow = previousBodyOverflow;
+      html.style.overflow = previousHtmlOverflow;
+      html.classList.remove("lightbox-open");
+      previousFocus?.focus({ preventScroll: true });
     };
   }, [lightbox, pics.length]);
 
@@ -218,6 +224,80 @@ export function ProductPage() {
   };
 
   const recentOthers = recent.filter((x) => x.id !== p.id).slice(0, 6);
+
+  function onLightboxTouchStart(e: TouchEvent) {
+    touchStartX.current = e.changedTouches[0]?.clientX ?? null;
+  }
+  function onLightboxTouchEnd(e: TouchEvent) {
+    if (touchStartX.current == null) return;
+    const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX.current;
+    touchStartX.current = null;
+    if (pics.length < 2 || Math.abs(dx) < 40) return;
+    if (dx > 0) setImg((i) => (i - 1 + pics.length) % pics.length);
+    else setImg((i) => (i + 1) % pics.length);
+  }
+
+  const lightboxNode = lightbox
+    ? createPortal(
+        <div
+          className="product-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Fotogalerie produktu ${p.name}`}
+          onClick={() => setLightbox(false)}
+          onTouchStart={onLightboxTouchStart}
+          onTouchEnd={onLightboxTouchEnd}
+        >
+          <div className="product-lightbox-stage" onClick={(e) => e.stopPropagation()}>
+            <button
+              ref={closeLightboxRef}
+              type="button"
+              className="close-x product-lightbox-close"
+              onClick={() => setLightbox(false)}
+              aria-label="Zavřít fotogalerii"
+            >
+              ✕
+            </button>
+            <img
+              className="product-lightbox-image"
+              src={pics[img]}
+              alt={`${p.name}, fotografie ${img + 1} z ${pics.length}`}
+            />
+            {pics.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="product-lightbox-nav product-lightbox-prev"
+                  onClick={() => setImg((i) => (i - 1 + pics.length) % pics.length)}
+                  aria-label="Předchozí fotografie"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="product-lightbox-nav product-lightbox-next"
+                  onClick={() => setImg((i) => (i + 1) % pics.length)}
+                  aria-label="Další fotografie"
+                >
+                  ›
+                </button>
+                <div className="product-lightbox-meta">
+                  <div className="product-lightbox-dots" aria-hidden="true">
+                    {pics.map((_, i) => (
+                      <span key={i} className={i === img ? "on" : ""} />
+                    ))}
+                  </div>
+                  <p className="product-lightbox-caption">
+                    {img + 1} / {pics.length}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
 
   return (
     <div className="wrap">
@@ -422,53 +502,7 @@ export function ProductPage() {
           </p>
         )}
       </section>
-      {lightbox && (
-        <div
-          className="map-modal product-lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Fotogalerie produktu ${p.name}`}
-          onClick={() => setLightbox(false)}
-        >
-          <div className="product-lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <button
-              ref={closeLightboxRef}
-              type="button"
-              className="close-x product-lightbox-close"
-              onClick={() => setLightbox(false)}
-              aria-label="Zavřít fotogalerii"
-            >
-              ✕
-            </button>
-            <img className="product-lightbox-image" src={pics[img]} alt={`${p.name}, fotografie ${img + 1} z ${pics.length}`} />
-            {pics.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  className="btn-line product-lightbox-prev"
-                  onClick={() => setImg((i) => (i - 1 + pics.length) % pics.length)}
-                  aria-label="Předchozí fotografie"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="btn-line product-lightbox-next"
-                  onClick={() => setImg((i) => (i + 1) % pics.length)}
-                  aria-label="Další fotografie"
-                >
-                  ›
-                </button>
-                <div className="product-lightbox-dots" aria-hidden="true">
-                  {pics.map((_, i) => (
-                    <span key={i} className={i === img ? "on" : ""} />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      {lightboxNode}
     </div>
   );
 }
