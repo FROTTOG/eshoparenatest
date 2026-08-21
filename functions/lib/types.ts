@@ -3,6 +3,8 @@ export type Bindings = {
   MEDIA?: R2Bucket;
   AUTH_SECRET?: string;
   STORE_NAME?: string;
+  RESEND_API_KEY?: string;
+  MAIL_FROM?: string;
 };
 
 export type AppUser = {

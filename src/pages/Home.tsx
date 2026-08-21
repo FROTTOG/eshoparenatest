@@ -202,17 +202,19 @@ export function Home() {
           </div>
         </Reveal>
         <div className="demo-cats-grid">
-          {cats.map((c) => (
-            <Link key={c.id} to={`/katalog/${c.slug}`} className="demo-cat-card glass-card">
-              <div className="demo-cat-img-wrap">
-                <img src={optimizedImage(c.image)} alt="" loading="lazy" decoding="async" width={480} height={360} />
-              </div>
-              <div className="demo-cat-info">
-                <h3>{c.name}</h3>
-                <p>{c.description || "Kolekce z ateliéru"}</p>
-                <span className="demo-cat-link">Procházet kategorii →</span>
-              </div>
-            </Link>
+          {cats.map((c, i) => (
+            <Reveal key={c.id} delay={(i % 5) * 60} className="reveal-cell">
+              <Link to={`/katalog/${c.slug}`} className="demo-cat-card glass-card">
+                <div className="demo-cat-img-wrap">
+                  <img src={optimizedImage(c.image)} alt="" loading="lazy" decoding="async" width={480} height={360} />
+                </div>
+                <div className="demo-cat-info">
+                  <h3>{c.name}</h3>
+                  <p>{c.description || "Kolekce z ateliéru"}</p>
+                  <span className="demo-cat-link">Procházet kategorii →</span>
+                </div>
+              </Link>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -259,48 +261,56 @@ export function Home() {
 
       <section className="section wrap">
         <div className="trust" style={{ margin: 0 }}>
-          <article>
-            <IconLeaf />
-            <h3>Z ateliéru</h3>
-            <p>Keramika točená na kruhu, len z české dílny, dřevo olejované přírodním olejem.</p>
-          </article>
-          <article>
-            <IconLocker />
-            <h3>Doprava po ČR</h3>
-            <p>
-              Z-BOX, Zásilkovna i Balíkovna s živou mapou
-              {freeOver ? ` · zdarma od ${czk(freeOver)}` : ""}. Osobní odběr na Vinohradech.
-            </p>
-          </article>
-          <article>
-            <IconShield />
-            <h3>14 dní na vrácení</h3>
-            <p>Zákonná záruka 24 měsíců. Reklamace vyřídíme do 30 dnů, nebo osobně v ateliéru.</p>
-          </article>
+          <Reveal delay={0}>
+            <article>
+              <IconLeaf />
+              <h3>Z ateliéru</h3>
+              <p>Keramika točená na kruhu, len z české dílny, dřevo olejované přírodním olejem.</p>
+            </article>
+          </Reveal>
+          <Reveal delay={90}>
+            <article>
+              <IconLocker />
+              <h3>Doprava po ČR</h3>
+              <p>
+                Z-BOX, Zásilkovna i Balíkovna s živou mapou
+                {freeOver ? ` · zdarma od ${czk(freeOver)}` : ""}. Osobní odběr na Vinohradech.
+              </p>
+            </article>
+          </Reveal>
+          <Reveal delay={180}>
+            <article>
+              <IconShield />
+              <h3>14 dní na vrácení</h3>
+              <p>Zákonná záruka 24 měsíců. Reklamace vyřídíme do 30 dnů, nebo osobně v ateliéru.</p>
+            </article>
+          </Reveal>
         </div>
       </section>
 
       <section className="section wrap" style={{ paddingTop: 0 }}>
-        <div className="cta-final glass-card">
-          <div>
-            <h2>
-              Ateliér na Vinohradech.
-              <br />
-              <em>Otevřeno Po–Pá 10:00–18:00.</em>
-            </h2>
-            <p>
-              {settings.store_address || "Korunní 42, 120 00 Praha 2"} · {settings.store_phone || "+420 777 123 456"}
-            </p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
-              <Link to="/katalog" className="btn">
-                Nakoupit online
-              </Link>
-              <Link to="/o-nas" className="btn-line">
-                O ateliéru
-              </Link>
+        <Reveal>
+          <div className="cta-final">
+            <div>
+              <h2>
+                Ateliér na Vinohradech.
+                <br />
+                <em>Otevřeno Po–Pá 10:00–18:00.</em>
+              </h2>
+              <p>
+                {settings.store_address || "Korunní 42, 120 00 Praha 2"} · {settings.store_phone || "+420 777 123 456"}
+              </p>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
+                <Link to="/katalog" className="btn">
+                  Nakoupit online
+                </Link>
+                <Link to="/o-nas" className="btn-line">
+                  O ateliéru
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
     </>
   );

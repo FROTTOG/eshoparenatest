@@ -270,7 +270,15 @@ Proto:
 
 Až budete chtít živé API dopravce, je to další krok mimo tento projekt.
 
-E-maily (potvrzení objednávky) Cloudflare sám **neumí odesílat** bez cizí služby. Zákazník vidí potvrzení na webu a může si objednávku dohledat v **Sledování**.
+E-maily (potvrzení objednávky, změna stavu, hlídací pes, opuštěný košík) odesílá služba **Resend** (https://resend.com). Cloudflare sám e-maily posílat neumí.
+
+**Nastavení Resend (3 kroky)**
+
+1. Zaregistrujte se na Resend a **ověřte svou doménu** (Resend → Domains → přidejte DNS záznam u vašeho poskytovatele domény). Bez ověřené domény Resend e-maily neodešle.
+2. Vytvořte **API klíč** (Resend → API Keys).
+3. Klíč zadejte v administraci e-shopu v **Nastavení → `resend_api_key`** (nebo bezpečněji jako Cloudflare secret `RESEND_API_KEY` v Pages → Settings → Environment variables). Odesílatele `mail_from` nastavte na e-mail **z ověřené domény** (např. `info@vasadomena.cz`).
+
+**Kontrola a test:** v administraci otevřete **E-maily** — uvidíte stav odesílání, ověřené domény v účtu Resend a tlačítko *Odeslat testovací e-mail*, které okamžitě ukáže případnou chybu (např. „doména není ověřená“ nebo „neplatný klíč“). Všechny pokusy se zapisují do přehledu i s chybou. Dokud není klíč nastavený, e-maily se pouze ukládají (status `logged`) a nic se neodesílá.
 
 ---
 

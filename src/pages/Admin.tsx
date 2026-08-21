@@ -1111,6 +1111,7 @@ function NavbarSettings() {
 function SettingsPage() {
   const { toast, refresh } = useStore();
   const [form, setForm] = useState<Record<string, string>>({});
+  const [showKey, setShowKey] = useState(false);
   useEffect(() => { void api<Record<string, string>>("/admin/settings").then(setForm); }, []);
   const keys: [string, string][] = [
     ["store_name", "Zkrácený název obchodu (např. KAVKA)"],
@@ -1172,11 +1173,38 @@ function SettingsPage() {
             {label}
             {k.includes("hero_text") ? (
               <textarea value={form[k] || ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+            ) : k === "resend_api_key" ? (
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type={showKey ? "text" : "password"}
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={form[k] || ""}
+                  onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                  placeholder="re_…"
+                />
+                <button
+                  type="button"
+                  className="btn-line btn-sm"
+                  style={{ whiteSpace: "nowrap" }}
+                  onClick={() => setShowKey((v) => !v)}
+                  aria-label={showKey ? "Skrýt klíč" : "Zobrazit klíč"}
+                >
+                  {showKey ? "Skrýt" : "Ukázat"}
+                </button>
+              </div>
             ) : (
               <input value={form[k] || ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
             )}
           </label>
         ))}
+        <div className="full mail-hint" style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
+          <b style={{ color: "var(--ink-soft)" }}>Tip k e-mailům:</b> klíč Resend můžete nechat tady v nastavení, nebo ho
+          bezpečněji uložit jako Cloudflare secret <code>RESEND_API_KEY</code> (v Pages → Settings → Environment
+          variables) — pak ho stačí nechat tady prázdný. Odesílatel <code>mail_from</code> musí být z domény ověřené v
+          Resend. Stav a zkušební odeslání najdete na stránce{" "}
+          <Link to="/admin/emaily">E-maily</Link>.
+        </div>
         <div className="full">
           <button className="btn-dark" type="submit">Uložit nastavení</button>
         </div>
@@ -1224,19 +1252,125 @@ function FeedsPage() {
 }
 
 function EmailsPage() {
+  const { toast } = useStore();
   const [rows, setRows] = useState<{ id: number; kind: string; recipient: string; subject: string; status: string; error: string | null; created_at: string }[]>([]);
   const [alerts, setAlerts] = useState<{ id: number; email: string; product_name: string; notified_at: string | null; created_at: string }[]>([]);
-  useEffect(() => {
-    void api<typeof rows>("/admin/emails").then(setRows);
-    void api<typeof alerts>("/admin/stock-alerts").then(setAlerts);
-  }, []);
+  const [status, setStatus] = useState<{
+    key_present: boolean;
+    key_source: string;
+    key_masked: string | null;
+    from: string;
+    from_verified: boolean | null;
+    from_domain: string;
+    domains: { name: string; status: string }[] | null;
+    hint: string | null;
+    domain_error: string | null;
+  } | null>(null);
+  const [testTo, setTestTo] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ status: string; error?: string; hint?: string } | null>(null);
+
+  function load() {
+    void api<typeof rows>("/admin/emails").then(setRows).catch(() => {});
+    void api<typeof alerts>("/admin/stock-alerts").then(setAlerts).catch(() => {});
+    void api<typeof status>("/admin/mail/status").then(setStatus).catch(() => {});
+  }
+  useEffect(load, []);
+
+  async function sendTest() {
+    const to = testTo.trim();
+    if (!to) return toast("Zadejte e-mail pro test.", "err");
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const r = await api<{ status: string; error?: string; hint?: string; ok: boolean }>("/admin/mail/test", {
+        method: "POST",
+        body: JSON.stringify({ to }),
+      });
+      setTestResult(r);
+      if (r.status === "sent") toast(`Testovací e-mail odeslán na ${to}.`);
+      else if (r.status === "logged") toast("Klíč Resend chybí — e-mail se jen uložil.", "err");
+      else toast("Test se nepovedl — viz detail níže.", "err");
+      load();
+    } catch (e) {
+      setTestResult({ status: "failed", error: e instanceof Error ? e.message : "Nešlo odeslat test." });
+      toast("Test se nepovedl — viz detail níže.", "err");
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <>
       <h1>E-maily a hlídací psi</h1>
       <p style={{ color: "var(--muted)" }}>
-        Potvrzení objednávky, změna stavu, naskladnění a opuštěný košík. Bez Resend klíče se e-maily ukládají sem (status{" "}
-        <b>logged</b>). Klíč vyplňte v nastavení.
+        Potvrzení objednávky, změna stavu, naskladnění a opuštěný košík se odesílají přes Resend. Bez klíče se e-maily
+        pouze ukládají sem (status <b>logged</b>) — klíč vyplňte v <Link to="/admin/nastaveni">nastavení</Link> nebo
+        jako Cloudflare secret <code>RESEND_API_KEY</code>.
       </p>
+
+      <div className="export-grid" style={{ marginBottom: 22 }}>
+        <div className="export-card" style={{ gridColumn: "1 / -1" }}>
+          <div className="export-head">
+            <h3>Stav odesílání</h3>
+            <span className={`export-badge ${status?.key_present ? "paid" : "cancelled"}`}>
+              {status ? (status.key_present ? "KLÍČ NASTAVEN" : "KLÍČ CHYBÍ") : "…"}
+            </span>
+          </div>
+          {status ? (
+            <>
+              <p style={{ margin: "6px 0 10px" }}>
+                {status.key_present ? (
+                  <>
+                    Klíč <code>{status.key_masked}</code> je nastaven ({status.key_source === "settings" ? "v nastavení e-shopu" : "jako Cloudflare secret"}).
+                    Odesílatel: <b>{status.from}</b>
+                    {status.from_verified === true && " · doména je v Resend ověřená ✓"}
+                    {status.from_verified === false && " · doména NENÍ v Resend ověřená ✗"}
+                  </>
+                ) : (
+                  "Žádný Resend API klíč zatím není nastavený."
+                )}
+                {status.domains && status.domains.length > 0 && (
+                  <>
+                    {" "}· Ověřené domény v účtu:{" "}
+                    {status.domains.map((d) => `${d.name} (${d.status})`).join(", ")}
+                  </>
+                )}
+                {status.domain_error && <> · Domény se nepodařilo načíst: {status.domain_error}</>}
+              </p>
+              {status.hint && (
+                <p className="mail-hint" style={{ background: "var(--bg-deep)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 12px", fontSize: 13 }}>
+                  {status.hint}
+                </p>
+              )}
+            </>
+          ) : (
+            <p style={{ color: "var(--muted)" }}>Kontroluji stav…</p>
+          )}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
+            <input
+              type="email"
+              placeholder="test@vas-domena.cz"
+              value={testTo}
+              onChange={(e) => setTestTo(e.target.value)}
+              style={{ border: "1px solid var(--line)", borderRadius: 999, padding: "9px 14px", background: "var(--card)", flex: "0 1 260px" }}
+            />
+            <button className="btn-dark btn-sm" type="button" disabled={testing} onClick={() => void sendTest()}>
+              {testing ? "Odesílám…" : "Odeslat testovací e-mail"}
+            </button>
+            <button className="btn-line btn-sm" type="button" onClick={load}>
+              Znovu zkontrolovat
+            </button>
+          </div>
+          {testResult && (
+            <p className="mail-hint" style={{ marginTop: 10, fontSize: 13, borderRadius: 12, padding: "10px 12px", background: testResult.status === "sent" ? "color-mix(in srgb, var(--ok) 10%, var(--card))" : "color-mix(in srgb, var(--danger) 8%, var(--card))", border: `1px solid ${testResult.status === "sent" ? "var(--ok)" : "var(--danger)"}` }}>
+              <b>Výsledek testu: {testResult.status === "sent" ? "odesláno ✓" : testResult.status === "logged" ? "uloženo (log) — klíč chybí" : "chyba"}</b>
+              {testResult.hint ? <> — {testResult.hint}</> : testResult.error ? <> — {testResult.error}</> : null}
+            </p>
+          )}
+        </div>
+      </div>
+
       <h2>Odeslané / zařazené</h2>
       <div className="table-wrap" style={{ marginBottom: 22 }}>
         <table>
