@@ -4745,7 +4745,7 @@ html.lightbox-open body {
 }
 
 /* ============================================================
-   2026 redesign — mobilní Alza styl (spodní menu, domov, katalog)
+   2026 redesign — mobilní styl (spodní menu, domov, katalog)
    ============================================================ */
 
 /* Spodní navigace — pevná lišta na mobilu, pět rovnoměrných položek */
@@ -4830,13 +4830,13 @@ html.lightbox-open body {
   .two.checkout { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
 }
 
-/* ---- Domovská stránka v Alza stylu ---- */
-.alza-home { padding-top: 6px; }
-.alza-search-wrap {
+/* ---- Domovská stránka ---- */
+.shop-home { padding-top: 6px; }
+.home-search-wrap {
   max-width: 720px;
   margin: 0 auto 16px;
 }
-.alza-search {
+.home-search {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -4847,24 +4847,24 @@ html.lightbox-open body {
   box-shadow: 0 2px 10px rgba(28, 25, 21, 0.05);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.alza-search:focus-within {
+.home-search:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
-.alza-search svg { color: var(--muted); flex-shrink: 0; }
-.alza-search input {
+.home-search svg { color: var(--muted); flex-shrink: 0; }
+.home-search input {
   flex: 1; border: 0; background: transparent; outline: none;
   font-size: 16px; color: var(--ink);
 }
-.alza-search input::placeholder { color: #9a9288; }
-.alza-search button {
+.home-search input::placeholder { color: #9a9288; }
+.home-search button {
   border: 0; background: var(--ink); color: #fff;
   border-radius: 10px; padding: 8px 16px;
   font-size: 13px; font-weight: 700;
 }
 
 /* Hero carousel */
-.alza-hero {
+.home-hero {
   position: relative;
   border-radius: 18px;
   overflow: hidden;
@@ -4874,11 +4874,11 @@ html.lightbox-open body {
   margin-bottom: 18px;
   min-height: 220px;
 }
-.alza-hero-track {
+.home-hero-track {
   display: flex;
   transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-.alza-hero-slide {
+.home-hero-slide {
   flex: 0 0 100%;
   position: relative;
   display: grid;
@@ -4889,33 +4889,33 @@ html.lightbox-open body {
   min-height: 240px;
   background: linear-gradient(135deg, #f7f2e8 0%, #efe6d6 100%);
 }
-.alza-hero-slide.slide-accent {
+.home-hero-slide.slide-accent {
   background: linear-gradient(135deg, var(--forest) 0%, var(--forest-2) 100%);
   color: #efe8dc;
 }
-.alza-hero-slide.slide-accent .alza-hero-copy p { color: #cfc4b3; }
-.alza-hero-copy .kicker {
+.home-hero-slide.slide-accent .home-hero-copy p { color: #cfc4b3; }
+.home-hero-copy .kicker {
   display: inline-block;
   font-size: 10px; letter-spacing: 0.16em;
   text-transform: uppercase; font-weight: 800;
   color: var(--accent);
   margin-bottom: 10px;
 }
-.slide-accent .alza-hero-copy .kicker { color: var(--gold); }
-.alza-hero-copy h2 {
+.slide-accent .home-hero-copy .kicker { color: var(--gold); }
+.home-hero-copy h2 {
   font-family: var(--serif);
   font-size: clamp(22px, 3.4vw, 32px);
   line-height: 1.12;
   margin: 0 0 10px;
   letter-spacing: -0.01em;
 }
-.alza-hero-copy p {
+.home-hero-copy p {
   margin: 0 0 18px;
   font-size: 14px;
   color: var(--ink-soft);
   max-width: 30em;
 }
-.alza-hero-cta {
+.home-hero-cta {
   display: inline-flex; align-items: center; gap: 8px;
   background: var(--accent); color: #fff;
   border: 0; border-radius: 12px;
@@ -4923,35 +4923,35 @@ html.lightbox-open body {
   font-size: 14px; font-weight: 700;
   box-shadow: 0 6px 16px rgba(181, 74, 44, 0.28);
 }
-.slide-accent .alza-hero-cta { background: var(--gold); color: var(--ink); box-shadow: 0 6px 16px rgba(196,165,116,0.3); }
-.alza-hero-img {
+.slide-accent .home-hero-cta { background: var(--gold); color: var(--ink); box-shadow: 0 6px 16px rgba(196,165,116,0.3); }
+.home-hero-img {
   position: relative;
   display: grid;
   place-items: center;
 }
-.alza-hero-img img {
+.home-hero-img img {
   width: 100%;
   max-height: 240px;
   object-fit: contain;
   border-radius: 14px;
 }
-.alza-hero-dots {
+.home-hero-dots {
   position: absolute; bottom: 12px; left: 0; right: 0;
   display: flex; gap: 7px; justify-content: center;
 }
-.alza-hero-dots button {
+.home-hero-dots button {
   width: 8px; height: 8px; border-radius: 50%;
   border: 0; padding: 0;
   background: rgba(28, 25, 21, 0.22);
   transition: background 0.2s, width 0.2s;
 }
-.alza-hero-dots button.on {
+.home-hero-dots button.on {
   background: var(--accent);
   width: 22px; border-radius: 99px;
 }
-.slide-accent .alza-hero-dots button { background: rgba(255,255,255,0.35); }
-.slide-accent .alza-hero-dots button.on { background: var(--gold); }
-.alza-hero-nav {
+.slide-accent .home-hero-dots button { background: rgba(255,255,255,0.35); }
+.slide-accent .home-hero-dots button.on { background: var(--gold); }
+.home-hero-nav {
   position: absolute; top: 50%; transform: translateY(-50%);
   width: 38px; height: 38px; border-radius: 50%;
   border: 0; background: rgba(255,255,255,0.9);
@@ -4960,18 +4960,18 @@ html.lightbox-open body {
   font-size: 20px; color: var(--ink);
   opacity: 0; transition: opacity 0.25s;
 }
-.alza-hero:hover .alza-hero-nav { opacity: 1; }
-.alza-hero-nav.prev { left: 10px; }
-.alza-hero-nav.next { right: 10px; }
+.home-hero:hover .home-hero-nav { opacity: 1; }
+.home-hero-nav.prev { left: 10px; }
+.home-hero-nav.next { right: 10px; }
 
 /* Dlaždice zkratek / kategorií (2 sloupce jako na Alze) */
-.alza-tiles {
+.home-tiles {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   margin-bottom: 26px;
 }
-.alza-tile {
+.home-tile {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -4986,51 +4986,51 @@ html.lightbox-open body {
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s;
   min-height: 72px;
 }
-.alza-tile:active { transform: scale(0.97); }
-.alza-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(28,25,21,0.1); border-color: rgba(181,74,44,0.3); }
-.alza-tile-icon {
+.home-tile:active { transform: scale(0.97); }
+.home-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(28,25,21,0.1); border-color: rgba(181,74,44,0.3); }
+.home-tile-icon {
   width: 42px; height: 42px; flex-shrink: 0;
   border-radius: 11px;
   display: grid; place-items: center;
   background: color-mix(in srgb, var(--accent) 12%, #fff);
   color: var(--accent);
 }
-.alza-tile-icon.forest { background: color-mix(in srgb, var(--forest) 12%, #fff); color: var(--forest); }
-.alza-tile-icon.gold { background: color-mix(in srgb, var(--gold) 22%, #fff); color: #8a6b2a; }
-.alza-tile-icon.accent { background: color-mix(in srgb, var(--accent) 14%, #fff); color: var(--accent-dark); }
-.alza-tile b {
+.home-tile-icon.forest { background: color-mix(in srgb, var(--forest) 12%, #fff); color: var(--forest); }
+.home-tile-icon.gold { background: color-mix(in srgb, var(--gold) 22%, #fff); color: #8a6b2a; }
+.home-tile-icon.accent { background: color-mix(in srgb, var(--accent) 14%, #fff); color: var(--accent-dark); }
+.home-tile b {
   display: block;
   font-family: var(--sans);
   font-size: 14.5px;
   font-weight: 700;
   line-height: 1.25;
 }
-.alza-tile small {
+.home-tile small {
   display: block;
   font-size: 12px;
   color: var(--muted);
   margin-top: 2px;
 }
-.alza-tile-img {
+.home-tile-img {
   width: 42px; height: 42px; flex-shrink: 0;
   border-radius: 11px; object-fit: cover;
   background: var(--bg-deep);
 }
 
-.alza-section-head {
+.home-section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin: 4px 2px 14px;
 }
-.alza-section-head h2 {
+.home-section-head h2 {
   font-family: var(--sans);
   font-size: 19px;
   font-weight: 800;
   letter-spacing: -0.01em;
   margin: 0;
 }
-.alza-section-head a {
+.home-section-head a {
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
@@ -5038,47 +5038,47 @@ html.lightbox-open body {
 }
 
 /* Důvěra — proužek ikon */
-.alza-trust {
+.home-trust {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin: 26px 0 8px;
 }
-.alza-trust article {
+.home-trust article {
   background: #fff;
   border: 1px solid rgba(28, 25, 21, 0.07);
   border-radius: 14px;
   padding: 16px 12px;
   text-align: center;
 }
-.alza-trust .alza-tile-icon { margin: 0 auto 8px; width: 40px; height: 40px; }
-.alza-trust b { display: block; font-size: 13px; font-weight: 700; }
-.alza-trust span { font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px; }
+.home-trust .home-tile-icon { margin: 0 auto 8px; width: 40px; height: 40px; }
+.home-trust b { display: block; font-size: 13px; font-weight: 700; }
+.home-trust span { font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px; }
 
-/* ---- Katalog / karty produktů v Alza stylu na mobilu ---- */
+/* ---- Katalog / karty produktů na mobilu ---- */
 @media (max-width: 980px) {
-  .alza-home .grid-products,
-  .alza-catalog .grid-products,
+  .shop-home .grid-products,
+  .shop-catalog .grid-products,
   .pb-products {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 10px;
   }
-  .alza-home .pcard,
-  .alza-catalog .pcard {
+  .shop-home .pcard,
+  .shop-catalog .pcard {
     border-radius: 14px;
     border: 1px solid rgba(28,25,21,0.07);
     box-shadow: 0 1px 3px rgba(28,25,21,0.05);
   }
-  .alza-home .pcard-media,
-  .alza-catalog .pcard-media { aspect-ratio: 1; }
-  .alza-home .pcard-body,
-  .alza-catalog .pcard-body { padding: 10px 10px 12px; gap: 4px; }
-  .alza-home .pcard .cat,
-  .alza-catalog .pcard .cat {
+  .shop-home .pcard-media,
+  .shop-catalog .pcard-media { aspect-ratio: 1; }
+  .shop-home .pcard-body,
+  .shop-catalog .pcard-body { padding: 10px 10px 12px; gap: 4px; }
+  .shop-home .pcard .cat,
+  .shop-catalog .pcard .cat {
     font-size: 10px; letter-spacing: 0.08em;
   }
-  .alza-home .pcard h3,
-  .alza-catalog .pcard h3 {
+  .shop-home .pcard h3,
+  .shop-catalog .pcard h3 {
     font-family: var(--sans);
     font-size: 13.5px;
     font-weight: 600;
@@ -5088,22 +5088,22 @@ html.lightbox-open body {
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .alza-home .pcard .price,
-  .alza-catalog .pcard .price {
+  .shop-home .pcard .price,
+  .shop-catalog .pcard .price {
     font-size: 16px; font-weight: 800;
   }
-  .alza-home .pcard .price small,
-  .alza-catalog .pcard .price small { display: none; }
-  .alza-home .pcard .stars,
-  .alza-catalog .pcard .stars { font-size: 12px; }
-  .alza-home .pcard .stock-ok,
-  .alza-catalog .pcard .stock-ok { font-size: 11.5px; }
-  .alza-home .pcard .stock-low,
-  .alza-catalog .pcard .stock-low { font-size: 11.5px; }
-  .alza-home .pcard .stock-out,
-  .alza-catalog .pcard .stock-out { font-size: 11.5px; }
-  .alza-home .pcard .btn-line,
-  .alza-catalog .pcard .btn-line {
+  .shop-home .pcard .price small,
+  .shop-catalog .pcard .price small { display: none; }
+  .shop-home .pcard .stars,
+  .shop-catalog .pcard .stars { font-size: 12px; }
+  .shop-home .pcard .stock-ok,
+  .shop-catalog .pcard .stock-ok { font-size: 11.5px; }
+  .shop-home .pcard .stock-low,
+  .shop-catalog .pcard .stock-low { font-size: 11.5px; }
+  .shop-home .pcard .stock-out,
+  .shop-catalog .pcard .stock-out { font-size: 11.5px; }
+  .shop-home .pcard .btn-line,
+  .shop-catalog .pcard .btn-line {
     min-height: 36px;
     padding: 8px 10px;
     font-size: 11px;
@@ -5112,22 +5112,22 @@ html.lightbox-open body {
     border-radius: 10px;
     margin-top: 4px;
   }
-  .alza-home .pcard .sale,
-  .alza-catalog .pcard .sale {
+  .shop-home .pcard .sale,
+  .shop-catalog .pcard .sale {
     top: 8px; left: 8px;
     font-size: 10px; padding: 3px 7px;
   }
-  .alza-home .pcard .wish-btn,
-  .alza-catalog .pcard .wish-btn {
+  .shop-home .pcard .wish-btn,
+  .shop-catalog .pcard .wish-btn {
     top: 6px; right: 6px;
     width: 32px; height: 32px;
   }
 }
 
 /* Katalog — hlavička kompaktnější */
-.alza-catalog .crumbs { margin: 14px 0 10px; font-size: 12.5px; }
-.alza-catalog .toolbar { margin-bottom: 14px; }
-.alza-catalog .catalog-title {
+.shop-catalog .crumbs { margin: 14px 0 10px; font-size: 12.5px; }
+.shop-catalog .toolbar { margin-bottom: 14px; }
+.shop-catalog .catalog-title {
   font-family: var(--sans);
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -5135,18 +5135,18 @@ html.lightbox-open body {
 
 /* Na počítači dlaždice 3–4 vedle sebe, mřížka produktů 4 */
 @media (min-width: 981px) {
-  .alza-tiles { grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .alza-home .grid-products { grid-template-columns: repeat(4, 1fr); gap: 16px; }
-  .alza-hero { min-height: 300px; }
-  .alza-hero-slide { min-height: 320px; padding: 40px 48px 48px; }
-  .alza-hero-img img { max-height: 300px; }
+  .home-tiles { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .shop-home .grid-products { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .home-hero { min-height: 300px; }
+  .home-hero-slide { min-height: 320px; padding: 40px 48px 48px; }
+  .home-hero-img img { max-height: 300px; }
   .bottom-nav { display: none !important; }
 }
 @media (min-width: 641px) and (max-width: 980px) {
-  .alza-tiles { grid-template-columns: repeat(3, 1fr); }
+  .home-tiles { grid-template-columns: repeat(3, 1fr); }
 }
 
-/* ---- Doladění Alza redesignu ---- */
+/* ---- Doladění redesignu ---- */
 @media (max-width: 980px) {
   /*
    * Mobilní navigace: primární je spodní lišta (BottomNav).
@@ -5169,33 +5169,33 @@ html.lightbox-open body {
   }
 
   /* Hero carousel — kompaktnější na mobilu */
-  .alza-hero-slide {
+  .home-hero-slide {
     grid-template-columns: 1fr;
     padding: 22px 18px 44px;
     min-height: 260px;
     gap: 8px;
   }
-  .alza-hero-img { order: -1; max-height: 150px; }
-  .alza-hero-img img { max-height: 150px; }
-  .alza-hero-copy { text-align: left; }
-  .alza-hero-copy p { -webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
-  .alza-hero-cta { padding: 10px 18px; font-size: 13px; }
+  .home-hero-img { order: -1; max-height: 150px; }
+  .home-hero-img img { max-height: 150px; }
+  .home-hero-copy { text-align: left; }
+  .home-hero-copy p { -webkit-line-clamp: 3; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .home-hero-cta { padding: 10px 18px; font-size: 13px; }
 
-  .alza-trust { gap: 8px; margin: 22px 0 0; }
-  .alza-trust article { padding: 12px 8px; }
-  .alza-trust b { font-size: 12px; }
-  .alza-trust span { font-size: 10.5px; }
-  .alza-tile { padding: 12px; gap: 10px; min-height: 64px; }
-  .alza-tile b { font-size: 13.5px; }
-  .alza-tile small { font-size: 11px; }
-  .alza-tile-icon { width: 38px; height: 38px; }
-  .alza-tile-img { width: 38px; height: 38px; }
-  .alza-section-head h2 { font-size: 17px; }
+  .home-trust { gap: 8px; margin: 22px 0 0; }
+  .home-trust article { padding: 12px 8px; }
+  .home-trust b { font-size: 12px; }
+  .home-trust span { font-size: 10.5px; }
+  .home-tile { padding: 12px; gap: 10px; min-height: 64px; }
+  .home-tile b { font-size: 13.5px; }
+  .home-tile small { font-size: 11px; }
+  .home-tile-icon { width: 38px; height: 38px; }
+  .home-tile-img { width: 38px; height: 38px; }
+  .home-section-head h2 { font-size: 17px; }
 }
 
 /* Na velmi úzkých displejích dlaždice 2 sloupce */
 @media (max-width: 420px) {
-  .alza-tiles { grid-template-columns: repeat(2, 1fr); }
+  .home-tiles { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ============================================================
@@ -5389,26 +5389,26 @@ html.lightbox-open body {
    Hezčí hero na domovské stránce — vrstvy, sklo, CTA
    ============================================================ */
 
-.alza-hero {
+.home-hero {
   background: linear-gradient(150deg, #fbf7ef 0%, #f2e8d6 100%);
   box-shadow: 0 10px 34px rgba(28, 25, 21, 0.07);
 }
-.alza-hero-track { position: relative; z-index: 1; }
+.home-hero-track { position: relative; z-index: 1; }
 
-.alza-hero-slide {
+.home-hero-slide {
   position: relative;
   overflow: hidden;
   background:
     radial-gradient(760px 340px at 88% -16%, rgba(196, 165, 116, 0.24), transparent 60%),
     linear-gradient(140deg, #fdfaf3 0%, #f3ead9 62%, #ecdfc6 100%);
 }
-.alza-hero-slide.slide-accent {
+.home-hero-slide.slide-accent {
   background:
     radial-gradient(820px 380px at 12% -22%, rgba(196, 165, 116, 0.28), transparent 60%),
     linear-gradient(135deg, var(--forest) 0%, var(--forest-2) 100%);
 }
 /* Dekorativní světelné skvrny uvnitř slidu */
-.alza-hero-slide:not(.slide-accent)::after {
+.home-hero-slide:not(.slide-accent)::after {
   content: "";
   position: absolute;
   width: 46%;
@@ -5421,7 +5421,7 @@ html.lightbox-open body {
   pointer-events: none;
   z-index: 0;
 }
-.alza-hero-slide.slide-accent::after {
+.home-hero-slide.slide-accent::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -5432,9 +5432,9 @@ html.lightbox-open body {
   z-index: 0;
 }
 
-.alza-hero-copy,
-.alza-hero-img { position: relative; z-index: 1; }
-.alza-hero-copy .kicker {
+.home-hero-copy,
+.home-hero-img { position: relative; z-index: 1; }
+.home-hero-copy .kicker {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -5449,7 +5449,7 @@ html.lightbox-open body {
   font-weight: 800;
   margin-bottom: 14px;
 }
-.alza-hero-copy .kicker::before {
+.home-hero-copy .kicker::before {
   content: "";
   width: 7px;
   height: 7px;
@@ -5457,47 +5457,47 @@ html.lightbox-open body {
   background: var(--accent);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
 }
-.slide-accent .alza-hero-copy .kicker {
+.slide-accent .home-hero-copy .kicker {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.16);
   color: var(--gold);
 }
-.slide-accent .alza-hero-copy .kicker::before { background: var(--gold); box-shadow: 0 0 0 4px rgba(196, 165, 116, 0.22); }
+.slide-accent .home-hero-copy .kicker::before { background: var(--gold); box-shadow: 0 0 0 4px rgba(196, 165, 116, 0.22); }
 
-.alza-hero-copy h2 {
+.home-hero-copy h2 {
   font-size: clamp(24px, 3.6vw, 36px);
   text-wrap: balance;
 }
-.alza-hero-copy p { max-width: 32em; }
+.home-hero-copy p { max-width: 32em; }
 
-.alza-hero-cta {
+.home-hero-cta {
   position: relative;
   overflow: hidden;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
-.alza-hero-cta svg { transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.alza-hero-cta:hover svg { transform: translateX(4px); }
-.alza-hero-cta:active { transform: scale(0.97); }
+.home-hero-cta svg { transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.home-hero-cta:hover svg { transform: translateX(4px); }
+.home-hero-cta:active { transform: scale(0.97); }
 
 /* Obrázek — jemný rám s hloubkou */
-.alza-hero-img {
+.home-hero-img {
   position: relative;
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 22px 48px rgba(28, 25, 21, 0.16);
   background: var(--card);
 }
-.alza-hero-img::after {
+.home-hero-img::after {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(28, 25, 21, 0) 62%, rgba(28, 25, 21, 0.12) 100%);
   pointer-events: none;
 }
-.alza-hero-img img { transform: scale(1.01); }
+.home-hero-img img { transform: scale(1.01); }
 
 @media (max-width: 980px) {
-  .alza-hero-img {
+  .home-hero-img {
     border-radius: 14px;
     box-shadow: 0 12px 30px rgba(28, 25, 21, 0.14);
   }
@@ -5840,12 +5840,77 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 @media (min-width: 1440px) {
   .grid-products,
-  .alza-home .grid-products,
-  .alza-catalog .grid-products { grid-template-columns: repeat(5, 1fr); }
+  .shop-home .grid-products,
+  .shop-catalog .grid-products { grid-template-columns: repeat(5, 1fr); }
   .footer-grid { grid-template-columns: 1.6fr 1fr 1fr 1.2fr; }
 }
 @media (min-width: 1760px) {
   .grid-products,
-  .alza-home .grid-products,
-  .alza-catalog .grid-products { grid-template-columns: repeat(6, 1fr); }
+  .shop-home .grid-products,
+  .shop-catalog .grid-products { grid-template-columns: repeat(6, 1fr); }
+}
+
+/* ============================================================
+   Ladění 2026 — přiměřená šířka obsahu a úhledný úvodní carousel
+   (hlavička a patička zůstávají plné, obsah zůstává čitelný)
+   ============================================================ */
+
+/* Obsah domova a katalogu se na širokých monitorech neroztahuje
+   přes celou obrazovku — drží se v pohodlném sloupci uprostřed. */
+.shop-home,
+.shop-catalog {
+  max-width: 1360px;
+}
+
+/* ---- Hero carousel: kompaktní výška, obrázek jako úhledná fotka ---- */
+.home-hero-slide {
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 32px;
+  padding: 36px 44px 48px;
+  min-height: 300px;
+}
+.home-hero-copy h2 { font-size: clamp(24px, 2.5vw, 34px); margin-bottom: 12px; }
+.home-hero-copy p { font-size: 14.5px; margin-bottom: 20px; }
+
+.home-hero-img {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  max-height: 300px;
+  align-self: center;
+  background: var(--bg-deep);
+}
+.home-hero-img img {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+  border-radius: 0;
+  transform: none;
+}
+
+/* ---- Dlaždice zkratek / kategorií — čtyři sloupce, bez roztahování ---- */
+@media (min-width: 981px) {
+  .home-tiles { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+}
+
+/* ---- Důvěra — tři kompaktní karty vystředěné uprostřed ---- */
+.home-trust {
+  grid-template-columns: repeat(3, 1fr);
+  max-width: 900px;
+  margin: 26px auto 8px;
+}
+
+/* ---- Mřížky produktů zůstávají 4 sloupce i na velkých monitorech ---- */
+@media (min-width: 1440px) {
+  .grid-products,
+  .shop-home .grid-products,
+  .shop-catalog .grid-products { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* ---- Mobil: hero obrázek jako široký proužek, dlaždice 2 sloupce ---- */
+@media (max-width: 980px) {
+  .home-hero-slide { padding: 22px 18px 44px; min-height: 260px; gap: 10px; }
+  .home-hero-img { aspect-ratio: 16 / 9; max-height: none; }
+  .home-hero-img img { max-height: none; }
+  .home-trust { max-width: none; margin: 22px 0 0; }
 }

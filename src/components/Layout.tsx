@@ -382,7 +382,7 @@ export function Layout() {
       <CookieBanner />
       <ExitIntent />
 
-      {/* Pevné spodní menu (mobilní styl jako alza.cz) */}
+      {/* Pevné spodní menu */}
       {!hideBottomNav && (
         <BottomNav onSearch={() => setSearchOpen(true)} onMenu={() => setOpen((v) => !v)} />
       )}
