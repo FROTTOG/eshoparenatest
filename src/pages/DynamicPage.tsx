@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Fragment, useEffect, useState } from "react";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { api, type Page } from "../api";
-import { renderBlock, type Block } from "./blocks";
-import { usePageTitle } from "../title";
+import { renderBlock, STATIC_PAGE_SLUGS, type Block } from "./blocks";
+import { useSeo } from "../title";
 
 export function DynamicPage() {
   const { slug } = useParams();
@@ -18,7 +18,15 @@ export function DynamicPage() {
       .catch(() => setErr(true));
   }, [slug]);
 
-  usePageTitle(page ? `${page.title} — KAVKA` : "Stránka — KAVKA");
+  useSeo({
+    title: page ? page.meta_title || `${page.title} — KAVKA` : "Stránka — KAVKA",
+    description: page?.meta_description || undefined,
+    noindex: !!page?.noindex,
+  });
+
+  // Hlavní stránka a systémové stránky mají vlastní adresy.
+  if (slug === "home") return <Navigate to="/" replace />;
+  if (STATIC_PAGE_SLUGS.includes(slug || "")) return <Navigate to={`/${slug}`} replace />;
 
   if (err) {
     return (
@@ -38,13 +46,21 @@ export function DynamicPage() {
     blocks = [];
   }
 
+  const mw = page.page_max_width || "";
   return (
-    <div className="wrap pb-public-page">
-      <div className="crumbs">
-        <Link to="/">Domů</Link> / <span>{page.title}</span>
-      </div>
+    <div
+      className="wrap pb-public-page"
+      style={mw ? { maxWidth: /^\d+$/.test(mw) ? `${mw}px` : mw } : undefined}
+    >
+      {!page.hide_crumbs && (
+        <div className="crumbs">
+          <Link to="/">Domů</Link> / <span>{page.title}</span>
+        </div>
+      )}
       {!blocks.length && <p className="muted-note">Stránka zatím nemá žádný obsah.</p>}
-      {blocks.map((b) => renderBlock(b))}
+      {blocks.map((b) => (
+        <Fragment key={b.id}>{renderBlock(b)}</Fragment>
+      ))}
     </div>
   );
 }

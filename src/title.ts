@@ -30,11 +30,12 @@ function abs(path: string) {
   return `${window.location.origin}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export function useSeo(opts: { title: string; description?: string; image?: string; type?: string }) {
+export function useSeo(opts: { title: string; description?: string; image?: string; type?: string; noindex?: boolean }) {
   const title = opts.title;
   const description = opts.description || DEFAULT_DESC;
   const image = abs(opts.image || DEFAULT_IMAGE);
   const type = opts.type || "website";
+  const noindex = !!opts.noindex;
 
   useEffect(() => {
     const url = `${window.location.origin}${window.location.pathname}`;
@@ -51,8 +52,13 @@ export function useSeo(opts: { title: string; description?: string; image?: stri
     upsertMeta("name", "twitter:title", title);
     upsertMeta("name", "twitter:description", description);
     upsertMeta("name", "twitter:image", image);
+    if (noindex) {
+      upsertMeta("name", "robots", "noindex, nofollow");
+    } else {
+      document.head.querySelector('meta[name="robots"]')?.remove();
+    }
     upsertLink("canonical", url);
-  }, [title, description, image, type]);
+  }, [title, description, image, type, noindex]);
 }
 
 export function usePageTitle(title: string, description?: string) {

@@ -46,7 +46,10 @@
 - **hlídací pes** u vyprodaného zboží
 - **opouštěcí pop-up** se slevou 5 % (`STAY5`)
 - **upsell v košíku** (např. zápalky ke svíčce)
-- **stránky** — drag & drop editor (toolbox s více než 20 bloky: nadpisy, text, obrázky, tlačítka, citáty, FAQ, galerie, video, mapa, HTML…), přidávání/mazání stránek
+- **stránky** — drag & drop editor s **35+ bloky** (nadpisy, text, obrázky, tlačítka, citáty, FAQ, galerie, video, mapa, HTML **a nově**: hero sekce, živé produkty a kategorie z obchodu, ceníky, reference, tým, časová osa, záložky, odpočet, newsletter, tabulky, sociální sítě, soubory ke stažení…), přidávání/mazání stránek, **hledání v toolboxu**, **undo/redo (Ctrl+Z)**, klávesové zkratky (Ctrl+S, Delete)
+- **vzhled každého bloku** — vnitřní okraje, pozadí, barvy, zaoblení, stín, max. šířka, kotvy (#odkazy), animace při scrollu, skrytí na mobilu
+- **editace hlavní stránky a systémových stránek** — v editoru jde upravit i úvodní stránka (`/`), O ateliéru, doprava, obchodní podmínky, GDPR a reklamace; dokud nemají bloky, ukazuje se výchozí obsah, tlačítko „Vložit ukázkové bloky“ sestaví stránku na jedno kliknutí
+- **SEO u každé stránky** — vlastní titulek, meta popisek, noindex, šířka obsahu, skrytí drobenky
 - **navbar a logo** — úprava položek menu, pořadí, vlastní text a SVG loga
 
 ### Faktury a účetnictví
@@ -296,6 +299,10 @@ npx wrangler d1 migrations apply kavka-shop --local
 
 # náhled jako na Pages (doporučeno)
 npm run pages:dev
+
+# kouřové testy editoru stránek (potřebují běžící pages:dev)
+npm run smoke
+npm run smoke:admin
 ```
 
 Čisté `npm run dev` spustí jen Vite. API (`/api`) potřebuje Wrangler (`npm run pages:dev`), jinak košík a přihlášení nepojedou.
