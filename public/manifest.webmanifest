@@ -1,0 +1,20 @@
+{
+  "name": "KAVKA Ateliér — keramika, len a dřevo",
+  "short_name": "KAVKA",
+  "description": "Ručně točená keramika, praný len a dřevo z ateliéru. Doprava Z-BOX, Zásilkovna i Balíkovna.",
+  "lang": "cs",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f3eee4",
+  "theme_color": "#1c1915",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

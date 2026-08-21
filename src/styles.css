@@ -3951,3 +3951,59 @@ tbody tr { transition: background 0.18s var(--ease-out); }
 .info-help-button:hover, .info-help-button:focus-visible { background: var(--accent); color: var(--card); outline: none; }
 .info-help-popover { position: absolute; z-index: 20; top: 26px; left: 0; width: min(310px, calc(100vw - 42px)); display: grid; gap: 5px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink-soft); box-shadow: 0 12px 30px rgb(29 25 20 / 18%); font-size: 12px; line-height: 1.45; font-weight: 400; }
 .info-help-popover b { color: var(--ink); font-size: 13px; }
+
+/* ---- Naposledy zhlédnuté — horizontální proužek karet ---- */
+.recent-strip {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px 4px 14px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.recent-card {
+  flex: 0 0 180px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.recent-card:hover, .recent-card:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+.recent-card img {
+  aspect-ratio: 1;
+  object-fit: cover;
+  width: 100%;
+}
+.recent-card-body {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px 12px;
+}
+.recent-card-body span {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.recent-card-body b {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.recent-card-body small {
+  color: var(--accent);
+  font-weight: 700;
+  margin-top: 2px;
+}
+@media (max-width: 640px) {
+  .recent-card { flex-basis: 150px; }
+}

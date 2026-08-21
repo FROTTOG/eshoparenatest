@@ -13,7 +13,7 @@ import { trackAddToCart, trackViewItem } from "../analytics";
 
 export function ProductPage() {
   const { slug } = useParams();
-  const { user, addToCart, toast, shipping } = useStore();
+  const { user, addToCart, toast, shipping, recent, addRecent } = useStore();
   const [p, setP] = useState<P | null>(null);
   const [related, setRelated] = useState<P[]>([]);
   const [qty, setQty] = useState(1);
@@ -54,6 +54,7 @@ export function ProductPage() {
       const product = await api<P>(`/products/${slug}`, { signal });
       if (signal?.aborted) return;
       setP(product);
+      addRecent(product);
       setStatus("ok");
       trackViewItem(
         { item_id: product.sku, item_name: product.name, price: product.price, item_category: product.category_name },
@@ -167,31 +168,56 @@ export function ProductPage() {
     );
   }
 
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const productUrl = `${origin}/produkt/${p.slug}`;
+  const breadcrumbs = [
+    { name: "Domů", url: `${origin}/` },
+    { name: "Katalog", url: `${origin}/katalog` },
+    ...(p.category_slug
+      ? [{ name: p.category_name || "Kategorie", url: `${origin}/katalog/${p.category_slug}` }]
+      : []),
+    { name: p.name, url: productUrl },
+  ];
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "Product",
-    name: p.name,
-    image: pics,
-    description: p.description,
-    sku: p.sku,
-    brand: { "@type": "Brand", name: "KAVKA" },
-    ...(p.review_count
-      ? {
-          aggregateRating: {
-            "@type": "AggregateRating",
-            ratingValue: p.rating || 0,
-            reviewCount: p.review_count,
-          },
-        }
-      : {}),
-    offers: {
-      "@type": "Offer",
-      priceCurrency: "CZK",
-      price: p.price,
-      availability: p.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      url: typeof window !== "undefined" ? window.location.href : undefined,
-    },
+    "@graph": [
+      {
+        "@type": "Product",
+        name: p.name,
+        image: pics,
+        description: p.description,
+        sku: p.sku,
+        brand: { "@type": "Brand", name: "KAVKA" },
+        ...(p.review_count
+          ? {
+              aggregateRating: {
+                "@type": "AggregateRating",
+                ratingValue: p.rating || 0,
+                reviewCount: p.review_count,
+              },
+            }
+          : {}),
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "CZK",
+          price: p.price,
+          availability: p.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+          url: productUrl,
+        },
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: breadcrumbs.map((b, i) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          name: b.name,
+          item: b.url,
+        })),
+      },
+    ],
   };
+
+  const recentOthers = recent.filter((x) => x.id !== p.id).slice(0, 6);
 
   return (
     <div className="wrap">
@@ -295,6 +321,29 @@ export function ProductPage() {
           </ul>
         </div>
       </div>
+
+      {recentOthers.length > 0 && (
+        <section className="section" style={{ paddingTop: 12 }}>
+          <div className="section-head">
+            <div>
+              <div className="kicker">Zůstalo v paměti</div>
+              <h2>Naposledy jste se dívali</h2>
+            </div>
+          </div>
+          <div className="recent-strip">
+            {recentOthers.map((r) => (
+              <Link key={r.id} to={`/produkt/${r.slug}`} className="recent-card">
+                <img src={optimizedImage(r.image)} alt={r.name} loading="lazy" decoding="async" width={240} height={240} />
+                <div className="recent-card-body">
+                  <span>{r.category_name || "KAVKA"}</span>
+                  <b>{r.name}</b>
+                  <small>{czk(r.price)}</small>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {related.length > 0 && (
         <section className="section" style={{ paddingTop: 12 }}>
