@@ -674,9 +674,9 @@ th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: 
   .stats { grid-template-columns: repeat(2, 1fr); }
   .wrap { width: min(1180px, calc(100% - 28px)); }
 
-  /* ---- Mobilní navigace (hamburger) ---- */
+  /* ---- Mobilní navigace — hamburger už není (spodní lišta) ---- */
   .nav { display: none; }
-  .hamburger { display: grid; width: 44px; height: 44px; }
+  .hamburger { display: none !important; }
   .nav.open {
     display: flex; flex-direction: column;
     position: fixed;
@@ -761,8 +761,8 @@ th { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: 
   .btn, .btn-dark, .btn-line, .ghost { min-height: 44px; }
   .btn-sm { min-height: 38px; }
 
-  /* Lupička pro vyhledávání viditelná na všech mobilních/tabletových šířkách */
-  .mobile-search { display: grid; }
+  /* Lupička v hlavičce skrytá — hledání je ve spodní liště */
+  .mobile-search { display: none !important; }
 }
 
 /* Velmi úzké displeje (iPhone SE a menší) — vše se musí vejít */
@@ -1067,7 +1067,7 @@ select:focus-visible, textarea:focus-visible {
 .footer-contact span { display: flex; align-items: center; gap: 8px; }
 
 .search-overlay {
-  position: fixed; inset: 0; z-index: 55;
+  position: fixed; inset: 0; z-index: 140;
   background: rgba(28, 25, 21, 0.4);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -1150,7 +1150,7 @@ select:focus-visible, textarea:focus-visible {
 .btn-line { display: inline-flex; }
 
 @media (max-width: 640px) {
-  .mobile-search { display: grid; }
+  .mobile-search { display: none !important; }
   .grid-products { grid-template-columns: 1fr; }
   .cats { grid-template-columns: 1fr 1fr; gap: 10px; }
   .cat-card img { height: 110px; }
@@ -2903,8 +2903,11 @@ h1, h2, h3 { line-height: 1.15; }
   top: var(--header-offset, var(--header-h, var(--header)));
   left: 0;
   right: 0;
-  height: calc(100dvh - var(--header-h, var(--header)));
-  z-index: 39;
+  /* Na desktopu se drawer nepoužívá; na mobilu výšku zkrátí media query kvůli BottomNav */
+  bottom: 0;
+  height: auto;
+  /* Pod BottomNav (120), ale nad obsahem — drawer končí nad lištou */
+  z-index: 110;
   display: flex;
   visibility: hidden;
   opacity: 0;
@@ -5065,15 +5068,25 @@ html.lightbox-open body {
 
 /* ---- Doladění Alza redesignu ---- */
 @media (max-width: 980px) {
-  /* Košík a srdíčko v hlavičce jsou duplicitní se spodním menu — schováme je */
-  .header-actions > a[href="/kosik"],
-  .header-actions > a[href="/oblibene"] { display: none !important; }
-  .header-actions .desktop-only { display: none !important; }
+  /*
+   * Mobilní navigace: primární je spodní lišta (BottomNav).
+   * Hlavička drží jen logo + účet (+ admin). Žádný hamburger ani lupička nahoře.
+   * Vyhledávání = 1× overlay ze spodní lišty. Menu = 1× drawer ze spodní lišty.
+   */
+  .header-actions .desktop-only,
+  .header-actions .header-wish,
+  .header-actions .header-cart,
+  .header-actions .mobile-search,
+  .header-actions .hamburger { display: none !important; }
 
-  /* Domovský search — lehčí stín a plná šířka */
-  .alza-search-wrap { margin-bottom: 12px; }
-  .alza-search { padding: 10px 14px; border-radius: 14px; }
-  .alza-search input { font-size: 15px; }
+  /* Mobilní drawer nesmí překrývat spodní lištu */
+  .mobile-nav {
+    height: calc(100dvh - var(--header-h, var(--header)) - 62px - env(safe-area-inset-bottom));
+    bottom: calc(62px + env(safe-area-inset-bottom));
+  }
+  .mobile-nav-panel {
+    padding-bottom: 24px;
+  }
 
   /* Hero carousel — kompaktnější na mobilu */
   .alza-hero-slide {

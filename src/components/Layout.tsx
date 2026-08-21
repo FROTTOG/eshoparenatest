@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "../api";
 import { useStore } from "../store";
-import { IconAdmin, IconArrowUp, IconCart, IconClose, IconCookie, IconHeart, IconMail, IconMenu, IconPhone, IconSearch, IconUser } from "./Icons";
+import { IconAdmin, IconArrowUp, IconCart, IconClose, IconCookie, IconHeart, IconMail, IconPhone, IconUser } from "./Icons";
 import { CookieBanner, openCookieSettings } from "./CookieBanner";
 import { ExitIntent } from "./ExitIntent";
 import { bootTags } from "../analytics";
@@ -182,13 +182,11 @@ export function Layout() {
             ))}
           </nav>
           <div className="header-actions">
+            {/* Desktop: vyhledávání + košík + oblíbené + CTA. Mobil: spodní lišta (BottomNav). */}
             <div className="desktop-only">
               <SearchBox />
             </div>
-            <button type="button" className="icon-btn mobile-search" onClick={() => setSearchOpen(true)} aria-label="Hledat">
-              <IconSearch />
-            </button>
-            <Link to="/oblibene" className="icon-btn" title="Oblíbené" aria-label="Oblíbené">
+            <Link to="/oblibene" className="icon-btn desktop-only header-wish" title="Oblíbené" aria-label="Oblíbené">
               <IconHeart />
               {wishlist.length > 0 && (
                 <span className="badge" key={wishlist.length}>
@@ -204,7 +202,7 @@ export function Layout() {
                 <IconAdmin />
               </Link>
             )}
-            <Link to="/kosik" className="icon-btn" aria-label="Košík">
+            <Link to="/kosik" className="icon-btn desktop-only header-cart" aria-label="Košík">
               <IconCart />
               {(cart?.count || 0) > 0 && (
                 <span className="badge" key={cart?.count}>
@@ -215,14 +213,11 @@ export function Layout() {
             <Link to="/katalog" className="btn btn-sm desktop-only" style={{ marginLeft: 4 }}>
               Nakoupit
             </Link>
-            <button className={`icon-btn hamburger${open ? " is-open" : ""}`} onClick={() => setOpen((v) => !v)} aria-label="Menu" aria-expanded={open} aria-controls="mobilni-menu">
-              {open ? <IconClose /> : <IconMenu />}
-            </button>
           </div>
         </div>
       </header>
 
-      {/* Mobilní menu — vykreslené mimo hlavičku, aby ho neomezoval backdrop-filter */}
+      {/* Mobilní menu — otevírá se jen ze spodní lišty (BottomNav), bez dalšího vyhledávání */}
       <div className={`mobile-nav${open ? " open" : ""}`} id="mobilni-menu" role="dialog" aria-modal="true" aria-label="Menu" aria-hidden={!open}>
         <div className="mobile-nav-panel">
           <div className="mobile-nav-head">
@@ -231,7 +226,6 @@ export function Layout() {
               <IconClose />
             </button>
           </div>
-          <SearchBox variant="mobile" onDone={() => setOpen(false)} />
           <nav className="mobile-nav-links" aria-label="Mobilní navigace">
             {navLinks.map((l, i) => (
               <NavLink key={l.to} to={l.to} end={l.end} onClick={() => setOpen(false)} style={{ animationDelay: `${60 + i * 45}ms` }}>
@@ -241,6 +235,14 @@ export function Layout() {
                 </span>
               </NavLink>
             ))}
+            <NavLink to="/oblibene" onClick={() => setOpen(false)} style={{ animationDelay: `${60 + navLinks.length * 45}ms` }}>
+              <span>Oblíbené{wishlist.length > 0 ? ` (${wishlist.length})` : ""}</span>
+              <span className="mobile-nav-arrow" aria-hidden="true">→</span>
+            </NavLink>
+            <NavLink to={user ? "/ucet" : "/prihlaseni"} onClick={() => setOpen(false)} style={{ animationDelay: `${60 + (navLinks.length + 1) * 45}ms` }}>
+              <span>{user ? "Můj účet" : "Přihlášení"}</span>
+              <span className="mobile-nav-arrow" aria-hidden="true">→</span>
+            </NavLink>
           </nav>
           <div className="mobile-nav-foot">
             <a href={`tel:${phoneHref.replace("tel:", "")}`}>{phone}</a>
