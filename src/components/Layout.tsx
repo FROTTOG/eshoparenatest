@@ -40,6 +40,10 @@ export function Layout() {
     const apply = () => {
       // Skutečná výška hlavičky — na desktopu může menu zabrat dva řádky,
       // proto ji promítneme do --header i --header-h (kotvy, sticky, hero).
+      // Důležité: tato hodnota smí sloužit jen prvkům POD/okolo hlavičky.
+      // Samotná výška hlavičky musí zůstat na pevném --header-min (viz CSS),
+      // jinak by se měřená výška propsala zpět do výšky hlavičky a vznikla
+      // nekonečná smyčka ResizeObserver (hlavička neustále „nabíhala“).
       document.documentElement.style.setProperty("--header", `${el.offsetHeight}px`);
       document.documentElement.style.setProperty("--header-h", `${el.offsetHeight}px`);
       // Kam sahá hlavička od vrchu okna (pod informační lištou), pro mobilní menu
