@@ -167,7 +167,7 @@ export function Layout() {
             <>Doprava po celé ČR</>
           )}
           <span className="announce-sep" aria-hidden="true">·</span>
-          Sleva 10 % na první nákup — kód <b>KAVKA10</b>
+          Sleva 10 % na první nákup pro registrované — kód <b>KAVKA10</b>
         </span>
       </div>
 
@@ -180,6 +180,10 @@ export function Layout() {
                 {l.label}
               </NavLink>
             ))}
+            {/* Účet je v menu — zvlášť jako položka navigace */}
+            <NavLink to={user ? "/ucet" : "/prihlaseni"}>
+              {user ? "Můj účet" : "Přihlášení"}
+            </NavLink>
           </nav>
           <div className="header-actions">
             {/* Desktop: vyhledávání + košík + oblíbené + CTA. Mobil: spodní lišta (BottomNav). */}
@@ -194,9 +198,25 @@ export function Layout() {
                 </span>
               )}
             </Link>
-            <Link to={user ? "/ucet" : "/prihlaseni"} className="icon-btn" title={user ? user.name : "Přihlášení"} aria-label="Účet">
-              <IconUser />
-            </Link>
+            {/* Stav přihlášení nahoře — jméno zákazníka, nebo tlačítko „Přihlásit se“ */}
+            {user ? (
+              <Link to="/ucet" className="user-pill" title={`${user.name} — můj účet`}>
+                <span className="user-pill-avatar" aria-hidden="true">
+                  <IconUser size={16} />
+                </span>
+                <span className="user-pill-body">
+                  <b>{user.name}</b>
+                  <small>
+                    <span className="dot" aria-hidden="true" />
+                    Přihlášen
+                  </small>
+                </span>
+              </Link>
+            ) : (
+              <Link to="/prihlaseni" className="btn btn-sm user-login-btn">
+                Přihlásit se
+              </Link>
+            )}
             {user?.role === "admin" && (
               <Link to="/admin" className="icon-btn" title="Administrace" aria-label="Administrace">
                 <IconAdmin />

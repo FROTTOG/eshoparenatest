@@ -225,8 +225,18 @@ CREATE TABLE IF NOT EXISTS coupons (
   valid_from TEXT,
   valid_to TEXT,
   active INTEGER NOT NULL DEFAULT 1,
-  description TEXT NOT NULL DEFAULT ''
+  description TEXT NOT NULL DEFAULT '',
+  requires_login INTEGER NOT NULL DEFAULT 0,
+  single_use INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  coupon_code TEXT NOT NULL,
+  user_id INTEGER,
+  order_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_user ON coupon_redemptions(coupon_code, user_id);
 CREATE TABLE IF NOT EXISTS shipping_methods (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   code TEXT NOT NULL UNIQUE,
@@ -716,15 +726,16 @@ async function seed(env: Bindings) {
     );
   }
 
+  // KAVKA10 = „sleva na první nákup“: jen pro registrované a jen jednou.
   const coupons = [
-    ["KAVKA10", "percent", 10, 0, 200, "Sleva 10 % na celý nákup"],
-    ["VITEJ150", "fixed", 150, 800, 200, "Sleva 150 Kč od 800 Kč"],
-    ["LEN20", "percent", 20, 1500, 50, "20 % od 1 500 Kč"],
+    ["KAVKA10", "percent", 10, 0, 200, "Sleva 10 % na první nákup (jen pro registrované, jednou)", 1, 1],
+    ["VITEJ150", "fixed", 150, 800, 200, "Sleva 150 Kč od 800 Kč", 0, 0],
+    ["LEN20", "percent", 20, 1500, 50, "20 % od 1 500 Kč", 0, 0],
   ] as const;
   for (const c of coupons) {
     stmts.push(
       db.prepare(
-        "INSERT OR IGNORE INTO coupons (code, type, value, min_order, max_uses, used_count, active, description) VALUES (?, ?, ?, ?, ?, 0, 1, ?)"
+        "INSERT OR IGNORE INTO coupons (code, type, value, min_order, max_uses, used_count, active, description, requires_login, single_use) VALUES (?, ?, ?, ?, ?, 0, 1, ?, ?, ?)"
       ).bind(...c)
     );
   }
@@ -969,6 +980,36 @@ async function prepareDatabase(env: Bindings) {
     } catch {
       /* sloupec už existuje */
     }
+  }
+
+  // Kupóny — „sleva na první nákup“ pro registrované a jen jednou.
+  for (const col of [
+    "ALTER TABLE coupons ADD COLUMN requires_login INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE coupons ADD COLUMN single_use INTEGER NOT NULL DEFAULT 0",
+  ]) {
+    try {
+      await env.DB.prepare(col).run();
+    } catch {
+      /* sloupec už existuje */
+    }
+  }
+  try {
+    await env.DB
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS coupon_redemptions (id INTEGER PRIMARY KEY AUTOINCREMENT, coupon_code TEXT NOT NULL, user_id INTEGER, order_id INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+      )
+      .run();
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_user ON coupon_redemptions(coupon_code, user_id)").run();
+  } catch (err) {
+    console.error("coupon_redemptions schema error:", err);
+  }
+  // Označíme KAVKA10 jako slevu na první nákup (i u dříve vytvořených databází).
+  try {
+    await env.DB
+      .prepare("UPDATE coupons SET requires_login = 1, single_use = 1, description = 'Sleva 10 % na první nákup (jen pro registrované, jednou)' WHERE code = 'KAVKA10'")
+      .run();
+  } catch {
+    /* kupón nemusí existovat */
   }
 
   // Faktury — doplníme i do starších databází.
